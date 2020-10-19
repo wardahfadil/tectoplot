@@ -1,0 +1,9 @@
+/Users/kylebradley/Dropbox/scripts/tectoplot/tectoplot -t GEBCO20 -z -c --open -setvars { SCALEEQS 1 SEISSTRETCH 4 SEISSTRETCH_REFMAG 7 } -o solomonflex -r 160 163 -11 -8 -kml -setvars { KMLRES 720 }
+gmt psxy -Sc0.001i -Gwhite -W0p -X1i -Yc -Ve -K -R160/163/-11/-8 -JX8id
+gmt grdimage /Users/kylebradley/Dropbox/TectoplotData/GEBCO20/GEBCO20_160_163_-11_-8.tif -I+d -t0 -Cgeo -R160/163/-11/-8 -JX8id -O -K -Ve
+gmt psxy -Cgray -W0.25p,black -i0,1,2,3+s1 -Sc -t0 -R160/163/-11/-8 -JX8id -O -K -Ve
+gmt psxy -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -i0,1,2,3+s1 -Sc -t0 -R160/163/-11/-8 -JX8id -O -K -Ve
+gmt psmeca -Egray40 -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -Sc.07i/0 cmt_thrust.txt -L0.25p,black -R160/163/-11/-8 -JX8id -O -K -Ve
+gmt psmeca -Ewhite -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -Sc.07i/0 cmt_normal.txt -L0.25p,black -R160/163/-11/-8 -JX8id -O -K -Ve
+gmt psmeca -Egray80 -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -Sc.07i/0 cmt_strikeslip.txt -L0.25p,black -R160/163/-11/-8 -JX8id -O -K -Ve
+gmt psbasemap -R160/163/-11/-8 -JX8id -O -Ve -Bxa0.2g0.2 -Bya0.2g0.2 -BWESN

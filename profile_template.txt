@@ -1,0 +1,64 @@
+@ auto auto -80 5 /Users/kylebradley/Dropbox/scripts/sumatra_kinematics/sundatrenchsmooth.xy null
+# @ XMIN XMAX ZMIN ZMAX CROSSINGZEROLINE_FILE ZMATCH_FLAG
+# The first line of the file starts with @ and defines the overall parameters of the plot
+# Blank lines are skipped
+
+# Blank lines are skipped
+# All distances are specified using the map distance unit (e.g. k). Any unit other than k has not been tested!
+# If ZMATCH contains 'match' then profiles will be shifted in Z so that Z values at X=0 (after alignment in X direction, if done) will be 0.
+#
+########### Grid, swath profile
+^ /Users/kylebradley/Dropbox/TectoplotData/GEBCO20/GEBCO_2020.nc 0.001 .5k 20k 0.5k
+# ^ GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING
+#
+# Plots swath profiles of grid data, including envelopes for quantiles q0-q100 (min-max) and q25-q75, and plots q50 as a line.
+#
+# SWATH_SUBSAMPLE_DISTANCE = distance between points on the cross-track profiles that build the swath
+# SWATH_WIDTH = maximum distance of swath data from the track line
+# SWATH_D_SPACING = separation of cross-track swath lines
+# These arguments should be specified with units of k
+#
+########### Grid, line segment profile
+: /Users/kylebradley/Dropbox/TectoplotData/SLAB2/Slab2Distribute_Mar2018/sum_slab2_dep_02.23.18.grd -1 5k -W1p+cl -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
+: /Users/kylebradley/Dropbox/TectoplotData/CRUST1/depthtomoho_surf.nc -1 5k -W1p+cl -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
+# : GRIDFILE ZSCALE SAMPLE_SPACING GMT_arguments
+#
+# Plots line segments extracted from grid file, optionally colored using a CPT file.
+#
+########### XYZ data (should flip swath width and zscale order for consistency)
+$ /Users/kylebradley/Dropbox/scripts/sumatra_kinematics/nugraha2016.xyz 150k -1 -Ss0.02i -W0.5p,black  -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
+# $ XYZFILE SWATH_WIDTH ZSCALE GMT_arguments
+#
+# XYZ data are projected onto closest approach of track.
+# ZSCALE transforms the Z values in the data file to profile Z units in the grid file. (e.g. -1000 takes positive km depth to negative meters)
+# GMT_arguments are any number of arguments that will be passed to gmt psxy.
+# By default, symbols are filled using the profile color. A GMT_arugment of -C{CPTFILE} that includes an absolute path a CPT will color by the Z value.
+# The CPT should be in Z units after ZSCALE is applied. This option will override the default -G{color} fill.
+#
+########### XYZ data, scaled seismic (should flip swath width and zscale order for consistency)
+> /Users/kylebradley/Dropbox/TectoplotData/ANSS/all_anss_events_data_lonlatdepthmagdateid.txt 150k -1 -W0.2p,black -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
+# XYZFILE SWATH_WIDTH ZSCALE GMT_arguments
+# Currently breaks if we don't have a -C option?
+# This is the same as XYZ data, but the logic for plotting using -z in tectoplot (SEISSTRETCH, etc) are applied here.
+#
+############ Focal mechanism (CMT) (should flip swath width and zscale order for consistency)
+% /Users/kylebradley/Dropbox/TectoplotData/GCMT/gcmt_isc_origin_psmeca.txt 150k -1 -Sc0.075i -L0.25p,black -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
+# % CMTFILE WIDTH ZSCALE GMT_arguments
+#
+# CMT data are projected orthogonally onto the profile line segments using gmt pscoupe. A GMT_argument of -Z{CPTFILE} will color
+# focal mechanism compressive axes by depth rather than by profile. Profiles with sharp bends may duplicate mechanisms on overlap areas!
+#
+############ Profile track definitions.
+P P3 brown N N 120.1 -12 120.1 -7.5
+P P3 blue N N 118 -12 118 -7.5
+P P2 green N N 116.7 -12 116.7 -7.5
+P P1 red N N 115.2 -12 115.2 -7.5
+# P PROFILE_ID color XOFFSET ZOFFSET LON1 LAT1 ... ... LONN LATN
+#
+# Any line that doesn't begin with #, @, ^, :, or % is interpreted as a profile definition line.
+# Profiles can have any number of points, but complex profiles haven't really been tested!
+# XOFFSET is in km, ZOFFSET is in Z units after scaling by ZSCALE.
+# A value of N for XOFFSET overrides the CROSSINGZEROLINE with a value of 0 (no X shift)
+# A value of N for YOFFSET overrides ZMATCH with a value of 0 (no Z shift)
+#
+# END

@@ -1,0 +1,235 @@
+##### TECTOPLOT
+##### Initialize default variable values. Use bash formatting.
+
+##### Rescaling CPT settings
+# If = 0, use original CPT file limits
+# If = 1, use range within AOI
+
+GRAV_RESCALE=0
+MAG_RESCALE=0
+
+GEOTIFFRES=720
+KMLRES=300
+
+OBLIQUEAZ=135
+OBLIQUEINC=25
+
+SWATHTRANS=50                # Percent transparency for swath profile envelopes
+SWATHLINE_WIDTH=0.25p        # Width of q50 (median) swath line
+
+SPROF_MAXELEV=5            # Maximum elevation of SPROF profile data. Set to a number in km (5) or to auto
+SPROF_MINELEV=-50            # Maximum elevation of SPROF profile data. Set to a number in km (5) or to auto
+
+##### General options
+LEGENDX="0"                  # Offset from left side of page, inches
+LEGEND_WIDTH="2i"            # Width of the legend, inches
+KEEPOPEN=""                  # keep open the PS file at end of script or not
+MARGIN=0.5                   # page margin, inches
+MAXLAT=-4.5                  # default region, Solomon Islands
+MAXLON=162                   # default region, Solomon Islands
+MINLAT=-12                   # default region, Solomon Islands
+MINLON=154                   # default region, Solomon Islands
+OPENPROGRAM="Preview"        # program to call to open PDF file
+PLOTFILE="map.ps"            # name of PS file bearing plot data
+PLOTORIGIN=1                 # Plot the origin locations of focal mechanisms. 1 = origin, 0 = centroid
+PLOTSHIFTX="1i"              # GMT shift of origin, X direction
+PLOTSHIFTY="c"               # GMT shift of origin, Y direction
+PLOTTITLE="BlankMapTitle"    # title (default will be replaced with no title)
+PSSCALE=1                    # fraction of PSSIZE to plot at (1=no scaling)
+PSSIZE=8                     # size of square page, inches
+PSSIZE_DEFAULT=8             # size of square page, inches
+REFPTLAT=-6                  # reference point latitude
+REFPTLON=160                 # reference point longitude
+TMP="tempfiles_to_delete/"   # Temporary directory
+VERBOSE="-Ve"                # verbosity flag
+
+##### Topography
+BATHYCPT=$CPTDIR"topobathy.cpt"
+
+##### Formatting options, general
+ARROWFMT="0.03/0.12/0.06"    # format for velocity arrows, GMT 4 style
+GISLINEWIDTH=black           # GIS line data file, line color
+GISLINECOLOR="0.5p"          # GIS line data file, line width
+GRIDCALL="WESN"              # GMT axes code (-Bxxxx)
+GRIDLINESON=1                # Gridlines on (0=off)
+VELSCALE=0.01                # Scale factor for velocities
+PVHEAD=0.1i                  # Head size for velocity vectors
+PVFORMAT="0.03/0.06/0.06"    # Experimental head size for plate relative V
+
+##### Cities
+CITIES_SYMBOL="s"
+CITIES_SYMBOL_SIZE="0.05i"
+CITIES_SYMBOL_LINEWIDTH="0.25p"
+CITIES_SYMBOL_LINECOLOR="black"
+CITIES_SYMBOL_FILLCOLOR="white"
+CITIES_MINPOP=5000
+CITIES_CPT="gray"
+
+CITIES_LABEL_MINPOP=100000
+CITIES_LABEL_FONTSIZE="8p"
+CITIES_LABEL_FONT="Helvetica"
+CITIES_LABEL_FONTCOLOR="black"
+
+##### Global Curie Depth Map (GCDM)
+GCDMMIN=4                   # Minimum depth of CPT
+GCDMMAX=45                  # Maximum depth of CPT
+
+##### GPS velocities
+
+GPS_LINEWIDTH="0.25p"
+GPS_LINECOLOR="black"
+GPS_FILLCOLOR="red"
+
+EXTRAGPS_LINEWIDTH="0.25p"
+EXTRAGPS_LINECOLOR="black"
+EXTRAGPS_FILLCOLOR="pink"
+
+GPS_ELLIPSE=0.95             # Confidence ellipse
+GPS_ELLIPSE_MODEL=0          # Use for velocities with no error ellipse
+
+##### Coastlines
+COAST_QUALITY="-Da"          # pscoast quality
+FILLCOASTS=""                # pscoast option for filling land areas
+COAST_LINEWIDTH="0.5p"       # pscoast line width
+COAST_LINECOLOR="black"      # pscoast line color
+COAST_KM2="100"              # minimum size (im km^2) of feature
+LANDCOLOR="gray"             # color of land areas
+SEACOLOR="lightblue"         # color of sea areas
+FILLCOASTS=""                # empty by default = don't fill anything
+BORDER_LINEWIDTH="1.3p"      # National border linewidth
+BORDER_LINECOLOR="red"       # National border linecolor
+
+##### Plate motions
+AZDIFFSCALE=0.25             # scale of azimuth difference circles
+GRIDSTEP=0.5                 # grid increment
+PLATEARROW_COLOR="orange"    # differential plate motion arrow, fill
+PLATEARROW_TRANS=40          # differential plate motion arrow, transparency
+PLATELINE_COLOR="black"      # plate edge color
+PLATELINE_WIDTH="1.0p"       # plate edge width
+PLATELINE_TRANS=30           # plate edge transparency
+
+PLATEMODEL="MORVEL"          # plate motion model
+PLATEVEC_COLOR="lightblue"       # plate rotation vector, fill
+PLATEVEC_TRANS=30            # plate rotation vector, transparency
+LATSTEPS=0.5                 # colatitude increment for small circles
+PLATELABEL_COLOR="black"     # color of plate label
+PLATELABEL_SIZE="6p"         # size of plate label
+PLATEVELRES="0.05d"          # resolution of plate velocity grid
+PLATEVEC_TEXT_SIZE="5p"      # plate velocity label size
+PLATEVEC_TEXT_COLOR="white"  # plate velocity label color
+PLATEVEC_TEXT_FONT="Helvetica" # plate velocity font
+PLATEVEC_TEXT_PLOT=1         # If 1, plot text, if not, don't
+
+##### Topography/bathymetry
+BATHYMETRY="SRTM30"          # topo dataset
+TOPOTRANS=0                  # transparency of topography raster
+CONTOUR_INTERVAL=1000        # contour interval
+CONTOUR_LINECOLOR="white"    # contour line color
+CONTOUR_LINEWIDTH="0.2p"     # contour line width
+CONTOUR_MINLEN="100k"        # length of smallest contour plotted
+
+##### Seismicity
+EQCUTMINDEPTH=-1000          # Ignore seismicity and CMT data above this depth
+EQCUTMAXDEPTH=6000           # Ignore seismicity and CMT data below this depth
+REMOVE_DEFAULTDEPTHS=1       # Should we remove events with D=10,5,33,etc
+REMOVE_DEFAULTDEPTHS_WITHPLOT=1   # Should we plot the removed events separately?
+REMOVE_EQUIVS=1              # Should we remove equivalent earthquakes if CMT exists?
+USEANSS_DATABASE=1           # Use a scraped ANSS database instead of downloading
+EQMAXDEPTH_COLORSCALE=100    # maximum earthquake depth
+SEISSIZE="0.05i"             # seismicity scale
+SEISTRANS=0                  # transparency of seismic data
+SCALEEQS=1                   # if 1, use magnitude to scale points in size
+SEISSCALE=1                  # scale multiplying factor taking M -> p
+SEISSYMBOL="c"               # can be any of +-acdghinpstxy
+SEISSTRETCH=3                # exponential factor used to exaggerate size differences
+SEISSTRETCH_REFMAG=6         # earthquakes of this size will not be scaled by sizestretch
+
+# Currently CMTSCALE=0.07 is needed to match the psxy plotting of seismicity?
+
+##### GCMT focal mechanisms
+CMTFORMAT="GlobalCMT"        # Choose from GlobalCMT / MomentTensor/ PrincipalAxes
+#CMTFORMAT="MomentTensor"    # Choose from GlobalCMT / MomentTensor/ PrincipalAxes
+#CMTFORMAT="PrincipalAxes"   # Choose from GlobalCMT / MomentTensor/ PrincipalAxes
+CMTFILE="DefaultNOCMT"       # set to no CMT file by default
+CMTSCALE=0.07                # focal mechanism scale (inches)
+PLOTORIGIN=1                 # plot origin locations (=0: plot centroids)
+CMT_MAXDEPTH=1000            # deepest GCMT earthquake considered
+CMT_NORMALCOLOR="white"      # color of normal mechanism p axis
+CMT_SSCOLOR="gray80"         # color of strike slip mechanism p axis
+CMT_THRUSTCOLOR="gray40"     # color of reverse mechanism p axis
+CMT_MINMAG=0                 # Focal mechanism minimum magnitude considered
+CMT_MAXMAG=10                # Focal mechanism maximum magnitude considered
+CMTAXESSTRING="nts"          # Focal mechanism principal axes, mechanism type string
+CMTAXESTYPESTRING="ptn"      # Focal mechanism principal axes type string
+CMTAXESARROW=0.04i           # Focal mechanism principal axes, arrowhead size
+CMTAXESSCALE=0.75            # Focal mechanism principal axes, general scale factor
+T0PEN="0.1p,black"           # Focal mechanism, nodal planes and bubble pen
+FMLPEN="0p,black"            # Focal mechanism line pen, main
+
+##### GCMT kinematics
+KINSCALE=0.1                 # scale of kinematic elements
+NP1_COLOR="white"            # nodal plane 1 color, kinematics
+NP2_COLOR="black"            # nodal plane 2 color, kinematics
+RAKE1SCALE=0.25              # length of kinematic vector indicating NP 1 rake
+RAKE2SCALE=0.15              # length of kinematic vector indicating NP 2 rake
+
+##### GEM active faults
+AFLINECOLOR=red             # GEM fault map, line color
+AFLINEWIDTH="0.5p"          # GEM fault map, line width
+
+##### Geophysical data sets
+GRAVMODEL="BG"               # gravity model
+GRAVTRANS=0.5                # transparency of gravity data
+MAGMODEL="EMAGV2"            # magnetic model
+MAGTRANS=0.5                 # transparency of magnetic model
+
+##### TDEFNODE
+MINCOUPLING=0.2              # cutoff of coupling value to display, TDEFNODE
+SVBIG=0.1i                   # slip vectors, length, large
+SVBIGW="1p"                  # slip vectors, width, large
+SVSMALL=0.05i                # slip vectors, length, small
+SVSMALLW="0.65p"             # slip vectors, width, small
+SMALLRES=0.02i               # residual velocities, scale
+
+TD_OGPS_LINEWIDTH="0.25p"
+TD_OGPS_LINECOLOR="black"
+TD_OGPS_FILLCOLOR="red"
+
+TD_VGPS_LINEWIDTH="0.25p"
+TD_VGPS_LINECOLOR="black"
+TD_VGPS_FILLCOLOR="white"
+
+TD_RGPS_LINEWIDTH="0.25p"
+TD_RGPS_LINECOLOR="black"
+TD_RGPS_FILLCOLOR="green"
+
+##### TDEFNODE FAULT MIDPOINT VECTORS
+
+SLIP_DIST=2                 # Cutoff distance, in degrees lat/lon
+
+SLIP_LINEWIDTH="0.25p"
+SLIP_LINECOLOR="black"
+SLIP_FILLCOLOR="lightbrown"
+
+SLIP_FONTSIZE="5"
+SLIP_FONT="Helvetica"
+SLIP_FONTCOLOR="brown"
+
+
+##### VOLCANOES
+V_FILL="red"                 # volcano symbol, fill
+V_SIZE="0.075i"               # volcano symbol, size
+V_LINEW="black"              # volcano symbol, edge line color
+
+##### POINT DATA
+POINTSYMBOL="c"
+POINTCOLOR="black"
+POINTSIZE="0.02i"
+POINTLINECOLOR="black"
+POINTLINEWIDTH="0.5p"
+POINTCPT=$CPTDIR"defaultpt.cpt"
+
+### SRCMOD slip distributions
+SLIPMINIMUM=3                # SRCMOD minimum slip that is colored (m)
+SLIPMAXIMUM=25               # SRCMOD maximum slip that is colored (m)
+SLIPCONTOURINTERVAL=2        # SRCMOD contour interval (m)

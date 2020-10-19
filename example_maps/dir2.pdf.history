@@ -1,0 +1,26 @@
+/Users/kylebradley/Dropbox/scripts/tectoplot/tectoplot -t -z -c --open -mprof profile_template_inplace.txt 7i 2i 0 -3i -setvars { SCALEEQS 1 SEISSTRETCH 5 SEISSTRETCH_REFMAG 6 } -o dir2.pdf
+gmt psxy -Sc0.001i -Gwhite -W0p -R154/162/-12/-4.5 -JQ154/7.0i -X1i -Yc -K -Ve
+gmt grdimage /Users/kylebradley/Dropbox/TectoplotData/SRTM30_plus/SRTM30_154_162_-12_-4.5.tif -I+d -t0 -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/topobathy.cpt -R154/162/-12/-4.5 -JQ154/7.0i -O -K -Ve
+gmt grdimage /Users/kylebradley/Dropbox/TectoplotData/SRTM30_plus/SRTM30_154_162_-12_-4.5.tif -I+d -t0 -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/topobathy.cpt -R154/162/-12/-4.5 -JQ154/7.0i -O -K -Ve
+gmt psxy -Cgray -W0.25p,black -i0,1,2,3+s1 -Sc -t0 -R154/162/-12/-4.5 -JQ154/7.0i -O -K -Ve
+gmt psxy -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -i0,1,2,3+s1 -Sc -t0 -R154/162/-12/-4.5 -JQ154/7.0i -O -K -Ve
+gmt psmeca -Egray40 -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -Sc.07i/0 cmt_thrust.txt -L0.25p,black -R154/162/-12/-4.5 -JQ154/7.0i -O -K -Ve
+gmt psmeca -Ewhite -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -Sc.07i/0 cmt_normal.txt -L0.25p,black -R154/162/-12/-4.5 -JQ154/7.0i -O -K -Ve
+gmt psmeca -Egray80 -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -Sc.07i/0 cmt_strikeslip.txt -L0.25p,black -R154/162/-12/-4.5 -JQ154/7.0i -O -K -Ve
+gmt psbasemap -Vn -JX7i/2i -X0 -Y-3i -Bltrb -R-5.97/602.97/-100/5 --MAP_FRAME_PEN=0p,black -K -O
+gmt psxy -Vn -R-5.97/602.97/-100/5 -JX7i/2i -O -K -L P1_ptgrid3_data.txt -W1p+cl -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
+gmt psxy -Vn P1_grid2_profileenvelope.txt -R-5.97/602.97/-100/5 -JX7i/2i -O -K -t30 -Glightgreen
+gmt psxy -Vn -R-5.97/602.97/-100/5 -JX7i/2i -O -K -t30 -Ggreen P1_grid2_profileq13envelope.txt
+gmt psxy -Vn -R-5.97/602.97/-100/5 -JX7i/2i -O -K -t30 -W0.25p P1_grid2_profiledatamedian.txt
+gmt psxy finaldist_P1_4projdist.txt -Ggreen -Ss0.02i -W0.5p,black -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -R-5.97/602.97/-100/5 -JX7i/2i -O -K -Vn
+gmt psxy stretch_finaldist_P1_5projdist.txt -Ggreen -i0,1,2,3+s1 -Sc -W0.2p,black -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -R-5.97/602.97/-100/5 -JX7i/2i -O -K -Ve
+gmt psmeca -Egray40 -Sc.07i/0 -Ggreen -L0.25p,black -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -R-5.97/602.97/-100/5 -JX7i/2i -O -K -Ve
+gmt psmeca -Ewhite -Sc.07i/0 -Ggreen -L0.25p,black -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -R-5.97/602.97/-100/5 -JX7i/2i -O -K -Ve
+gmt psmeca -Egray80 -Sc.07i/0 -Ggreen -L0.25p,black -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -R-5.97/602.97/-100/5 -JX7i/2i -O -K -Ve
+gmt psxy -St0.1i -Gwhite -W0.7p,black -R-5.97/602.97/-100/5 -JX7i/2i -O -K
+gmt psbasemap -Vn '-BtESW+t@;green;P1@;; ' -Baf '-Bx+lDistance (km)' --FONT_TITLE=10p,Helvetica,black --MAP_FRAME_PEN=0.5p,black -R-5.97/602.97/-100/5 -JX7i/2i -O -K
+gmt psxy -Sc0.01i -JX7i/2i -R-5.97/602.97/-100/5 -O -K -X-0 -Y3i -Vn
+gmt psxy -S~D50k/0:+s-0.05i+an -R154/162/-12/-4.5 -JQ154/7.0i -O -K -W1.5p,green
+gmt psxy -R0/7/0/6.5625 -Jx1i -O -K -SK/var/folders/xm/cbbrc5vx5zg506sknnd9drg80000gn/T/GMT_symbol38057 @GMTAPI@-S-I-D-D-T-N-000001 --GMT_HISTORY=false
+gmt psxy buf_poly.txt -W0.5p,red -R154/162/-12/-4.5 -JQ154/7.0i -O -K -Ve
+gmt psbasemap -R154/162/-12/-4.5 -JQ154/7.0i -O -Ve -Bxa1g1 -Bya1g1 -BWESN

@@ -1,0 +1,55 @@
+/Users/kylebradley/Dropbox/scripts/tectoplot/tectoplot -mprof profile_template_inplace.txt 7i 2i 0 -3i -z -c --open
+gmt psxy -Sc0.001i -Gwhite -W0p -R154/162/-12/-4.5 -JQ154/7.0i -X1i -Yc -K -Ve
+gmt psbasemap -Vn -JX7i/2i -X0 -Y-3i -Bltrb -R-100/350/-100/5 --MAP_FRAME_PEN=0p,black -K -O
+gmt psxy -Vn -R-100/350/-100/5 -JX7i/2i -O -K -L P2_ptgrid3_data.txt -W1p+cl -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
+gmt psxy -Vn P2_grid2_profileenvelope.txt -t50 -R-100/350/-100/5 -JX7i/2i -O -K -G127/127/127
+gmt psxy -Vn -R-100/350/-100/5 -JX7i/2i -O -K -t50 -G63/63/63 P2_grid2_profileq13envelope.txt
+gmt psxy -Vn -R-100/350/-100/5 -JX7i/2i -O -K -W0.25p,0/0/0 P2_grid2_profiledatamedian.txt
+gmt psxy stretch_finaldist_P2_4projdist.txt -G0/0/0 -i0,1,2,3+s1 -Sc -W0.2p,black -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -R-100/350/-100/5 -JX7i/2i -O -K -Ve
+gmt psmeca -Egray40 -Sc.07i/0 -G0/0/0 -L0.25p,black -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -R-100/350/-100/5 -JX7i/2i -O -K -Ve
+gmt psmeca -Ewhite -Sc.07i/0 -G0/0/0 -L0.25p,black -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -R-100/350/-100/5 -JX7i/2i -O -K -Ve
+gmt psmeca -Egray80 -Sc.07i/0 -G0/0/0 -L0.25p,black -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -R-100/350/-100/5 -JX7i/2i -O -K -Ve
+gmt psxy -JX7i/2i -R-100/350/-100/5 -K -O -Si0.1i -Ya1.05556i -W0.5p,0/0/0 -G0/0/0
+gmt psxy -JX7i/2i -R-100/350/-100/5 -K -O -Si0.1i -Ya1.05556i -W0.5p,0/0/0
+gmt psxy -Vn -R-100/350/-100/5 -JX7i/2i -O -K -L P1_ptgrid3_data.txt -W1p+cl -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
+gmt psxy -Vn P1_grid2_profileenvelope.txt -t50 -R-100/350/-100/5 -JX7i/2i -O -K -G127/127/127
+gmt psxy -Vn -R-100/350/-100/5 -JX7i/2i -O -K -t50 -G63/63/63 P1_grid2_profileq13envelope.txt
+gmt psxy -Vn -R-100/350/-100/5 -JX7i/2i -O -K -W0.25p,0/0/0 P1_grid2_profiledatamedian.txt
+gmt psxy stretch_finaldist_P1_4projdist.txt -G0/0/0 -i0,1,2,3+s1 -Sc -W0.2p,black -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -R-100/350/-100/5 -JX7i/2i -O -K -Ve
+gmt psmeca -Egray40 -Sc.07i/0 -G0/0/0 -L0.25p,black -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -R-100/350/-100/5 -JX7i/2i -O -K -Ve
+gmt psmeca -Ewhite -Sc.07i/0 -G0/0/0 -L0.25p,black -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -R-100/350/-100/5 -JX7i/2i -O -K -Ve
+gmt psmeca -Egray80 -Sc.07i/0 -G0/0/0 -L0.25p,black -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -R-100/350/-100/5 -JX7i/2i -O -K -Ve
+gmt psxy -JX7i/2i -R-100/350/-100/5 -K -O -Si0.1i -Ya1.05556i -W0.5p,0/0/0 -G0/0/0
+gmt psxy -JX7i/2i -R-100/350/-100/5 -K -O -Si0.1i -Ya1.05556i -W0.5p,0/0/0
+gmt psxy -Vn -R-100/350/-100/5 -JX7i/2i -O -K -L P3_ptgrid3_data.txt -W1p+cl -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
+gmt psxy -Vn P3_grid2_profileenvelope.txt -t50 -R-100/350/-100/5 -JX7i/2i -O -K -G127/127/127
+gmt psxy -Vn -R-100/350/-100/5 -JX7i/2i -O -K -t50 -G63/63/63 P3_grid2_profileq13envelope.txt
+gmt psxy -Vn -R-100/350/-100/5 -JX7i/2i -O -K -W0.25p,0/0/0 P3_grid2_profiledatamedian.txt
+gmt psxy stretch_finaldist_P3_4projdist.txt -G0/0/0 -i0,1,2,3+s1 -Sc -W0.2p,black -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -R-100/350/-100/5 -JX7i/2i -O -K -Ve
+gmt psmeca -Egray40 -Sc.07i/0 -G0/0/0 -L0.25p,black -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -R-100/350/-100/5 -JX7i/2i -O -K -Ve
+gmt psmeca -Ewhite -Sc.07i/0 -G0/0/0 -L0.25p,black -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -R-100/350/-100/5 -JX7i/2i -O -K -Ve
+gmt psmeca -Egray80 -Sc.07i/0 -G0/0/0 -L0.25p,black -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -R-100/350/-100/5 -JX7i/2i -O -K -Ve
+gmt psxy -JX7i/2i -R-100/350/-100/5 -K -O -Si0.1i -Ya1.05556i -W0.5p,0/0/0 -G0/0/0
+gmt psxy -JX7i/2i -R-100/350/-100/5 -K -O -Si0.1i -Ya1.05556i -W0.5p,0/0/0
+gmt psxy -JX7i/2i -R-100/350/-100/5 -K -O -St0.1i -Ya1.05556i -W0.7p,black -Gwhite
+gmt psbasemap -Vn '-BtESW+t@;0/0/0;P2@;; @:8: (-1.9e+02 km (X)) @:: @;0/0/0;P1@;; @:8: (-1.9e+02 km (X)) @:: @;0/0/0;P3@;; @:8: (-60 km (X)) @:: ' -Baf '-Bx+lDistance (km)' --FONT_TITLE=10p,Helvetica,black --MAP_FRAME_PEN=0.5p,black -R-100/350/-100/5 -JX7i/2i -O -K
+gmt psxy -Sc0.01i -JX7i/2i -R-100/350/-100/5 -O -K -X-0 -Y3i -Vn
+gmt psxy -R154/162/-12/-4.5 -JQ154/7.0i -O -K -W1.5p,black
+gmt psxy -Si0.1i -W0.5p,black -Gblack -Si0.1i -R154/162/-12/-4.5 -JQ154/7.0i -O -K
+gmt psxy -Si0.1i -W0.5p,black -Si0.1i -R154/162/-12/-4.5 -JQ154/7.0i -O -K
+gmt psxy -R154/162/-12/-4.5 -JQ154/7.0i -O -K -W1.5p,black
+gmt psxy -Si0.1i -W0.5p,black -Gblack -Si0.1i -R154/162/-12/-4.5 -JQ154/7.0i -O -K
+gmt psxy -Si0.1i -W0.5p,black -Si0.1i -R154/162/-12/-4.5 -JQ154/7.0i -O -K
+gmt psxy -R154/162/-12/-4.5 -JQ154/7.0i -O -K -W1.5p,black
+gmt psxy -Si0.1i -W0.5p,black -Gblack -Si0.1i -R154/162/-12/-4.5 -JQ154/7.0i -O -K
+gmt psxy -Si0.1i -W0.5p,black -Si0.1i -R154/162/-12/-4.5 -JQ154/7.0i -O -K
+gmt psxy end_profile_lines.txt -W0.5p,black -R154/162/-12/-4.5 -JQ154/7.0i -O -K -Ve
+gmt psxy start_profile_lines.txt -W0.5p,black -R154/162/-12/-4.5 -JQ154/7.0i -O -K -Ve
+gmt psxy xy_intersect.txt -W0.5p,black -R154/162/-12/-4.5 -JQ154/7.0i -O -K -Ve
+gmt psxy all_intersect.txt -St0.1i -Gwhite -W0.7p,black -R154/162/-12/-4.5 -JQ154/7.0i -O -K -Ve
+gmt psxy -Cgray -W0.25p,black -i0,1,2,3+s1 -Sc -t0 -R154/162/-12/-4.5 -JQ154/7.0i -O -K -Ve
+gmt psxy -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -i0,1,2,3+s1 -Sc -t0 -R154/162/-12/-4.5 -JQ154/7.0i -O -K -Ve
+gmt psmeca -Egray40 -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -Sc.07i/0 cmt_thrust.txt -L0p,black -R154/162/-12/-4.5 -JQ154/7.0i -O -K -Ve
+gmt psmeca -Ewhite -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -Sc.07i/0 cmt_normal.txt -L0p,black -R154/162/-12/-4.5 -JQ154/7.0i -O -K -Ve
+gmt psmeca -Egray80 -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -Sc.07i/0 cmt_strikeslip.txt -L0p,black -R154/162/-12/-4.5 -JQ154/7.0i -O -K -Ve
+gmt psbasemap -R154/162/-12/-4.5 -JQ154/7.0i -O -Ve -Bxa1g1 -Bya1g1 -BWESN

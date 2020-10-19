@@ -1,0 +1,4 @@
+/Users/kylebradley/Dropbox/scripts/tectoplot/tectoplot -t 15s -tc grayhs.cpt --open
+gmt psxy -Sc0.001i -Gwhite -W0p -R154/162/-12/-4.5 -JQ154/7.0i -X1i -Yc -K -Ve
+gmt grdimage /Users/kylebradley/Dropbox/TectoplotData/EARTHRELIEF/15s_154_162_-12_-4.5.tif -I+d -t0 -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT//grayhs.cpt -R154/162/-12/-4.5 -JQ154/7.0i -O -K -Ve
+gmt psbasemap -R154/162/-12/-4.5 -JQ154/7.0i -O -Ve -Bxa1g1 -Bya1g1 -BWESN

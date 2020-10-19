@@ -1,0 +1,54 @@
+mbp:tempfiles_to_delete kylebradley$ gmt spatial -Q+h ~/Dropbox/GBM/GMTData/block.180_fixed.dat | grep CCW
+> Austrailia_1 -Z3559.01552905 (area) 133.458985626/-33.8603500422 (centroid) CCW
+> Austrailia_2 -Z37.3633744533 (area) -177.17628/-20.9975262743 (centroid) CCW
+> Bering_1 -Z143.137413026 (area) 169.137238095/59.1033242969 (centroid) CCW
+> Bering_2 -Z297.991454974 (area) -162.06205/60.9330405118 (centroid) CCW
+> Aleutian2_1 -Z33.6050717489 (area) 168.9104/54.0968263149 (centroid) CCW
+> Aleutian2_2 -Z18.2662727511 (area) -176.432875/51.3638322341 (centroid) CCW
+> PACIFIC_1 -Z2201.4588306 (area) 154.240206651/11.533962225 (centroid) CCW
+> PACIFIC_2 -Z360.637351124 (area) 167.172493056/-53.3197766143 (centroid) CCW
+> PACIFIC_3 -Z7459.54867227 (area) -126.848293605/-0.240737987987 (centroid) CCW
+> FIJI_1 -Z14.0370376541 (area) 177.085466667/-17.3385805742 (centroid) CCW
+> FIJI_2 -Z2.40705284591 (area) -179.5066/-16.5647668906 (centroid) CCW
+> Kermmadec_1 -Z6.36436736631 (area) 179.152705882/-35.713257722 (centroid) CCW
+> Kermmadec_2 -Z23.0961276337 (area) -177.851536585/-31.1120580799 (centroid) CCW
+kmbp:tempfiles_to_delete kylebradley$ gmt spatial -Q+h ~/Dropbox/GBM/GMTData/block.180_fixed.dat | grep CCW
+kmbp:tempfiles_to_delete kylebradley$ gmt spatial -Q+h ~/Dropbox/Kreemer/kreemer_plate_polygons_fixed.dat | grep CCW
+> BG_1 -Z116.297394384 (area) 170.885049592/58.3102675295 (centroid) CCW
+> BG_2 -Z208.490700591 (area) -168.586139592/57.2564477336 (centroid) CCW
+> AU_1 -Z3421.39230513 (area) 141.370430893/-30.6548327791 (centroid) CCW
+> AU_2 -Z38.5710140696 (area) -177.287113/-20.6930216084 (centroid) CCW
+> NA_1 -Z9409.61463304 (area) -14.2278380485/56.2381016859 (centroid) CCW
+> PM_1 -Z9.420216741 (area) -79.80535/8.70783142857 (centroid) CCW
+> PR_1 -Z4.6220850292 (area) -66.4277228571/18.1547035714 (centroid) CCW
+> VI_1 -Z37.125 (area) 32.9/-2.15454545455 (centroid) CCW
+> RO_1 -Z83.9375 (area) 36.4916666667/-15.075 (centroid) CCW
+> PA_1 -Z357.738661442 (area) 166.568534688/-54.44123375 (centroid) CCW
+> PA_2 -Z7399.98205306 (area) -129.888501008/-7.92555190083 (centroid) CCW
+> PA_3 -Z2010.12542217 (area) 151.020086364/20.7640575325 (centroid) CCW
+kmbp:tempfiles_to_delete kylebradley$ gmt spatial -Q+h ~/Dropbox/Kreemer/kreemer_plate_polygons_fixed.dat | grep CCW
+kmbp:tempfiles_to_delete kylebradley$ gmt spatial -Q+h ~/Dropbox/MORVEL/MorvelPoles.
+MorvelPoles.txt   MorvelPoles.xlsx
+kmbp:tempfiles_to_delete kylebradley$ gmt spatial -Q+h ~/Dropbox/MORVEL/
+.DS_Store         MorvelPoles.txt   MorvelPoles.xlsx
+kmbp:tempfiles_to_delete kylebradley$ gmt spatial -Q+h ~/Dropbox/MORVEL56/
+.DS_Store                                 Argus et al 2011 MORVEL-56 NNR paper.pdf  MORVEL56NNR.txt                           MORVEL56NNR_poles.txt                     MORVEL56Table1.xlsx                       boundaries/
+kmbp:tempfiles_to_delete kylebradley$ gmt spatial -Q+h ~/Dropbox/MORVEL56/boundaries/
+AP                            BU                            KE                            NB                            SB                            an                            in                            pa                            su
+AS                            CL                            MA                            ND                            SL                            ar                            jf                            ps                            sw
+AT                            CR                            MN                            NH                            SS                            au                            lw                            ri                            yz
+All_boundaries                EA                            MO                            NI                            TI                            ca                            mq                            sa
+BH                            FT                            MORVEL56boundaries.gmt        OK                            TO                            co                            na                            sc
+BR                            GP                            MORVEL56boundaries_fixed.dat  ON                            WL                            cp                            nu                            sm
+BS                            JZ                            MS                            PM                            am                            eu                            nz                            sr
+kmbp:tempfiles_to_delete kylebradley$ gmt spatial -Q+h ~/Dropbox/MORVEL56/boundaries/MORVEL56boundaries_fixed.dat | grep CCW
+> au_1 -Z3538.0184742 (area) 144.942397472/-26.04711267 (centroid) CCW
+> au_2 -Z40.5855417992 (area) -177.235628205/-20.7171951413 (centroid) CCW
+> BR_1 -Z16.332244432 (area) 175.864777778/-15.4430139006 (centroid) CCW
+> BR_2 -Z0.0337125679606 (area) -179.913/-15.5084170172 (centroid) CCW
+> KE_1 -Z21.156971522 (area) 177.48565/-38.5761299451 (centroid) CCW
+> KE_2 -Z27.942052978 (area) -177.348909091/-29.3278763237 (centroid) CCW
+> pa_1 -Z384.622097468 (area) 166.486460123/-52.6424272944 (centroid) CCW
+> pa_2 -Z2067.82411502 (area) 156.205467049/9.09331521969 (centroid) CCW
+> pa_3 -Z7493.07911302 (area) -129.327900593/-3.08383774083 (centroid) CCW
+kmbp:tempfiles_to_delete kylebradley$

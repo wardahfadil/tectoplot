@@ -1,0 +1,70 @@
+cat <<-EOF
+Script root directory:
+$TECTOPLOTDIR
+
+CPT storage directory:
+$CPTDIR
+
+Data root directory:
+$DATAROOT
+
+This program currently looks for these programs:
+$NDK2MECA
+$TECTOPLOTDIR/euleradd.awk
+$EULERVEC
+$EULERVECLIST
+$OPENPROGRAM
+$MPROFILESH
+
+This program currently looks for data in the following locations:
+$SRTM30FILE
+$SRTM15FILE
+$GEBCO20FILE
+$GEBCO1FILE
+
+GCMT:
+$GCMTNDK
+$GCMTORIGIN
+$GCMTCENTROID
+
+Kreemer 2014 GPS velocities:
+$GPS
+
+EMAG_V2:
+$EMAG_V2
+$EMAG_V2_CPT
+
+WGM2012:
+$WGMBOUGUER
+$WGMBOUGUER_CPT
+$WGMISOSTATIC
+$WGMISOSTATIC_CPT
+$WGMFREEAIR
+$WGMFREEAIR_CPT
+
+USGS Earthquakes:
+$EQUSGS
+
+Slab2.0:
+$EQSLAB2
+$SLAB2CLIPDIR
+$SLAB2CONTOURDIR
+
+SRCMOD slip data:
+$SRCMODFSPLOCATIONS
+
+Plate models:
+$MORVELPLATES
+$MORVELPOLES
+$KREEMERPLATES
+$KREEMERPOLES
+$GBMPLATES
+$GBMPOLES
+
+Volcanoes:
+$WHELLEYVOLC
+$SMITHVOLC
+
+Global Earthquake Map (GEM) active faults:
+$GEMFAULTS
+EOF

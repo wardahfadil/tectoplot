@@ -1,0 +1,1 @@
+/Users/kylebradley/Dropbox/scripts/tectoplot/tectoplot -r 80 110 -10 30 -p GBM -setvars { PLATELINE_COLOR red } -pgo -c -cw
