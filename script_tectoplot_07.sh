@@ -38,7 +38,9 @@
 # Develop a better description of scaling of map elements (line widths, arrow sizes, etc).
 # 1 point = 1/72 inches = 0.01388888... inches
 
-# DONE
+# DONE/CHANGELOG
+# October 20, 2020: Added -clipdem to save a dem.tif file in the temporary data folder, mainly for in-place profile control 
+# October 19, 2020: Initial git commit at kyleedwardbradley/tectoplot
 # October 10, 2020: Added code to avoid double plotting of XYZ and CMT data on overlapping profiles.
 # The code now projects data only onto the closest profile from the whole collection.
 # DONE: Add a date range option to restrict seismic/CMT data
@@ -210,6 +212,7 @@ GMT control
   -cpts                                                remake default CPT files
   -geotiff                                             output GeoTIFF and .tfw, frame inside
   -kml                                                 output KML, frame inside
+  -clipdem                                             save terrain as a DEM in temporary directory
 
 Plotting/control commands:
   --data                                               list data sources and exit
@@ -679,6 +682,9 @@ do
         ;;
       esac
     fi
+    ;;
+  -clipdem)
+    clipdemflag=1
     ;;
   -cm|--cmtmag) # args: number number
     CMT_MINMAG="${2}"
@@ -2021,6 +2027,12 @@ if [[ $plottopo -eq 1 ]]; then
     esac
 	fi
 	BATHY=$name
+  if [[ $clipdemflag -eq 1 ]]; then
+    if [[ -e $name ]]; then
+      info_msg "-clipdem: saving DEM as dem.tif"
+      cp $name dem.tif
+    fi
+  fi
 fi
 
 if [[ $plotcustomtopo -eq 1 ]]; then
@@ -3266,7 +3278,7 @@ for plot in ${plots[@]} ; do
     mprof)
 
     if [[ $sprofflag -eq 1 ]]; then
-      info_msg "Updating mprof to use sprof.control"
+      info_msg "Updating mprof to use a newly generated sprof.control file"
       PROFILE_WIDTH_IN="7i"
       PROFILE_HEIGHT_IN="2i"
       PROFILE_X="0"

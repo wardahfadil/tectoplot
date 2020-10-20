@@ -8,7 +8,7 @@
 # If ZMATCH contains 'match' then profiles will be shifted in Z so that Z values at X=0 (after alignment in X direction, if done) will be 0.
 #
 ########### Grid, swath profile
-^ /Users/kylebradley/Dropbox/TectoplotData/GEBCO20/GEBCO_2020.nc 0.001 1k 150k 1k
+^ dem.tif 0.001 1k 150k 1k
 # ^ GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING
 #
 # Plots swath profiles of grid data, including envelopes for quantiles q0-q100 (min-max) and q25-q75, and plots q50 as a line.
@@ -57,7 +57,6 @@
 P P2 black 0 N 156 -10 160 -5
 P P1 black 0 N 158 -11 161.5 -7
 P P3 black 0 N 155 -8 157.5 -5
-
 # PROFILE_ID color XOFFSET ZOFFSET LON1 LAT1 ... ... LONN LATN
 #
 # Any line that doesn't begin with #, @, ^, :, or % is interpreted as a profile definition line.
