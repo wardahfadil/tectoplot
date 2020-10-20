@@ -39,7 +39,7 @@
 # 1 point = 1/72 inches = 0.01388888... inches
 
 # DONE/CHANGELOG
-# October 20, 2020: Added -clipdem to save a dem.tif file in the temporary data folder, mainly for in-place profile control 
+# October 20, 2020: Added -clipdem to save a dem.tif file in the temporary data folder, mainly for in-place profile control
 # October 19, 2020: Initial git commit at kyleedwardbradley/tectoplot
 # October 10, 2020: Added code to avoid double plotting of XYZ and CMT data on overlapping profiles.
 # The code now projects data only onto the closest profile from the whole collection.
@@ -2199,36 +2199,45 @@ fi # if [[ $plotslab2eq -eq 1 ]]
 ##########################################################################################
 ##### Calculate style and kinematic vectors from CMT focal mechanisms
 
+# Tectoplot focal mechanism format:
+# 1: code             Code G=GCMT I=ISC
+# 2: lonc             Longitude of centroid (°)
+# 3: latc             Latitude of centroid (°)
+# 4: depth            Depth of centroid (km)
+# 5: strike1          Strike of nodal plane 1
+# 6: dip1             Dip of nodal plane 1
+# 7: rake1            Rake of nodal plane 1
+# 8: strike2          Strike of nodal plane 2
+# 9: dip2             Dip of nodal plane 2
+# 10: rake2            Rake of nodal plane 2
+# 11: mantissa        Mantissa of M0
+# 12: exponent        Exponent of M0
+# 13: lon             Longitude of catalog origin (°)
+# 14: lat             Latitude of catalog origin (°)
+# 15: depth           Depth of catalog origin (km)
+# 16: newid           tectoplot ID code: YYYY-MM-DDTHH:MM:SS
+# 17: TAz             Azimuth of T axis
+# 18: TInc            Inclination of T axis
+# 19: Naz             Azimuth of N axis
+# 20: Ninc            Inclination of N axis
+# 21: Paz             Azimuth of P axis
+# 22: Pinc            Inclination of P axis
+# 23: Mrr             Moment tensor
+# 24: Mtt             Moment tensor
+# 25: Mpp             Moment tensor
+# 26: Mrt             Moment tensor
+# 27: Mrp             Moment tensor
+# 28: Mtp             Moment tensor
+# 29: MW              MW converted from M0 using M_{\mathrm {w} }={\frac {2}{3}}\log _{10}(M_{0})-10.7
+
+
+
 if [[ $calccmtflag -eq 1 ]]; then
   [[ $CMTFILE == "DefaultNOCMT" ]] && CMTFILE=$ISC_GCMT_ORIGIN && CMTTYPE="GCMT_ISC_ORIGIN"
 
   [[ $CMTFORMAT =~ "GlobalCMT" ]] && CMTLETTER="c"
   [[ $CMTFORMAT =~ "MomentTensor" ]] && CMTLETTER="m"
   [[ $CMTFORMAT =~ "PrincipalAxes" ]] && CMTLETTER="y"
-
-	# We want to plot CMTs using catalog origin locations
-	# if [[ -e $GCMTORIGIN ]]; then
-	# 	info_msg "GCMT focal mechanisms already extracted and converted to origin locations"
-	# else
-	# 	info_msg "Extracting GCMT focal mechanisms from NDK to PSMECA format, 14 fields, origin locations"
-	# 	gawk -E $NDK2MECA_AWK $GCMTNDK > $GCMTCENTROIDTXT
-	# 	echo "# lonc latc depth str1 dip1 rake1 str2 dip2 rake2 MA ME lon lat ID" > $GCMTORIGIN
-	# 	# first case should always fail with output from ndk2meca.
-	# 	cat $GCMTCENTROIDTXT | awk '{ if ($12 < 0) print $12, $13, $3, $4, $5, $6, $7, $8, $9, $10, $11, $1, $2, $14; else if ($12 > 180) print $12-360, $13, $3, $4, $5, $6, $7, $8, $9, $10, $11, $1-360, $2, $14; else print $12, $13, $3, $4, $5, $6, $7, $8, $9, $10, $11, $1, $2, $14}' >> $GCMTORIGIN
-	# fi
-  #
-	# if [[ -e $GCMTCENTROID ]]; then
-	# 	info_msg "GCMT focal mechanisms already extracted and converted to centroid locations"
-	# else
-	# 	info_msg "Extracting GCMT focal mechanisms from NDK to PSMECA format, 14 fields, centroid locations"
-	# 	gawk -E $NDK2MECA_AWK $GCMTNDK > $GCMTCENTROIDTXT
-	# 	echo "# lonc latc depth str1 dip1 rake1 str2 dip2 rake2 MA ME lon lat ID" > $GCMTCENTROID
-	# 	# first case should always fail with output from ndk2meca.
-	# 	cat $GCMTCENTROIDTXT | awk '{ if ($12 < 0) print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14; else if ($12 > 180) print $1-360, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12-360, $13, $14; else print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14}' >> $GCMTCENTROID
-	# fi
-
-  # filter CMT using CMT_MINMAG and CMT_MAXMAG, and AOI
-  # Updated for input CMT in psmeca 29, currently outputs only for psmeca -Sc (2 nodal plane SDR) convention
 
   case $CMTTYPE in
     GCMT_ORIGIN)
@@ -2256,13 +2265,14 @@ if [[ $calccmtflag -eq 1 ]]; then
   esac
 
   # This abomination of a command is because the CMT file's first field is an origin/type code and
-  # I don't know how to use gmt select to print the full record based on the second and third columns.
+  # I don't know how to use gmt select to print the full record based only on the second and third columns.
   if [[ $polygonselectflag -eq 1 ]]; then
     info_msg "Selecting focal mechanisms within AOI polygon ${POLYGONAOI}"
     awk < $CMTFILE '{ for (i=2; i<=NF; i++) { printf "%s ", $(i) } print $1;}' | gmt select -F${POLYGONAOI} ${VERBOSE} | tr '\t' ' ' | awk '{ printf "%s", $(NF); for (i=1; i<=NF-1; i++) { printf " %s", $(i) } printf "\n";}' > cmt_aoiselect.dat
     CMTFILE=$(echo "$(cd "$(dirname "cmt_aoiselect.dat")"; pwd)/$(basename "cmt_aoiselect.dat")")
   fi
 
+  info_msg "Selecting focal mechanisms and kinematic mechanisms within map AOI"
 
   awk < $CMTFILE -v kminmag="${KIN_MINMAG}" -v kmaxmag="${KIN_MAXMAG}" -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH}  -v minmag="${CMT_MINMAG}" -v maxmag="${CMT_MAXMAG}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '{
     mw=$28
@@ -2274,6 +2284,8 @@ if [[ $calccmtflag -eq 1 ]]; then
     }
   }'
 
+  # Select CMT data between start and end times
+
   if [[ $timeselectflag -eq 1 ]]; then
     info_msg "Selecting focal mechanisms between ${STARTTIME} and ${ENDTIME}"
     echo "X X X X X X X X X X X X X X ${STARTTIME} REMOVESTART" >> cmt_orig.dat
@@ -2283,19 +2295,20 @@ if [[ $calccmtflag -eq 1 ]]; then
     echo "Seismic/CMT [${STARTTIME}-${ENDTIME}]" >> $THISDIR/tectoplot.shortsources
   fi
 
-
-
   CMTRESCALE=$(echo "$CMTSCALE * $SEISSCALE " | bc -l)  # * $SEISSCALE
 
-  # Rescale CMT magnitudes to match rescaled seismicity, if option is set
+  # Rescale CMT magnitudes to match rescaled seismicity, if that option is set
+  # This function assumed that the CMT file included the seconds in the last field
+
   if [[ $SCALEEQS -eq 1 ]]; then
-      awk < cmt_orig.dat -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
-          mw=$28
-          mwmod = (mw^str)/(sref^(str-1))
-          a=sprintf("%E", 10^((mwmod + 10.7)*3/2))
-          split(a,b,"+")
-          split(a,c,"E")
-          print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, c[1], b[2], $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29
+    info_msg "Scaling CMT earthquake magnitudes for display only"
+    awk < cmt_orig.dat -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
+      mw=$28
+      mwmod = (mw^str)/(sref^(str-1))
+      a=sprintf("%E", 10^((mwmod + 10.7)*3/2))
+      split(a,b,"+")
+      split(a,c,"E")
+      print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, c[1], b[2], $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30
     }' > cmt_scale.dat
   else
     cp cmt_orig.dat cmt_scale.dat

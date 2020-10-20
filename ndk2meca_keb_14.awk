@@ -3,14 +3,39 @@
 #
 # Modified by Kyle Bradley, Asian School of the Environment, NTU, Singapore, August 2020
 #
-# gawk script to read new Global (Harvard) CMT moment tensor solutions
-# in the new "ndk" format
+# gawk script to read new Global (Harvard) CMT moment tensor solutions in the new "ndk" format
 #
 # gawk ndk2meca_keb_14.awk jan76_dec05.ndk
 #
-# lonc, latc, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, newX, newY,
-# newid, TAz, TInc, Naz, Ninc, Paz, Pinc, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, MW
-#
+# This script outputs 28 fields separated by spaces:
+# 1: lonc             Longitude of centroid (°)
+# 2: latc             Latitude of centroid (°)
+# 3: depth            Depth of centroid (km)
+# 4: strike1          Strike of nodal plane 1
+# 5: dip1             Dip of nodal plane 1
+# 6: rake1            Rake of nodal plane 1
+# 7: strike2          Strike of nodal plane 2
+# 8: dip2             Dip of nodal plane 2
+# 9: rake2            Rake of nodal plane 2
+# 10: mantissa        Mantissa of M0
+# 11: exponent        Exponent of M0
+# 12: lon             Longitude of catalog origin (°)
+# 13: lat             Latitude of catalog origin (°)
+# 14: depth           Depth of catalog origin (km)
+# 15: newid           tectoplot ID code: YYYY-MM-DDTHH:MM:SS
+# 16: TAz             Azimuth of T axis
+# 17: TInc            Inclination of T axis
+# 18: Naz             Azimuth of N axis
+# 19: Ninc            Inclination of N axis
+# 20: Paz             Azimuth of P axis
+# 21: Pinc            Inclination of P axis
+# 22: Mrr             Moment tensor
+# 23: Mtt             Moment tensor
+# 24: Mpp             Moment tensor
+# 25: Mrt             Moment tensor
+# 26: Mrp             Moment tensor
+# 27: Mtp             Moment tensor
+# 28: MW              MW converted from M0 using M_{\mathrm {w} }={\frac {2}{3}}\log _{10}(M_{0})-10.7
 #
 
 
@@ -164,15 +189,15 @@ BEGIN{
       mw = 2/3*(log(scalar_moment*10**(exponent))*0.4342944819032518)-10.7;
 
 #
-# OUTPUT OF EVENT. This format outputs the centroid location in columns 1 and 2, and the origin in 12 and 15
+# OUTPUT OF EVENT. This format outputs the centroid location in columns 1 and 2, and the origin in 12 and 13
 #
 # (c) Focal mechanisms in CMT convention for best double couple
-#             lonc, latc, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, newX, newY,
+#             lonc, latc, depthc, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, lon, lat, dep,
 #             newid, TAz, TInc, Naz, Ninc, Paz, Pinc, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, mw
 #             with moment in 2 columns : mantissa and exponent corresponding to seismic moment in dynes-cm
 
-	     printf("%f %f %i %i %i %i %i %i %i %f %f %f %f %s %i %i %i %i %i %i %0.3g %0.3g %0.3g %0.3g %0.3g %0.3g %0.2g\n", lonc, latc, depc, strike[1],dip[1], rake[1], strike[2],
-	      	      dip[2], rake[2], scalar_moment, exponent, lon, lat, newid, e_strike[1], e_plunge[1],  e_strike[2], e_plunge[2],  e_strike[3], e_plunge[3],
+	     printf("%f %f %0.1f %i %i %i %i %i %i %f %f %f %f %0.1f %s %i %i %i %i %i %i %0.3g %0.3g %0.3g %0.3g %0.3g %0.3g %0.2g\n", lonc, latc, depc, strike[1],dip[1], rake[1], strike[2],
+	      	      dip[2], rake[2], scalar_moment, exponent, lon, lat, dep, newid, e_strike[1], e_plunge[1],  e_strike[2], e_plunge[2],  e_strike[3], e_plunge[3],
                 m[1], m[2], m[3], m[4], m[5], m[6], mw);
 
       #

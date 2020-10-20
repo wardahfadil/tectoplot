@@ -16,45 +16,39 @@ DODOWNLOAD=1
 # EX, T_VAL, T_PL, T_AZM, P_VAL, P_PL, P_AZM, N_VAL, N_PL, N_AZM
 #
 
-# CURRENT FOCAL MECH DATABASE FORMAT IS
-# Code, 6, 5, 7
-# 20, 21, 22, 23, 24, 25
-# ?, ?
-# 6, 5, newid
-# 29, 28, 35, 34, 32, 31
-# 14, 15, 16, 17, 19, 18
-# 12, Seconds
-#
-# # Translates to
-# 1     2    3    4      5   6   7   8   9   10  11        12        13   14   15     16   17   18   19   20   21   22   23   24   25   26   27   28  29
-# Code, Lon, Lat, Depth, S1, D1, R1, S2, D2, R2, Mantissa, Exponent, Lon, Lat, NewID, TAz, Tpl, Naz, Npl, Paz, Ppl, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, Mw, Seconds
+# Tectoplot format: (first 15 fields are psmeca format)
+# 1: code             Code G=GCMT I=ISC
+# 2: lon              Longitude (°)
+# 3: lat              Latitude (°)
+# 4: depth            Depth (km)
+# 5: strike1          Strike of nodal plane 1
+# 6: dip1             Dip of nodal plane 1
+# 7: rake1            Rake of nodal plane 1
+# 8: strike2          Strike of nodal plane 2
+# 9: dip2             Dip of nodal plane 2
+# 10: rake2            Rake of nodal plane 2
+# 11: mantissa        Mantissa of M0
+# 12: exponent        Exponent of M0
+# 13: lonalt          Longitude alternative (col1=origin, col13=centroid etc) (°)
+# 14: latalt          Longitude alternative (col1=origin, col13=centroid etc) (°)
+# 15: newid           tectoplot ID code: YYYY-MM-DDTHH:MM:SS
+# 16: TAz             Azimuth of T axis
+# 17: TInc            Inclination of T axis
+# 18: Naz             Azimuth of N axis
+# 19: Ninc            Inclination of N axis
+# 20: Paz             Azimuth of P axis
+# 21: Pinc            Inclination of P axis
+# 22: Mrr             Moment tensor
+# 23: Mtt             Moment tensor
+# 24: Mpp             Moment tensor
+# 25: Mrt             Moment tensor
+# 26: Mrp             Moment tensor
+# 27: Mtp             Moment tensor
+# 28: MW              MW converted from M0 using M_{\mathrm {w} }={\frac {2}{3}}\log _{10}(M_{0})-10.7
+# 29: depthalt        Depth alternative (col1=origin, col13=centroid etc) (km)
+# (30: seconds)       Epoch time in seconds after scrape_isc_focals_expand.sh is run
 
-
-# GCMT FORMAT
-# 1          , 2          , 3    ,
-# loncentroid, latcentroid, depth,
-#
-# 4      , 5   , 6    , 7      , 8   , 9    ,
-# strike1, dip1, rake1, strike2, dip2, rake2,
-#
-# 10      , 11      ,
-# mantissa, exponent,
-#
-# 12       , 13       , 14   ,
-# lonorigin, latorigin, newid,
-#
-# 15 , 16  , 17 , 18  , 19 , 20  ,
-# TAz, TInc, Naz, Ninc, Paz, Pinc,
-#
-# 21 , 22 , 23 , 24 , 25 , 26 , 27
-# Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, MW
-#
-# newid is in the format yyyy-mm-ddThh:mm:ss
-#
-#
-#
-
-ISC_FOCALS_DIR="/Users/kylebradley/Dropbox/TectoplotData/ISC/monthly_focals/"
+ISC_FOCALS_DIR="/Users/kylebradley/Dropbox/TectoplotData/ISC/"
 GCMT_DIR="/Users/kylebradley/Dropbox/TectoplotData/GCMT/"
 
 [[ ! -d $ISC_FOCALS_DIR ]] && mkdir -p $ISC_FOCALS_DIR
@@ -119,7 +113,7 @@ if [[ $DODOWNLOAD -eq 1 ]]; then
 
   # Remove GCMT mechanisms and events with centroid locations, output to psmeca I+14+13 format
   sed -f replacebackward.cat isc_focals_allyears_trim_withstrike_rep1.cat | awk -F, '{if ($2 !~ /GCMT/ && $8 !~ /TRUE/) print}' >  isc_focals_allyears_trim_withstrike_rep1_nogcmt_origin.cat
-  awk < isc_focals_allyears_trim_withstrike_rep1_nogcmt_origin.cat -F, '{print "I", $6+0, $5+0, $7+0, $20+0, $21+0, $22+0, $23+0, $24+0, $25+0, $36+0, $37+0, $6+0, $5+0, sprintf("%sT%s", $3, substr($4, 1, 8)), $29+0, $28+0, $35+0, $34+0, $32+0, $31+0, $14+0, $15+0, $16+0, $17+0, $19+0, $18+0, $12+0 }' | grep -v 9999999999 > isc_nogcmt_origin.txt
+  awk < isc_focals_allyears_trim_withstrike_rep1_nogcmt_origin.cat -F, '{print "I", $6+0, $5+0, $7+0, $20+0, $21+0, $22+0, $23+0, $24+0, $25+0, $36+0, $37+0, $6+0, $5+0, sprintf("%sT%s", $3, substr($4, 1, 8)), $29+0, $28+0, $35+0, $34+0, $32+0, $31+0, $14+0, $15+0, $16+0, $17+0, $19+0, $18+0, $12+0, $7+0 }' | grep -v 9999999999 > isc_nogcmt_origin.txt
 
 
   # Code 6, 5, 7
@@ -132,7 +126,7 @@ if [[ $DODOWNLOAD -eq 1 ]]; then
 
   # Keep only non-GCMT ISC centroid locations, output to psmeca I+14+13 format
   sed -f replacebackward.cat isc_focals_allyears_trim_withstrike_rep1.cat | awk -F, '{if ($2 !~ /GCMT/ && $8 ~ /TRUE/) print}' >  isc_focals_allyears_trim_withstrike_rep1_nogcmt_centroid.cat
-  awk < isc_focals_allyears_trim_withstrike_rep1_nogcmt_centroid.cat -F, '{print "I", $6+0, $5+0, $7+0, $20+0, $21+0, $22+0, $23+0, $24+0, $25+0, $36+0, $37+0, $6+0, $5+0, sprintf("%sT%s", $3, substr($4, 1, 8)), $29+0, $28+0, $35+0, $34+0, $32+0, $31+0, $14+0, $15+0, $16+0, $17+0, $19+0, $18+0, $12+0 }' | grep -v 9999999999 > isc_nogcmt_centroid.txt
+  awk < isc_focals_allyears_trim_withstrike_rep1_nogcmt_centroid.cat -F, '{print "I", $6+0, $5+0, $7+0, $20+0, $21+0, $22+0, $23+0, $24+0, $25+0, $36+0, $37+0, $6+0, $5+0, sprintf("%sT%s", $3, substr($4, 1, 8)), $29+0, $28+0, $35+0, $34+0, $32+0, $31+0, $14+0, $15+0, $16+0, $17+0, $19+0, $18+0, $12+0, $7+0 }' | grep -v 9999999999 > isc_nogcmt_centroid.txt
 fi
 
 # Currently, GCMT mechanisms not reported in the ISC catalog have their non-GCMT equivalents from ISC added to the mixed archive.
@@ -142,7 +136,9 @@ fi
 # Sort by ID (time)
 # For adjacent events, if the times are similar enough (within X seconds) and close enough (within Y degrees lat/lon), remove only the non-G event.
 
-if [[ -d $GCMT_DIR && -e $GCMT_DIR/gcmt_origin.txt && -e $GCMT_DIR/gcmt_centroid.txt ]]; then
+if [[ -d $GCMT_DIR && -e $GCMT_DIR/gcmt_origin_init.txt && -e $GCMT_DIR/gcmt_centroid_init.txt ]]; then
+
+# ISC data have 29 fields so plus one = 30
 
   awk < isc_nogcmt_origin.txt '{
     split($15, a, "-")
@@ -175,7 +171,9 @@ if [[ -d $GCMT_DIR && -e $GCMT_DIR/gcmt_origin.txt && -e $GCMT_DIR/gcmt_centroid
     print $0, secs
   }' > I_isc_nogcmt_centroid.txt
 
-  awk < ${GCMT_DIR}gcmt_origin.txt '{
+# GCMT data have 29 fields so plus one = 30
+
+  awk < ${GCMT_DIR}gcmt_origin_init.txt '{
     split($15, a, "-")
     year=a[1]
     month=a[2]
@@ -190,7 +188,7 @@ if [[ -d $GCMT_DIR && -e $GCMT_DIR/gcmt_origin.txt && -e $GCMT_DIR/gcmt_centroid
     print $0, secs
   }' > ${GCMT_DIR}G_gcmt_origin.txt
 
-  awk < ${GCMT_DIR}gcmt_centroid.txt '{
+  awk < ${GCMT_DIR}gcmt_centroid_init.txt '{
     split($15, a, "-")
     year=a[1]
     month=a[2]
@@ -204,11 +202,10 @@ if [[ -d $GCMT_DIR && -e $GCMT_DIR/gcmt_origin.txt && -e $GCMT_DIR/gcmt_centroid
     secs = mktime(the_time);
     print $0, secs
   }' > ${GCMT_DIR}G_gcmt_centroid.txt
-
 fi
 
-cat ${GCMT_DIR}G_gcmt_origin.txt I_isc_nogcmt_origin.txt | sort -n -k 29 > IG_gcmt_isc_origin.txt
-cat ${GCMT_DIR}G_gcmt_centroid.txt I_isc_nogcmt_centroid.txt | sort -n -k 29 > IG_gcmt_isc_centroid.txt
+cat ${GCMT_DIR}G_gcmt_origin.txt I_isc_nogcmt_origin.txt | sort -n -k 30 > IG_gcmt_isc_origin.txt
+cat ${GCMT_DIR}G_gcmt_centroid.txt I_isc_nogcmt_centroid.txt | sort -n -k 30 > IG_gcmt_isc_centroid.txt
 
 sed '1d'  IG_gcmt_isc_origin.txt > IG_gcmt_isc_origin_cut1.txt
 sed '1d'  IG_gcmt_isc_origin_cut1.txt > IG_gcmt_isc_origin_cut2.txt
@@ -216,7 +213,10 @@ sed '1d'  IG_gcmt_isc_origin_cut1.txt > IG_gcmt_isc_origin_cut2.txt
 sed '1d'  IG_gcmt_isc_centroid.txt > IG_gcmt_isc_centroid_cut1.txt
 sed '1d'  IG_gcmt_isc_centroid_cut1.txt > IG_gcmt_isc_centroid_cut2.txt
 
-paste IG_gcmt_isc_origin.txt IG_gcmt_isc_origin_cut1.txt IG_gcmt_isc_origin_cut2.txt > 3comp_origin.txt
+echo "Removing events closer than 0.2 (M7-) and 1.5 (M7+) degrees lat/lon AND within 5 (M7+) or 30 (M7-) seconds of each other"
+
+
+paste -d ' ' IG_gcmt_isc_origin.txt IG_gcmt_isc_origin_cut1.txt IG_gcmt_isc_origin_cut2.txt > 3comp_origin.txt
 
 #
 #          [Mrr Mrt Mrp]   [ M[1] M[4] M[5] ]
@@ -228,6 +228,100 @@ paste IG_gcmt_isc_origin.txt IG_gcmt_isc_origin_cut1.txt IG_gcmt_isc_origin_cut2
 #    [Mrp Mtp Mpp] [ P[3] ]        [ P[3] ]
 
 # We want to remove from A any A event that is close to a C event
+
+# Tectoplot format:
+# 1: code             Code G=GCMT I=ISC
+# 2: lonc             Longitude of centroid (°)
+# 3: latc             Latitude of centroid (°)
+# 4: depth            Depth of centroid (km)
+# 5: strike1          Strike of nodal plane 1
+# 6: dip1             Dip of nodal plane 1
+# 7: rake1            Rake of nodal plane 1
+# 8: strike2          Strike of nodal plane 2
+# 9: dip2             Dip of nodal plane 2
+# 10: rake2            Rake of nodal plane 2
+# 11: mantissa        Mantissa of M0
+# 12: exponent        Exponent of M0
+# 13: lon             Longitude of catalog origin (°)
+# 14: lat             Latitude of catalog origin (°)
+# 15: newid           tectoplot ID code: YYYY-MM-DDTHH:MM:SS
+# 16: TAz             Azimuth of T axis
+# 17: TInc            Inclination of T axis
+# 18: Naz             Azimuth of N axis
+# 19: Ninc            Inclination of N axis
+# 20: Paz             Azimuth of P axis
+# 21: Pinc            Inclination of P axis
+# 22: Mrr             Moment tensor
+# 23: Mtt             Moment tensor
+# 24: Mpp             Moment tensor
+# 25: Mrt             Moment tensor
+# 26: Mrp             Moment tensor
+# 27: Mtp             Moment tensor
+# 28: MW              MW converted from M0 using M_{\mathrm {w} }={\frac {2}{3}}\log _{10}(M_{0})-10.7
+# 29: depth           Depth of catalog origin (km)
+# 30: seconds
+# 31: code             Code G=GCMT I=ISC
+# 32: lonc             Longitude of centroid (°)
+# 33: latc             Latitude of centroid (°)
+# 34: depth            Depth of centroid (km)
+# 35: strike1          Strike of nodal plane 1
+# 36: dip1             Dip of nodal plane 1
+# 37: rake1            Rake of nodal plane 1
+# 38: strike2          Strike of nodal plane 2
+# 39: dip2             Dip of nodal plane 2
+# 40: rake2            Rake of nodal plane 2
+# 41: mantissa        Mantissa of M0
+# 42: exponent        Exponent of M0
+# 43: lon             Longitude of catalog origin (°)
+# 44: lat             Latitude of catalog origin (°)
+# 45: newid           tectoplot ID code: YYYY-MM-DDTHH:MM:SS
+# 46: TAz             Azimuth of T axis
+# 47: TInc            Inclination of T axis
+# 48: Naz             Azimuth of N axis
+# 49: Ninc            Inclination of N axis
+# 50: Paz             Azimuth of P axis
+# 51: Pinc            Inclination of P axis
+# 52: Mrr             Moment tensor
+# 53: Mtt             Moment tensor
+# 54: Mpp             Moment tensor
+# 55: Mrt             Moment tensor
+# 56: Mrp             Moment tensor
+# 57: Mtp             Moment tensor
+# 58: MW              MW converted from M0 using M_{\mathrm {w} }={\frac {2}{3}}\log _{10}(M_{0})-10.7
+# 59: depth           Depth of catalog origin (km)
+# 60: seconds
+# 61: code             Code G=GCMT I=ISC
+# 62: lonc             Longitude of centroid (°)
+# 63: latc             Latitude of centroid (°)
+# 64: depth            Depth of centroid (km)
+# 65: strike1          Strike of nodal plane 1
+# 66: dip1             Dip of nodal plane 1
+# 67: rake1            Rake of nodal plane 1
+# 68: strike2          Strike of nodal plane 2
+# 69: dip2             Dip of nodal plane 2
+# 70: rake2            Rake of nodal plane 2
+# 71: mantissa        Mantissa of M0
+# 72: exponent        Exponent of M0
+# 73: lon             Longitude of catalog origin (°)
+# 74: lat             Latitude of catalog origin (°)
+# 75: newid           tectoplot ID code: YYYY-MM-DDTHH:MM:SS
+# 76: TAz             Azimuth of T axis
+# 77: TInc            Inclination of T axis
+# 78: Naz             Azimuth of N axis
+# 79: Ninc            Inclination of N axis
+# 80: Paz             Azimuth of P axis
+# 81: Pinc            Inclination of P axis
+# 82: Mrr             Moment tensor
+# 83: Mtt             Moment tensor
+# 84: Mpp             Moment tensor
+# 85: Mrt             Moment tensor
+# 86: Mrp             Moment tensor
+# 87: Mtp             Moment tensor
+# 88: MW              MW converted from M0 using M_{\mathrm {w} }={\frac {2}{3}}\log _{10}(M_{0})-10.7
+# 89: depth           Depth of catalog origin (km)
+# 90: seconds
+
+
 awk < 3comp_origin.txt '
 function abs(v) {return v < 0 ? -v : v}
 function atan(x) { return atan2(x,1) }
@@ -235,33 +329,52 @@ function asin(x) { return atan2(x, sqrt(1-x*x)) }
 function rad2deg(Rad){ return ( 45.0/atan(1.0) ) * Rad }
 BEGIN { pi=atan2(0,-1) }
 {
-  if ($30 == "I") { # Only potentially do not print ISC events that might be GCMT repeats
+  ID1=$1
+  ID2=$31
+  ID3=$61
+  MAG1=$28
+  MAG2=$58
+  MAG3=$88
+
+  SECDIFF12=$60-$30
+  LONDIFF12=abs($32-$2)
+  LATDIFF12=abs($33-$3)
+  SECDIFF23=$90-$60
+  LONDIFF23=abs($62-$32)
+  LATDIFF23=abs($63-$33)
+
+  S1=$35
+  D1=$36
+  R1=$37
+
+  if (ID2 == "I") { # Only potentially do not print ISC events that might be GCMT repeats
     printme = 1
     # Large magnitude events can have farther apart origins (1.5 degrees) if their times are quite similar
-    if ($57>7) {
-      if ($1 == "G" && $58-$29 < 5 && abs($31-$2) < 1.5 && abs($32-$3) < 1.5) {
+    if (MAG2>7) {
+      if (ID1 == "G" && SECDIFF12 < 5 && LONDIFF12 < 1.5 && LATDIFF12 < 1.5) {
         printme=0
       }
-      if ($59 == "G" && $87-$58 < 5 && abs($60-$31) < 1.5 && abs($61-$32) < 1.5) {
+      if (ID2 == "G" && SECDIFF23 < 5 && abs($60-$31) < 1.5 && abs($61-$32) < 1.5) {
           printme = 0
       }
     } else {  # Smaller events have larger time differences but smaller distance windows
-      if ($1 == "G" && $58-$29 < 30 && abs($31-$2) < 0.2 && abs($32-$3) < 0.2) {
+      if (ID1 == "G" && SECDIFF12 < 30 && LONDIFF12 < 0.2 && LATDIFF12 < 0.2) {
         printme = 0
       }
-      if ($59 == "G" && $87-$58 < 30 && abs($60-$31) < 0.2 && abs($61-$32) < 0.2) {
+      if (ID3 == "G" && SECDIFF23 < 30 && LONDIFF23 < 0.2 && LATDIFF23 < 0.2) {
         printme = 0
       }
     }
   } else {
     printme = 1
   }
-  if ($30 && printme == 1) {
+
+  if (ID2 && printme == 1) {
      # Calculate moment tensor from strike/dip/rake of NP1, if it is zero
-     if ($51 == 0 && $52 == 0 && $53 == 0 && $54 == 0 && $55 == 0 && $56 == 0) {
-       strike=pi/180*$34
-       dip=pi/180*$35
-       rake=pi/180*$36
+     if ($53==0 && $54==0 && $55==0 && $56==0 && $57==0 && $58==0) {
+       strike=pi/180*S1
+       dip=pi/180*D1
+       rake=pi/180*R1
        M0=$40*(10^$41)
        M[1]=M0*sin(2*dip)*sin(rake)
        M[2]=-M0*(sin(dip)*cos(rake)*sin(2*strike)+sin(2*dip)*sin(rake)*sin(strike)*sin(strike))
@@ -276,18 +389,18 @@ BEGIN { pi=atan2(0,-1) }
          maxscale=scale>maxscale?scale:maxscale
        }
 
-       $51=M[1]/10^maxscale
-       $52=M[2]/10^maxscale
-       $53=M[3]/10^maxscale
-       $54=M[4]/10^maxscale
-       $55=M[5]/10^maxscale
-       $56=M[6]/10^maxscale
+       $53=M[1]/10^maxscale
+       $54=M[2]/10^maxscale
+       $55=M[3]/10^maxscale
+       $56=M[4]/10^maxscale
+       $57=M[5]/10^maxscale
+       $58=M[6]/10^maxscale
      }
      # Calculate T/N/P axes from NP1 strike/dip/rake, if the axes values in the file are 0.
-     if ($45 == 0 && $47 == 0 && $49 == 0) {
-       strike=pi/180*$34
-       dip=pi/180*$35
-       rake=pi/180*$36
+     if ($46 == 0 && $48 == 0 && $50 == 0) {
+       strike=pi/180*S1
+       dip=pi/180*D1
+       rake=pi/180*R1
 
        # l is the slick vector
        l[1]=sin(strike)*cos(rake)-cos(strike)*cos(dip)*sin(rake)
@@ -340,16 +453,16 @@ BEGIN { pi=atan2(0,-1) }
        }
        # printf "% 0.2f % 0.2f % 0.2f % 0.2f % 0.2f % 0.2f\n", Paz, Pinc, Taz, Tinc, Baz, Binc
        # TAz, TInc, Naz, Ninc, Paz, Pinc,
-       $45=Taz
-       $46=Tinc
-       $47=Baz
-       $48=Binc
-       $49=Paz
-       $50=Pinc
+       $46=Taz
+       $47=Tinc
+       $48=Baz
+       $49=Binc
+       $50=Paz
+       $51=Pinc
      } else {
-       Tinc=$46
-       Binc=$48
-       Pinc=$50
+       Tinc=$47
+       Binc=$49
+       Pinc=$51
      }
 
 # Calculate the focal mechanism type (N,R,T) and append it to the ID CODE:
@@ -364,17 +477,17 @@ BEGIN { pi=atan2(0,-1) }
       class="T"
     }
 
-    printf "%s%s", $30, class
-    for(i=31; i<=58; ++i) {
+    printf "%s%s", ID1, class
+    for(i=32; i<=60; ++i) {
       printf " %s", $(i)
     }
     printf("\n")
   }
+
 }' > ${GCMT_DIR}gcmt_isc_origin.txt
 
-paste IG_gcmt_isc_centroid.txt IG_gcmt_isc_centroid_cut1.txt IG_gcmt_isc_centroid_cut2.txt > 3comp_centroid.txt
+paste -d ' ' IG_gcmt_isc_centroid.txt IG_gcmt_isc_centroid_cut1.txt IG_gcmt_isc_centroid_cut2.txt > 3comp_centroid.txt
 
-echo "Removing events closer than 0.2 degrees lat/lon AND within 30 seconds of each other"
 awk < 3comp_centroid.txt '
 function abs(v) {return v < 0 ? -v : v}
 function atan(x) { return atan2(x,1) }
@@ -382,33 +495,52 @@ function asin(x) { return atan2(x, sqrt(1-x*x)) }
 function rad2deg(Rad){ return ( 45.0/atan(1.0) ) * Rad }
 BEGIN { pi=atan2(0,-1) }
 {
-  if ($30 == "I") { # Only potentially do not print ISC events that might be GCMT repeats
+  ID1=$1
+  ID2=$31
+  ID3=$61
+  MAG1=$28
+  MAG2=$58
+  MAG3=$88
+
+  SECDIFF12=$60-$30
+  LONDIFF12=abs($32-$2)
+  LATDIFF12=abs($33-$3)
+  SECDIFF23=$90-$60
+  LONDIFF23=abs($62-$32)
+  LATDIFF23=abs($63-$33)
+
+  S1=$35
+  D1=$36
+  R1=$37
+
+  if (ID2 == "I") { # Only potentially do not print ISC events that might be GCMT repeats
     printme = 1
     # Large magnitude events can have farther apart origins (1.5 degrees) if their times are quite similar
-    if ($57>7) {
-      if ($1 == "G" && $58-$29 < 5 && abs($31-$2) < 1.5 && abs($32-$3) < 1.5) {
+    if (MAG2>7) {
+      if (ID1 == "G" && SECDIFF12 < 5 && LONDIFF12 < 1.5 && LATDIFF12 < 1.5) {
         printme=0
       }
-      if ($59 == "G" && $87-$58 < 5 && abs($60-$31) < 1.5 && abs($61-$32) < 1.5) {
+      if (ID2 == "G" && SECDIFF23 < 5 && abs($60-$31) < 1.5 && abs($61-$32) < 1.5) {
           printme = 0
       }
     } else {  # Smaller events have larger time differences but smaller distance windows
-      if ($1 == "G" && $58-$29 < 30 && abs($31-$2) < 0.2 && abs($32-$3) < 0.2) {
+      if (ID1 == "G" && SECDIFF12 < 30 && LONDIFF12 < 0.2 && LATDIFF12 < 0.2) {
         printme = 0
       }
-      if ($59 == "G" && $87-$58 < 30 && abs($60-$31) < 0.2 && abs($61-$32) < 0.2) {
+      if (ID3 == "G" && SECDIFF23 < 30 && LONDIFF23 < 0.2 && LATDIFF23 < 0.2) {
         printme = 0
       }
     }
   } else {
     printme = 1
   }
-  if ($30 && printme == 1) {
+
+  if (ID2 && printme == 1) {
      # Calculate moment tensor from strike/dip/rake of NP1, if it is zero
-     if ($51 == 0 && $52 == 0 && $53 == 0 && $54 == 0 && $55 == 0 && $56 == 0) {
-       strike=pi/180*$34
-       dip=pi/180*$35
-       rake=pi/180*$36
+     if ($53==0 && $54==0 && $55==0 && $56==0 && $57==0 && $58==0) {
+       strike=pi/180*S1
+       dip=pi/180*D1
+       rake=pi/180*R1
        M0=$40*(10^$41)
        M[1]=M0*sin(2*dip)*sin(rake)
        M[2]=-M0*(sin(dip)*cos(rake)*sin(2*strike)+sin(2*dip)*sin(rake)*sin(strike)*sin(strike))
@@ -423,18 +555,18 @@ BEGIN { pi=atan2(0,-1) }
          maxscale=scale>maxscale?scale:maxscale
        }
 
-       $51=M[1]/10^maxscale
-       $52=M[2]/10^maxscale
-       $53=M[3]/10^maxscale
-       $54=M[4]/10^maxscale
-       $55=M[5]/10^maxscale
-       $56=M[6]/10^maxscale
+       $53=M[1]/10^maxscale
+       $54=M[2]/10^maxscale
+       $55=M[3]/10^maxscale
+       $56=M[4]/10^maxscale
+       $57=M[5]/10^maxscale
+       $58=M[6]/10^maxscale
      }
      # Calculate T/N/P axes from NP1 strike/dip/rake, if the axes values in the file are 0.
-     if ($45 == 0 && $47 == 0 && $49 == 0) {
-       strike=pi/180*$34
-       dip=pi/180*$35
-       rake=pi/180*$36
+     if ($46 == 0 && $48 == 0 && $50 == 0) {
+       strike=pi/180*S1
+       dip=pi/180*D1
+       rake=pi/180*R1
 
        # l is the slick vector
        l[1]=sin(strike)*cos(rake)-cos(strike)*cos(dip)*sin(rake)
@@ -487,16 +619,16 @@ BEGIN { pi=atan2(0,-1) }
        }
        # printf "% 0.2f % 0.2f % 0.2f % 0.2f % 0.2f % 0.2f\n", Paz, Pinc, Taz, Tinc, Baz, Binc
        # TAz, TInc, Naz, Ninc, Paz, Pinc,
-       $45=Taz
-       $46=Tinc
-       $47=Baz
-       $48=Binc
-       $49=Paz
-       $50=Pinc
+       $46=Taz
+       $47=Tinc
+       $48=Baz
+       $49=Binc
+       $50=Paz
+       $51=Pinc
      } else {
-       Tinc=$46
-       Binc=$48
-       Pinc=$50
+       Tinc=$47
+       Binc=$49
+       Pinc=$51
      }
 
 # Calculate the focal mechanism type (N,R,T) and append it to the ID CODE:
@@ -511,13 +643,15 @@ BEGIN { pi=atan2(0,-1) }
       class="T"
     }
 
-    printf "%s%s", $30, class
-    for(i=31; i<=58; ++i) {
+    printf "%s%s", ID1, class
+    for(i=32; i<=60; ++i) {
       printf " %s", $(i)
     }
     printf("\n")
   }
-}' > ${GCMT_DIR}gcmt_isc_centroid.txt
+}'  > ${GCMT_DIR}gcmt_isc_centroid.txt
+
+# Output files have 30 fields including final seconds field
 
 pre_c=$(wc -l < IG_gcmt_isc_centroid.txt)
 post_c=$(wc -l < ${GCMT_DIR}gcmt_isc_centroid.txt)
@@ -526,5 +660,56 @@ post_o=$(wc -l < ${GCMT_DIR}gcmt_isc_origin.txt)
 echo "Wrote combined ISC/GCMT origin/centroid datasets:"
 echo "${GCMT_DIR}gcmt_isc_origin.txt (Before=$pre_o, After=$post_o)"
 echo "${GCMT_DIR}gcmt_isc_centroid.txt (Before=$pre_c, After=$post_c)"
+
+echo "Calculating mechanism type for GCMT"
+# Calculate the mechanism type for GCMT
+
+awk < ${GCMT_DIR}G_gcmt_origin.txt '{
+# Calculate the focal mechanism type (N,R,T) and append it to the ID CODE:
+# e.g. IN = ISC/Normal  GT = GCMT/Thrust IS = ISC/StrikeSlip
+# Following the classification scheme of FMC; Jose-Alvarez, 2019 https://github.com/Jose-Alvarez/FMC
+    Pinc=$21
+    Tinc=$17
+    Ninc=$19
+    ID1=$1
+
+    if (Pinc >= Binc && Pinc >= Tinc) {
+      class="N"
+    } else if (Binc >= Pinc && Binc >= Tinc) {
+      class="S"
+    } else {
+      class="T"
+    }
+
+    printf "%s%s", ID1, class
+    for(i=2; i<=30; ++i) {
+      printf " %s", $(i)
+    }
+    printf("\n")
+  }' > ${GCMT_DIR}gcmt_origin.txt
+
+awk < ${GCMT_DIR}G_gcmt_centroid.txt '{
+# Calculate the focal mechanism type (N,R,T) and append it to the ID CODE:
+# e.g. IN = ISC/Normal  GT = GCMT/Thrust IS = ISC/StrikeSlip
+# Following the classification scheme of FMC; Jose-Alvarez, 2019 https://github.com/Jose-Alvarez/FMC
+    Pinc=$21
+    Tinc=$17
+    Ninc=$19
+    ID1=$1
+
+    if (Pinc >= Binc && Pinc >= Tinc) {
+      class="N"
+    } else if (Binc >= Pinc && Binc >= Tinc) {
+      class="S"
+    } else {
+      class="T"
+    }
+
+    printf "%s%s", ID1, class
+    for(i=2; i<=30; ++i) {
+      printf " %s", $(i)
+    }
+    printf("\n")
+  }' > ${GCMT_DIR}gcmt_centroid.txt
 
 # rm -f *.cat I_* IG_*

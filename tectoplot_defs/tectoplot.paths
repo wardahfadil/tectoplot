@@ -62,8 +62,8 @@ ISC_SHORT_SOURCESTRING="ISC"
 GCMTORIGIN=$DATAROOT"GCMT/gcmt_origin.txt"
 GCMTCENTROID=$DATAROOT"GCMT/gcmt_centroid.txt"
 
-ISC_ORIGIN=$DATAROOT"ISC/monthly_focals/isc_nogcmt_origin.txt"
-ISC_CENTROID=$DATAROOT"ISC/monthly_focals/isc_nogcmt_centroid.txt"
+ISC_ORIGIN=$DATAROOT"ISC/isc_nogcmt_origin.txt"
+ISC_CENTROID=$DATAROOT"ISC/isc_nogcmt_centroid.txt"
 
 ISC_GCMT_ORIGIN=$DATAROOT"GCMT/gcmt_isc_origin.txt"
 ISC_GCMT_CENTROID=$DATAROOT"GCMT/gcmt_isc_centroid.txt"
