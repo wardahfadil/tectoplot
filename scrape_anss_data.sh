@@ -1,13 +1,17 @@
 #!/bin/bash
+# Kyle Bradley, NTU, kbradley@ntu.edu.sg, 2020
 
 # Download the entire global ANSS event catalog and store in semi-monthly data files, then process into a single smaller database file.
-# All data files are downloaded into the current folder. The total download size is currently ~650 Mb (2020) and takes hours.
+# All data files are downloaded into the current folder. The total download size is currently ~650 Mb (2020) and takes some time.
+
+# Output files: ${ANSS_DIR}all_anss_events_data_lonlatdepthmagdateid.txt
+
 # Most of the download time is the pull request, but making larger chunks leads to some failures due to number of events.
 # The script can be run multiple times and will not re-download files that already exist.
 # However, corrupted files or other responses from the catalog that aren't data will not be automatically deleted!
 
+# Example curl command:
 # curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-${day}&endtime=${year}-${month}-${day}&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180"
-#
 
 ANSS_DIR="/Users/kylebradley/Dropbox/TectoplotData/ANSS/"
 
@@ -35,6 +39,7 @@ for year in $(seq $earliest_year $this_year); do
       [[ ! -e anss_events_${year}_${month}_3.dat ]] && echo "Dowloading seismicity for ${year}-${month}-21to31" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-21&endtime=${year}-${month}-31&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_3.dat
     fi
 
+    # Currently the file size for no events is 160 bytes
     fsize=$(wc -c < anss_events_${year}_${month}_1.dat)
     if [[ -e anss_events_${year}_${month}_1.dat && $fsize -eq 160 ]]; then
       echo "anss_events_${year}_${month}_1.dat is empty"

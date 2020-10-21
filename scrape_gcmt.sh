@@ -1,10 +1,13 @@
 #!/bin/bash
+# Kyle Bradley, NTU, kbradley@ntu.edu.sg, 2020
 
-# Outputs 29 field GCMT data in origin and centroid coordinates for files extracted from GCMT by ndk2meca_keb_14.sh: space separated fields
+# This script will download GCMT data in ndk format and produce an initial earthquake catalogs for origin/centroid.
+# These catalogs will be modified by scrape_isc_focals_expand.sh to and final GCMT catalogs will be made.
 
-# Data will be modified by scrape_isc_focals_expand.sh to include seconds field at end
+# Outputs 29 space separated fields using ndk2meca_keb_14.sh (which is modified from ndk2meca.sh from Thorsten Becker)
+# Note that currently ndk2meca_keb_14.sh outputs the alternative depth as field 14 and we change that to field 29 here
 
-# Tectoplot format:
+# Tectoplot CMT format:
 # 1: code             Code G=GCMT I=ISC
 # 2: lon              Longitude (°)
 # 3: lat              Latitude (°)
@@ -36,8 +39,6 @@
 # 29: depthalt        Depth alternative (col1=origin, col13=centroid etc) (km)
 # (30: seconds)       Epoch time in seconds after scrape_isc_focals_expand.sh is run
 
-# Download GCMT focal mechanism data and convert from NDK to psmeca format
-#
 # Output is a file containing centroid (gcmt_centroid.txt) and origin (gcmt_origin.txt) location focal mechanisms in tectoplot 27 field format:
 
 NDK2MECA_AWK="/Users/kylebradley/Dropbox/scripts/tectoplot/ndk2meca_keb_14.awk"
@@ -91,7 +92,8 @@ awk < all_txt.txt '{
   }
   print "G", $12, $13, $14, $4, $5, $6, $7, $8, $9, $10, $11, $1, $2, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $3 >> "./gcmt_origin_init.txt"
   print "G", $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $14 >> "./gcmt_centroid_init.txt"
-
   }'
 
-# rm -f all_txt.txt
+rm -f ./all_txt.txt
+rm -f ./gcmt_origin_init.txt
+rm -f ./gcmt_centroid_init.txt

@@ -1,7 +1,8 @@
 #!/bin/bash
+# Kyle Bradley, NTU, kbradley@ntu.edu.sg, 2020
 
-# Prints the min, quartile 1, median (q2), quartile 3, and max.
-# als
+# Input multiple lines of space separated values
+# For each line, prints the min, quartile 1, median (q2), quartile 3, and max.
 
 awk '{
   q1=-1;

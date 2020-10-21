@@ -1,9 +1,21 @@
 #!/bin/bash
-DODOWNLOAD=1
+# Kyle Bradley, NTU, kbradley@ntu.edu.sg, 2020
+
 # Download the ISC focal mechanism catalog for the entire globe, using a month-by-month query
 # Sanitize the data to be included with GCMT focal mechanisms. This means removing events
 # that have a GCMT entry in the ISC database, removing events without Mw or S/D/R data.
-# We convert from MW to M0.
+
+# If you want to update a catalog with the most recent events, delete the current years' .dat file before running.
+
+# Required files (run scrape_gcmt.sh first):
+# ${GCMT_DIR}gcmt_centroid_init.txt
+# ${GCMT_DIR}gcmt_origin_init.txt
+
+# Output files:
+# ${GCMT_DIR}gcmt_isc_centroid.txt : Deconflicted GCMT+ISC focal mechanisms, centroid coords+depth in 1,2,3
+# ${GCMT_DIR}gcmt_isc_origin.txt : Deconflicted GCMT+ISC origin focal mechanisms, origin coords+depth in 1,2,3
+# ${ISC_FOCALS_DIR}isc_nogcmt_centroid.txt : Deconflicted ISC-only (not present in GCMT), centroid coords+depth in 1,2,3
+# ${ISC_FOCALS_DIR}isc_nogcmt_centroid.txt : Deconflicted ISC-only (not present in GCMT), origin coords+depth in 1,2,3
 #
 # ISC FORMAT
 # 1       , 2     , 3   , 4   , 5  , 6  , 7    , 8       , 9     ,
@@ -14,7 +26,6 @@ DODOWNLOAD=1
 #
 # 26,    27,   28,    29,    30,   31,    32,    33,   34,    35
 # EX, T_VAL, T_PL, T_AZM, P_VAL, P_PL, P_AZM, N_VAL, N_PL, N_AZM
-#
 
 # Tectoplot format: (first 15 fields are psmeca format)
 # 1: code             Code G=GCMT I=ISC
@@ -47,6 +58,9 @@ DODOWNLOAD=1
 # 28: MW              MW converted from M0 using M_{\mathrm {w} }={\frac {2}{3}}\log _{10}(M_{0})-10.7
 # 29: depthalt        Depth alternative (col1=origin, col13=centroid etc) (km)
 # (30: seconds)       Epoch time in seconds after scrape_isc_focals_expand.sh is run
+
+# Set this to zero if you want to rebuild catalogs without redownloading anything
+DODOWNLOAD=1
 
 ISC_FOCALS_DIR="/Users/kylebradley/Dropbox/TectoplotData/ISC/"
 GCMT_DIR="/Users/kylebradley/Dropbox/TectoplotData/GCMT/"
@@ -115,15 +129,6 @@ if [[ $DODOWNLOAD -eq 1 ]]; then
   sed -f replacebackward.cat isc_focals_allyears_trim_withstrike_rep1.cat | awk -F, '{if ($2 !~ /GCMT/ && $8 !~ /TRUE/) print}' >  isc_focals_allyears_trim_withstrike_rep1_nogcmt_origin.cat
   awk < isc_focals_allyears_trim_withstrike_rep1_nogcmt_origin.cat -F, '{print "I", $6+0, $5+0, $7+0, $20+0, $21+0, $22+0, $23+0, $24+0, $25+0, $36+0, $37+0, $6+0, $5+0, sprintf("%sT%s", $3, substr($4, 1, 8)), $29+0, $28+0, $35+0, $34+0, $32+0, $31+0, $14+0, $15+0, $16+0, $17+0, $19+0, $18+0, $12+0, $7+0 }' | grep -v 9999999999 > isc_nogcmt_origin.txt
 
-
-  # Code 6, 5, 7
-  # 20, 21, 22, 23, 24, 25
-  # ?, ?
-  # 6, 5, newid
-  # 29, 28, 35, 34, 32, 31
-  # 14, 15, 16, 17, 19, 18
-  # 12
-
   # Keep only non-GCMT ISC centroid locations, output to psmeca I+14+13 format
   sed -f replacebackward.cat isc_focals_allyears_trim_withstrike_rep1.cat | awk -F, '{if ($2 !~ /GCMT/ && $8 ~ /TRUE/) print}' >  isc_focals_allyears_trim_withstrike_rep1_nogcmt_centroid.cat
   awk < isc_focals_allyears_trim_withstrike_rep1_nogcmt_centroid.cat -F, '{print "I", $6+0, $5+0, $7+0, $20+0, $21+0, $22+0, $23+0, $24+0, $25+0, $36+0, $37+0, $6+0, $5+0, sprintf("%sT%s", $3, substr($4, 1, 8)), $29+0, $28+0, $35+0, $34+0, $32+0, $31+0, $14+0, $15+0, $16+0, $17+0, $19+0, $18+0, $12+0, $7+0 }' | grep -v 9999999999 > isc_nogcmt_centroid.txt
@@ -131,9 +136,7 @@ fi
 
 # Currently, GCMT mechanisms not reported in the ISC catalog have their non-GCMT equivalents from ISC added to the mixed archive.
 # This pollutes the dataset with two mechanisms from one event. More than two is unlikely due to removing duplicate IDs done above.
-# # Tag GCMT with a G, ISC with an I.
-# Concatenate all data.
-# Sort by ID (time)
+# Tag GCMT with a G, ISC with an I, concatenate all data, sort by ID (time)
 # For adjacent events, if the times are similar enough (within X seconds) and close enough (within Y degrees lat/lon), remove only the non-G event.
 
 if [[ -d $GCMT_DIR && -e $GCMT_DIR/gcmt_origin_init.txt && -e $GCMT_DIR/gcmt_centroid_init.txt ]]; then
@@ -154,7 +157,6 @@ if [[ -d $GCMT_DIR && -e $GCMT_DIR/gcmt_origin_init.txt && -e $GCMT_DIR/gcmt_cen
     secs = mktime(the_time);
     print $0, secs
   }' > I_isc_nogcmt_origin.txt
-
 
   awk < isc_nogcmt_centroid.txt '{
     split($15, a, "-")
@@ -214,7 +216,6 @@ sed '1d'  IG_gcmt_isc_centroid.txt > IG_gcmt_isc_centroid_cut1.txt
 sed '1d'  IG_gcmt_isc_centroid_cut1.txt > IG_gcmt_isc_centroid_cut2.txt
 
 echo "Removing events closer than 0.2 (M7-) and 1.5 (M7+) degrees lat/lon AND within 5 (M7+) or 30 (M7-) seconds of each other"
-
 
 paste -d ' ' IG_gcmt_isc_origin.txt IG_gcmt_isc_origin_cut1.txt IG_gcmt_isc_origin_cut2.txt > 3comp_origin.txt
 
@@ -320,7 +321,6 @@ paste -d ' ' IG_gcmt_isc_origin.txt IG_gcmt_isc_origin_cut1.txt IG_gcmt_isc_orig
 # 88: MW              MW converted from M0 using M_{\mathrm {w} }={\frac {2}{3}}\log _{10}(M_{0})-10.7
 # 89: depth           Depth of catalog origin (km)
 # 90: seconds
-
 
 awk < 3comp_origin.txt '
 function abs(v) {return v < 0 ? -v : v}
@@ -814,5 +814,4 @@ awk < ${ISC_FOCALS_DIR}IG_gcmt_isc_centroid.txt '{
     printf("\n")
   }' > ${GCMT_DIR}gcmt_isc_centroid.txt
 
-
-# rm -f *.cat I_* IG_*
+rm -f *.cat I_* IG_* 3comp_*.txt isc_focals_allyears* ${GCMT_DIR}G_gcmt_centroid.txt ${GCMT_DIR}G_gcmt_origin.txt
