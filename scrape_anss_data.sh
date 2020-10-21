@@ -55,12 +55,7 @@ for year in $(seq $earliest_year $this_year); do
       echo "anss_events_${year}_${month}_3.dat is empty"
       rm -f anss_events_${year}_${month}_3.dat
     fi
-  # if [[ ! -e anss_events_${year}_${month}.dat ]]; then
-    #   echo "Dowloading seismicity for ${year}-${month}"
-    #   curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-01&endtime=${year}-${month}-31&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}.dat
-    # else
-    #   echo "Already have file anss_events_${year}.dat... not downloading."
-    # fi
+
   done
 done
 
