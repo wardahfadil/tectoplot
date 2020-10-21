@@ -23,6 +23,7 @@ echo "Downloading data until $this_month/$this_year"
 [[ ! -e anss_events_1000_to_1950.dat ]] &&  echo "Dowloading seismicity for years 1000AD-1950AD" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=1000-01-01&endtime=1950-12-31&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_1000_to_1950.dat
 
 for year in $(seq $earliest_year $this_year); do
+  echo "Looking for anss_events_${year}_${month}"
   for month in $(seq 1 12); do
     if [[ $year -lt $this_year ]]; then
       [[ ! -e anss_events_${year}_${month}_1.dat ]] && echo "Dowloading seismicity for ${year}-${month}-01to10" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-01&endtime=${year}-${month}-10&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_1.dat
@@ -34,6 +35,21 @@ for year in $(seq $earliest_year $this_year); do
       [[ ! -e anss_events_${year}_${month}_3.dat ]] && echo "Dowloading seismicity for ${year}-${month}-21to31" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-21&endtime=${year}-${month}-31&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_3.dat
     fi
 
+    fsize=$(wc -c < anss_events_${year}_${month}_1.dat)
+    if [[ -e anss_events_${year}_${month}_1.dat && $fsize -eq 160 ]]; then
+      echo "anss_events_${year}_${month}_1.dat is empty"
+      rm -f anss_events_${year}_${month}_1.dat
+    fi
+    fsize=$(wc -c < anss_events_${year}_${month}_2.dat)
+    if [[ -e anss_events_${year}_${month}_2.dat && $fsize -eq 160 ]]; then
+      echo "anss_events_${year}_${month}_2.dat is empty"
+      rm -f anss_events_${year}_${month}_2.dat
+    fi
+    fsize=$(wc -c < anss_events_${year}_${month}_3.dat)
+    if [[ -e anss_events_${year}_${month}_3.dat && $fsize -eq 160 ]]; then
+      echo "anss_events_${year}_${month}_3.dat is empty"
+      rm -f anss_events_${year}_${month}_3.dat
+    fi
   # if [[ ! -e anss_events_${year}_${month}.dat ]]; then
     #   echo "Dowloading seismicity for ${year}-${month}"
     #   curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-01&endtime=${year}-${month}-31&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}.dat
@@ -65,5 +81,5 @@ DATABASEFILE=$(echo "$(cd "$(dirname "all_anss_events_data_lonlatdepthmagdateid.
 echo "Database file path: $DATABASEFILE"
 
 # Archive the downloaded data
-mkdir -p anss_archive
-mv anss_events* anss_archive
+#mkdir -p anss_archive
+#mv anss_events* anss_archive

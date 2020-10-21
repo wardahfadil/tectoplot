@@ -57,13 +57,13 @@ cd $ISC_FOCALS_DIR
 
 if [[ $DODOWNLOAD -eq 1 ]]; then
 
-  earliest_year=1900
+  earliest_year=1952
   this_year=2020
 
   for year in $(seq $earliest_year $this_year); do
     if [[ ! -e isc_focals_${year}.dat ]]; then
       echo "Dowloading focal mechanisms for ${year}"
-      curl "http://www.isc.ac.uk/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=FMCSV&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&searchshape=GLOBAL&srn=&grn=&start_year=${year}&start_month=05&start_day=01&start_time=00%3A00%3A00&end_year=${year}&end_month=8&end_day=19&end_time=00%3A00%3A00" > isc_focals_${year}.dat
+      curl "http://www.isc.ac.uk/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=FMCSV&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&searchshape=GLOBAL&srn=&grn=&start_year=${year}&start_month=05&start_day=01&start_time=00%3A00%3A00&end_year=${year}&end_month=12&end_day=31&end_time=00%3A00%3A00" > isc_focals_${year}.dat
     else
       echo "Already have file isc_focals_${year}.dat... not downloading."
     fi
@@ -668,11 +668,11 @@ awk < ${GCMT_DIR}G_gcmt_origin.txt '{
 # Calculate the focal mechanism type (N,R,T) and append it to the ID CODE:
 # e.g. IN = ISC/Normal  GT = GCMT/Thrust IS = ISC/StrikeSlip
 # Following the classification scheme of FMC; Jose-Alvarez, 2019 https://github.com/Jose-Alvarez/FMC
-    Pinc=$21
     Tinc=$17
-    Ninc=$19
-    ID1=$1
+    Binc=$19
+    Pinc=$21
 
+    ID1=$1
     if (Pinc >= Binc && Pinc >= Tinc) {
       class="N"
     } else if (Binc >= Pinc && Binc >= Tinc) {
@@ -692,9 +692,10 @@ awk < ${GCMT_DIR}G_gcmt_centroid.txt '{
 # Calculate the focal mechanism type (N,R,T) and append it to the ID CODE:
 # e.g. IN = ISC/Normal  GT = GCMT/Thrust IS = ISC/StrikeSlip
 # Following the classification scheme of FMC; Jose-Alvarez, 2019 https://github.com/Jose-Alvarez/FMC
-    Pinc=$21
     Tinc=$17
-    Ninc=$19
+    Binc=$19
+    Pinc=$21
+
     ID1=$1
 
     if (Pinc >= Binc && Pinc >= Tinc) {
@@ -711,5 +712,107 @@ awk < ${GCMT_DIR}G_gcmt_centroid.txt '{
     }
     printf("\n")
   }' > ${GCMT_DIR}gcmt_centroid.txt
+
+awk < ${ISC_FOCALS_DIR}I_isc_nogcmt_centroid.txt '{
+# Calculate the focal mechanism type (N,R,T) and append it to the ID CODE:
+# e.g. IN = ISC/Normal  GT = GCMT/Thrust IS = ISC/StrikeSlip
+# Following the classification scheme of FMC; Jose-Alvarez, 2019 https://github.com/Jose-Alvarez/FMC
+    Tinc=$17
+    Binc=$19
+    Pinc=$21
+
+    ID1=$1
+
+    if (Pinc >= Binc && Pinc >= Tinc) {
+      class="N"
+    } else if (Binc >= Pinc && Binc >= Tinc) {
+      class="S"
+    } else {
+      class="T"
+    }
+
+    printf "%s%s", ID1, class
+    for(i=2; i<=30; ++i) {
+      printf " %s", $(i)
+    }
+    printf("\n")
+  }' > ${ISC_FOCALS_DIR}isc_nogcmt_centroid.txt
+
+awk < ${ISC_FOCALS_DIR}I_isc_nogcmt_origin.txt '{
+# Calculate the focal mechanism type (N,R,T) and append it to the ID CODE:
+# e.g. IN = ISC/Normal  GT = GCMT/Thrust IS = ISC/StrikeSlip
+# Following the classification scheme of FMC; Jose-Alvarez, 2019 https://github.com/Jose-Alvarez/FMC
+    Tinc=$17
+    Binc=$19
+    Pinc=$21
+
+    ID1=$1
+
+    if (Pinc >= Binc && Pinc >= Tinc) {
+      class="N"
+    } else if (Binc >= Pinc && Binc >= Tinc) {
+      class="S"
+    } else {
+      class="T"
+    }
+
+    printf "%s%s", ID1, class
+    for(i=2; i<=30; ++i) {
+      printf " %s", $(i)
+    }
+    printf("\n")
+  }' > ${ISC_FOCALS_DIR}isc_nogcmt_origin.txt
+
+
+awk < ${ISC_FOCALS_DIR}IG_gcmt_isc_origin.txt '{
+# Calculate the focal mechanism type (N,R,T) and append it to the ID CODE:
+# e.g. IN = ISC/Normal  GT = GCMT/Thrust IS = ISC/StrikeSlip
+# Following the classification scheme of FMC; Jose-Alvarez, 2019 https://github.com/Jose-Alvarez/FMC
+    Tinc=$17
+    Binc=$19
+    Pinc=$21
+
+    ID1=$1
+
+    if (Pinc >= Binc && Pinc >= Tinc) {
+      class="N"
+    } else if (Binc >= Pinc && Binc >= Tinc) {
+      class="S"
+    } else {
+      class="T"
+    }
+
+    printf "%s%s", ID1, class
+    for(i=2; i<=30; ++i) {
+      printf " %s", $(i)
+    }
+    printf("\n")
+  }' > ${GCMT_DIR}gcmt_isc_origin.txt
+
+awk < ${ISC_FOCALS_DIR}IG_gcmt_isc_centroid.txt '{
+# Calculate the focal mechanism type (N,R,T) and append it to the ID CODE:
+# e.g. IN = ISC/Normal  GT = GCMT/Thrust IS = ISC/StrikeSlip
+# Following the classification scheme of FMC; Jose-Alvarez, 2019 https://github.com/Jose-Alvarez/FMC
+    Tinc=$17
+    Binc=$19
+    Pinc=$21
+
+    ID1=$1
+
+    if (Pinc >= Binc && Pinc >= Tinc) {
+      class="N"
+    } else if (Binc >= Pinc && Binc >= Tinc) {
+      class="S"
+    } else {
+      class="T"
+    }
+
+    printf "%s%s", ID1, class
+    for(i=2; i<=30; ++i) {
+      printf " %s", $(i)
+    }
+    printf("\n")
+  }' > ${GCMT_DIR}gcmt_isc_centroid.txt
+
 
 # rm -f *.cat I_* IG_*

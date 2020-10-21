@@ -39,6 +39,8 @@
 # 1 point = 1/72 inches = 0.01388888... inches
 
 # DONE/CHANGELOG
+# October 21, 2020: Added -cc option to plot alternative location of CMT (centroid if plotting origin, origin if plotting centroid)
+# October 20, 2020: Updated CMT file format and updated scrape_gcmt and scrape_isc focal mechanism scripts
 # October 20, 2020: Added -clipdem to save a dem.tif file in the temporary data folder, mainly for in-place profile control
 # October 19, 2020: Initial git commit at kyleedwardbradley/tectoplot
 # October 10, 2020: Added code to avoid double plotting of XYZ and CMT data on overlapping profiles.
@@ -286,6 +288,7 @@ GIS datasets:
 Focal mechanisms:
   -c|--cmt         [[source]] [[scale]]                plot focal mechanisms
   -ca              [nts] [tpn]                         plot selected P/T/N axes for selected EQ types
+  -cc                                                  plot dot and line connecting to alternative position (centroid/origin)
   -cd|--cmtdepth   [depth]                             maximum depth of CMTs, km
   -cf              [GlobalCMT | MomentTensor]          choose the format of focal mechanism to plot
   -cm|--cmtmag     [minmag maxmag]                     magnitude bounds for cmt
@@ -335,6 +338,8 @@ TDEFNODE block model
 Common variables to modify using -vars [file] and -setvars { VAR value ... }
 
 Topography:     TOPOTRANS [$TOPOTRANS]
+
+Profiles:       SPROF_MAXELEV [$SPROF_MAXELEV] - SPROF_MINELEV [$SPROF_MINELEV]
 
 Plate model:    PLATEARROW_COLOR [$PLATEARROW_COLOR] - PLATEARROW_TRANS [$PLATEARROW_TRANS]
                 PLATEVEC_COLOR [$PLATEVEC_COLOR] - PLATEVEC_TRANS [$PLATEVEC_TRANS]
@@ -588,9 +593,9 @@ do
 		plotcmt=1
     # Select focal mechanisms from GCMT, ISC, GCMT+ISC
     if [[ ${2:0:1} == [-] || -z $2 ]]; then
-      info_msg "[-c]: No source of CMTs indicated. Using ISC+GCMT, origin."
-      CMTFILE=$ISC_GCMT_ORIGIN
-      CMTTYPE="GCMT_ISC_ORIGIN"
+      info_msg "[-c]: No source of CMTs indicated. Using ISC+GCMT, centroid."
+      CMTFILE=$ISC_GCMT_CENTROID
+      CMTTYPE="GCMT_ISC_CENTROID"
     else
       CMTTYPE="${2}"
       shift
@@ -615,10 +620,14 @@ do
           info_msg "[-c]: Using combined ISC and GCMT, origin"
           CMTFILE=$ISC_GCMT_ORIGIN
         ;;
+        GCMT_ISC_CENTROID)
+          info_msg "[-c]: Using combined ISC and GCMT, origin"
+          CMTFILE=$ISC_GCMT_CENTROID
+        ;;
         *)
           info_msg "[-c]: Unknown CMT source. Using ISC and GCMT, origin"
-          CMTFILE=$ISC_GCMT_ORIGIN
-          CMTTYPE="GCMT_ISC_ORIGIN"
+          CMTFILE=$ISC_GCMT_CENTROID
+          CMTTYPE="GCMT_ISC_CENTROID"
         ;;
       esac
       if [[ ${2:0:1} == [-] || -z $2 ]]; then
@@ -653,6 +662,9 @@ do
     [[ "${CMTAXESTYPESTRING}" =~ .*t.* ]] && axestflag=1
     [[ "${CMTAXESTYPESTRING}" =~ .*n.* ]] && axesnflag=1
     plots+=("caxes")
+    ;;
+  -cc) # args: none
+    connectalternatelocflag=1
     ;;
   -cd|--cmtdepth)  # args: number
     CMT_MAXDEPTH="${2}"
@@ -2364,27 +2376,26 @@ if [[ $calccmtflag -eq 1 ]]; then
   awk < cmt_scale.dat -v fmt=$CMTFORMAT 'function abs(v) { return (v>0)?v:-v} BEGIN {pi=atan2(0,-1)}{
     if (fmt == "GlobalCMT") {
       if (substr($1,2,1) == "T") {
-        # print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 > "cmt_thrust.txt"
-        print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0, 0, $15 > "cmt_thrust.txt"
+        print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 > "cmt_thrust.txt"
+        # print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0, 0, $15 > "cmt_thrust.txt"
       } else if (substr($1,2,1) == "N") {
-        # print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 > "cmt_normal.txt"
-        print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0, 0, $15 > "cmt_normal.txt"
-
+        print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 > "cmt_normal.txt"
+      #  print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0, 0, $15 > "cmt_normal.txt"
       } else {
-        # print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 > "cmt_strikeslip.txt"
-        print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0, 0, $15 > "cmt_strikeslip.txt"
+        print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 > "cmt_strikeslip.txt"
+        # print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0, 0, $15 > "cmt_strikeslip.txt"
       }
-      print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0, 0, $15 > "cmt.dat"
+      print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 > "cmt.dat"
     } else if (fmt == "MomentTensor") {
         if (substr($1,2,1) == "T") {
-          print $2, $3, $4, $22, $23, $24, $25, $26, $27, $12, 0, 0, $15 > "cmt_thrust.txt"
+          print $2, $3, $4, $22, $23, $24, $25, $26, $27, $12, $13, $14, $15 > "cmt_thrust.txt"
 
         } else if (substr($1,2,1) == "N") {
-          print $2, $3, $4, $22, $23, $24, $25, $26, $27, $12, 0, 0, $15  > "cmt_normal.txt"
+          print $2, $3, $4, $22, $23, $24, $25, $26, $27, $12, $13, $14, $15  > "cmt_normal.txt"
         } else {
-          print $2, $3, $4, $22, $23, $24, $25, $26, $27, $12, 0, 0, $15  > "cmt_strikeslip.txt"
+          print $2, $3, $4, $22, $23, $24, $25, $26, $27, $12, $13, $14, $15  > "cmt_strikeslip.txt"
         }
-        print $2, $3, $4, $22, $23, $24, $25, $26, $27, $12, 0, 0, $15  > "cmt.dat"
+        print $2, $3, $4, $22, $23, $24, $25, $26, $27, $12, $13, $14, $15  > "cmt.dat"
     }
     if (substr($1,2,1) == "T") {
       print $2, $3, $16, $17 > "t_axes_thrust.txt"
@@ -3067,6 +3078,36 @@ for plot in ${plots[@]} ; do
 
     cmt)
         info_msg "Plotting focal mechanisms"
+
+        if [[ $connectalternatelocflag -eq 1 ]]; then
+          awk < cmt_thrust.txt '{
+            if ($12 != 0 && $13 != 0)  {  # Some events have no alternative position depending on format
+              printf ">\n" >> "./cmt_alt_lines.xy"
+              print $1, $2 >> "./cmt_alt_lines.xy"
+              print $12, $13 >> "./cmt_alt_lines.xy"
+              print $12, $13 >> "./cmt_alt_pts.xy"
+            }
+          }'
+          awk < cmt_thrust.txt '{
+            if ($12 != 0 && $13 != 0)  {  # Some events have no alternative position depending on format
+              printf ">\n" >> "./cmt_alt_lines.xy"
+              print $1, $2 >> "./cmt_alt_lines.xy"
+              print $12, $13 >> "./cmt_alt_lines.xy"
+              print $12, $13 >> "./cmt_alt_pts.xy"
+            }
+          }'
+          awk < cmt_strikeslip.txt '{
+            if ($12 != 0 && $13 != 0)  {  # Some events have no alternative position depending on format
+              printf ">\n" >> "./cmt_alt_lines.xy"
+              print $1, $2 >> "./cmt_alt_lines.xy"
+              print $12, $13 >> "./cmt_alt_lines.xy"
+              print $12, $13 >> "./cmt_alt_pts.xy"
+            }
+          }'
+          gmt psxy cmt_alt_lines.xy -W0.1p,black $RJOK $VERBOSE >> map.ps
+          gmt psxy cmt_alt_pts.xy -Sc0.03i -Gblack $RJOK $VERBOSE >> map.ps
+        fi
+
         if [[ cmtthrustflag -eq 1 ]]; then
           gmt psmeca -E"${CMT_THRUSTCOLOR}" -Z$CPTDIR"neis2.cpt" -S${CMTLETTER}"$CMTRESCALE"i/0 cmt_thrust.txt -L${FMLPEN} $RJOK "${VERBOSE}" >> map.ps
         fi
