@@ -878,7 +878,17 @@ if [[ $zmaxflag -eq 1 ]]; then
   max_z=$(awk < limits.txt '{print $4}')
 fi
 
-# Create the data files that will be used to plot the profile points above the profile
+# Set minz to ensure that H=W
+if [[ $profileonetooneflag -eq 1 ]]; then
+  echo "Setting vertical aspect ratio to H=W"
+  diffx=$(echo "$max_x - $min_x" | bc -l)
+  hwratio=$(awk -v h=${PROFILE_HEIGHT_IN} -v w=${PROFILE_WIDTH_IN} 'BEGIN { print (h+0)/(w+0) }')
+  diffz=$(echo "$hwratio * $diffx" | bc -l)
+  min_z=$(echo "$max_z - $diffz" | bc -l)
+  echo "new min_z is $min_z"
+fi
+
+# Create the data files that will be used to plot the profile vertex points above the profile
 
 for distfile in *_dist_km.txt; do
   awk < $distfile -v maxz=$max_z -v minz=$min_z -v profheight=${PROFILE_HEIGHT_IN} '{

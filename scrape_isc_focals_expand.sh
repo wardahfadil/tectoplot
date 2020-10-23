@@ -72,7 +72,10 @@ cd $ISC_FOCALS_DIR
 if [[ $DODOWNLOAD -eq 1 ]]; then
 
   earliest_year=1952
-  this_year=2020
+  this_year=$(date | awk '{print $(NF)}')
+
+  echo "Removing file from this year to ensure updated catalog: isc_focals_${this_year}.dat"
+  rm -f isc_focals_${this_year}.dat
 
   for year in $(seq $earliest_year $this_year); do
     if [[ ! -e isc_focals_${year}.dat ]]; then

@@ -13,6 +13,11 @@ CPTDIR=$TECTOPLOTDIR"CPT/"
 ###### This is the root directory that contains the data directories. Arguably, we could define directories without DATAROOT to allow more flexibility.
 DATAROOT="/Users/kylebradley/Dropbox/TectoplotData/"
 
+###### Scraper scripts
+SCRAPE_GCMT=$TECTOPLOTDIR"scrape_gcmt.sh"
+SCRAPE_ISCFOC=$TECTOPLOTDIR"scrape_isc_focals_expand.sh"
+SCRAPE_ANSS=$TECTOPLOTDIR"scrape_anss_data.sh"
+
 ###### Coastline data
 COASTS_SHORT_SOURCESTRING="GHSSG"
 COASTS_SOURCESTRING="Coastline data: Global Self-consistent, Hierarchical, High-resolution Geography Database, doi:10.1029/96JB00104"

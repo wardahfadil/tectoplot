@@ -23,39 +23,42 @@ earliest_year=1951
 
 this_year=$(date +"%Y")
 this_month=$(date +"%m")
+
+lastfile=$(ls -l anss*.dat | awk '{print $(NF)}' | sort -n -t "_" -k 3 -k 4 -k 5 | tail -n 1)
+echo "Removing latest date archive file to ensure full catalog scraping: $lastfile"
+mv $lastfile old.dat
+
 echo "Downloading data until $this_month/$this_year"
 [[ ! -e anss_events_1000_to_1950.dat ]] &&  echo "Dowloading seismicity for years 1000AD-1950AD" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=1000-01-01&endtime=1950-12-31&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_1000_to_1950.dat
 
 for year in $(seq $earliest_year $this_year); do
-  echo "Looking for anss_events_${year}_${month}"
+  # echo "Looking for anss_events_${year}"
   for month in $(seq 1 12); do
     if [[ $year -lt $this_year ]]; then
       [[ ! -e anss_events_${year}_${month}_1.dat ]] && echo "Dowloading seismicity for ${year}-${month}-01to10" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-01&endtime=${year}-${month}-10&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_1.dat
       [[ ! -e anss_events_${year}_${month}_2.dat ]] && echo "Dowloading seismicity for ${year}-${month}-11to20" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-11&endtime=${year}-${month}-20&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_2.dat
       [[ ! -e anss_events_${year}_${month}_3.dat ]] && echo "Dowloading seismicity for ${year}-${month}-21to31" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-21&endtime=${year}-${month}-31&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_3.dat
     elif [[ $month -le "10#$this_month" ]]; then
-      [[ ! -e anss_events_${year}_${month}_1.dat ]] && echo "Dowloading seismicity for ${year}-${month}-01to10" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-01&endtime=${year}-${month}-10&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_1.dat
-      [[ ! -e anss_events_${year}_${month}_2.dat ]] && echo "Dowloading seismicity for ${year}-${month}-11to20" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-11&endtime=${year}-${month}-20&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_2.dat
-      [[ ! -e anss_events_${year}_${month}_3.dat ]] && echo "Dowloading seismicity for ${year}-${month}-21to31" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-21&endtime=${year}-${month}-31&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_3.dat
+      [[ ! -e anss_events_${year}_${month}_1.dat ]] && echo "Dowloading seismicity for current ${year}-${month}-01to10" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-01&endtime=${year}-${month}-10&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_1.dat
+      [[ ! -e anss_events_${year}_${month}_2.dat ]] && echo "Dowloading seismicity for current ${year}-${month}-11to20" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-11&endtime=${year}-${month}-20&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_2.dat
+      [[ ! -e anss_events_${year}_${month}_3.dat ]] && echo "Dowloading seismicity for current ${year}-${month}-21to31" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-21&endtime=${year}-${month}-31&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_3.dat
     fi
-
     # Currently the file size for no events is 160 bytes
-    fsize=$(wc -c < anss_events_${year}_${month}_1.dat)
     if [[ -e anss_events_${year}_${month}_1.dat && $fsize -eq 160 ]]; then
+      fsize=$(wc -c < anss_events_${year}_${month}_1.dat)
       echo "anss_events_${year}_${month}_1.dat is empty"
       rm -f anss_events_${year}_${month}_1.dat
     fi
-    fsize=$(wc -c < anss_events_${year}_${month}_2.dat)
     if [[ -e anss_events_${year}_${month}_2.dat && $fsize -eq 160 ]]; then
+      fsize=$(wc -c < anss_events_${year}_${month}_2.dat)
       echo "anss_events_${year}_${month}_2.dat is empty"
       rm -f anss_events_${year}_${month}_2.dat
     fi
-    fsize=$(wc -c < anss_events_${year}_${month}_3.dat)
     if [[ -e anss_events_${year}_${month}_3.dat && $fsize -eq 160 ]]; then
+      fsize=$(wc -c < anss_events_${year}_${month}_3.dat)
       echo "anss_events_${year}_${month}_3.dat is empty"
       rm -f anss_events_${year}_${month}_3.dat
     fi
-
   done
 done
 

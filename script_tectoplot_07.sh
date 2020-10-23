@@ -6,6 +6,18 @@
 # Kyle Bradley, Nanyang Technological University, August 2020
 # Prefers GS 9.26 (and no later) for transparency
 
+# CHANGELOG
+# October 21, 2020: Added -oto option to ensure 1:1 vertical exaggeration of profile plot
+# October 21, 2020: Added -cc option to plot alternative location of CMT (centroid if plotting origin, origin if plotting centroid)
+# October 20, 2020: Updated CMT file format and updated scrape_gcmt and scrape_isc focal mechanism scripts
+# October 20, 2020: Added -clipdem to save a dem.tif file in the temporary data folder, mainly for in-place profile control
+# October 19, 2020: Initial git commit at kyleedwardbradley/tectoplot
+# October 10, 2020: Added code to avoid double plotting of XYZ and CMT data on overlapping profiles.
+# October 9, 2020: Project data only onto the closest profile from the whole collection.
+# October 9, 2020: Add a date range option to restrict seismic/CMT data
+# October 9, 2020: Add option to rotate CMTs based on back azimuth to a specified lon/lat point
+# October 9, 2020: Update seismicity for legend plot using SEISSTRETCH
+
 # TO DO:
 #
 # HIGH PRIORITY
@@ -38,16 +50,6 @@
 # Develop a better description of scaling of map elements (line widths, arrow sizes, etc).
 # 1 point = 1/72 inches = 0.01388888... inches
 
-# DONE/CHANGELOG
-# October 21, 2020: Added -cc option to plot alternative location of CMT (centroid if plotting origin, origin if plotting centroid)
-# October 20, 2020: Updated CMT file format and updated scrape_gcmt and scrape_isc focal mechanism scripts
-# October 20, 2020: Added -clipdem to save a dem.tif file in the temporary data folder, mainly for in-place profile control
-# October 19, 2020: Initial git commit at kyleedwardbradley/tectoplot
-# October 10, 2020: Added code to avoid double plotting of XYZ and CMT data on overlapping profiles.
-# The code now projects data only onto the closest profile from the whole collection.
-# DONE: Add a date range option to restrict seismic/CMT data
-# DONE: Add option to rotate CMTs based on back azimuth to a specified lon/lat point
-# DONE: Update seismicity for legend plot using SEISSTRETCH
 
 ################################################################################
 # Messaging and debugging routines
@@ -74,7 +76,6 @@ function info_msg() {
 # These variables are array indices and must be equal to ZERO at start
 plotpointnumber=0
 
-
 ################################################################################
 # Define paths and defaults
 
@@ -94,7 +95,6 @@ TECTOPLOT_DEFAULTS_FILE=$DEFDIR"tectoplot.defaults"
 TECTOPLOT_PATHS_FILE=$DEFDIR"tectoplot.paths"
 TECTOPLOT_PATHS_MESSAGE=$DEFDIR"tectoplot.paths.message"
 TECTOPLOT_COLORS=$DEFDIR"tectoplot.gmtcolors"
-
 
 ################################################################################
 # Load default file stored in the same directory as tectoplot
@@ -175,7 +175,7 @@ cat <<-EOF
   relative motions of plates with Euler poles. It can load and interpret
   TDEFNODE model results.
 
-  Developed for OSX Catalina
+  Developed for OSX Catalina, minimal testing indicates works with Fedora linux
 
   REQUIRES: GMT${GMTREQ} gdal gawk geod ps2pdf Preview(or equivalent)
 
@@ -241,10 +241,11 @@ Plotting/control commands:
   -setvars         { VAR1 VAL1 VAR2 VAL2 }             set bash variable values
 
 Profiles:
-  -mprof           [control_file] A B X Y              multiple swath profile
+  -mprof           [control_file] A B X Y                 multiple swath profile
                    A=width (7i) B=height (2i) X,Y=offset relative to current origin (0i -3i)
-  -sprof           [lon1] [lat1] [lon2] [lat2] [width]  plot an automatic profile using data on map
+  -sprof           [lon1] [lat1] [lon2] [lat2] [width]    plot an automatic profile using data on map
                    width is in the format 10k
+  -oto             adjust vertical scale (following all other options) to set V:H ratio at 1 (no exagg)
 
 Topography/bathymetry:
   -t|--topo        [[ SRTM30 | GEBCO20 | GEBCO1 | ERCODE | file ]]  plot shaded relief (inc. custom grid)
@@ -254,7 +255,7 @@ Topography/bathymetry:
                    03s ~100m | 01s ~30m
   -ts                                                  don't plot shaded relief/topo grid
   -tn              [interval (m)]                      plot topographic contours
-  -tr              [[minelev maxelev]]             rescale CPT using data range or specified limits
+  -tr              [[minelev maxelev]]                 rescale CPT using data range or specified limits
   -tc|--cpt        [cptfile]                           use custom cpt file for topo grid
   -tt|--topotrans  [transparency%]                     transparency of topo grid
 
@@ -284,6 +285,10 @@ GIS datasets:
   -pt|--point      [filename] [[symbol]] [[size]] [[cptfile]]    data: x y z
   -l|--line        [filename] [[color]] [[width]]                data: > ID (z)\n x y\n x y\n > ID2 (z) x y\n ...
 
+Seismicity/focal mechanisms:
+  -reportdates                                         print date range of seismic, focal mechanism catalogs and exit
+  -scrapedata                                          run the GCMT/ISC/ANSS scraper scripts and exit
+  -recentglobaleq                                      run scraper and plot global map
 
 Focal mechanisms:
   -c|--cmt         [[source]] [[scale]]                plot focal mechanisms
@@ -392,7 +397,7 @@ function defaultsmessage() {
   cat $TECTOPLOT_DEFAULTS_FILE
 }
 
-# Flags that start with a value of zero
+# Flags that start with a value of zero (not an exhaustive list here)
 calccmtflag=0
 customgridcptflag=0
 defnodeflag=0
@@ -1022,6 +1027,9 @@ do
       shift
     fi
     ;;
+  -oto)
+    profileonetooneflag=1
+    ;;
 	-p|--plate) # args: string
 		plotplates=1
 		if [[ ${2:0:1} == [-] || -z $2 ]]; then
@@ -1383,6 +1391,37 @@ do
     regionsetflag=1
     ;;
 
+  -recentglobaleq) # args: none | days
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-recentglobaleq]: No day number specified, using start of yesterday to end of today"
+      LASTDAYNUM=1
+    else
+      info_msg "[-recentglobaleq]: Using start of day ${2} days ago to end of today"
+      LASTDAYNUM="${2}"
+      shift
+    fi
+    info_msg "Updating databases"
+    $SCRAPE_GCMT
+    $SCRAPE_ISCFOC
+    $SCRAPE_ANSS
+    # Turn on time select
+    timeselectflag=1
+    LASTDAY=$(date +%F)
+    FIRSDAY=$(date -j -v -${LASTDAYNUM}d +%F)
+    STARTTIME=$(echo "${FIRSTDAY}T:00:00:00")
+    ENDTIME=$(echo "${FIRSTDAY}T:00:00:00")
+    # Set to global extent
+  ;;
+  -reportdates)
+     echo -n "GCMT focal mechanism data: "
+     cat $GCMTORIGIN $GCMTCENTROID | cut -d ' ' -f 15 | sort | sed -n -e '1p;$p' |  awk '(NR==1){ printf "%s to ", $1} (NR!=1) {printf "%s", $1 } END { printf "\n"}'
+     echo -n "ISC focal mechanism data: "
+     cat $ISC_ORIGIN $ISC_CENTROID | cut -d ' ' -f 15 | sort | sed -n -e '1p;$p' |  awk '(NR==1){ printf "%s to ", $1} (NR!=1) {printf "%s", $1 } END { printf "\n"}'
+     echo -n "ANSS data: "
+     cat $EQ_DATABASE | cut -d ' ' -f 5 | sort | sed -n -e '1p;$p' |  awk '(NR==1){ printf "%s to ", $1} (NR!=1) {printf "%s", $1 } END { printf "\n"}'
+     exit
+    ;;
+
   -RJ) # args: { ... }
     if [[ ${2:0:1} == [{] ]]; then
       info_msg "[-RJ]: RJ argument string detected"
@@ -1411,7 +1450,29 @@ do
     echo $SRCMOD_SHORT_SOURCESTRING >> $THISDIR/tectoplot.shortsources
     echo $SRCMOD_SOURCESTRING >> $THISDIR/tectoplot.sources
 	  ;;
+  -scrapedata) # args: none | gia
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-scrapedata]: No datasets specified. Scraping GCMT/ISC/ANSS"
+      SCRAPESTRING="gia"
+    else
+      SCRAPESTRING="${2}"
+      shift
+    fi
 
+    if [[ ${SCRAPESTRING} =~ .*g.* ]]; then
+      info_msg "Scraping GCMT focal mechanisms"
+      $SCRAPE_GCMT
+    fi
+    if [[ ${SCRAPESTRING} =~ .*i.* ]]; then
+      info_msg "Scraping ISC focal mechanisms"
+      $SCRAPE_ISCFOC
+    fi
+    if [[ ${SCRAPESTRING} =~ .*a.* ]]; then
+      info_msg "Scraping ANSS seismic data"
+      $SCRAPE_ANSS
+    fi
+
+    ;;
   -setvars) # args: { VAR1 val1 VAR2 val2 VAR3 val3 }
     if [[ ${2:0:1} != [{] ]]; then
       info_msg "[-setvars]: { VAR1 val1 VAR2 val2 VAR3 val3 }"

@@ -60,8 +60,13 @@ for year in ${years[@]}; do
   done
 done
 
+echo "Downloading Quick CMTs"
+
+curl "https://www.ldeo.columbia.edu/~gcmt/projects/CMT/catalog/NEW_QUICK/qcmt.ndk" > quick.ndk
+
 rm -f all_txt.txt
 echo "Extracting GCMT focal mechanisms from NDK to tectoplot format, 29 fields"
+
 
 for ndkfile in *.ndk; do
   res=$(grep 404 $ndkfile)
@@ -95,5 +100,5 @@ awk < all_txt.txt '{
   }'
 
 rm -f ./all_txt.txt
-rm -f ./gcmt_origin_init.txt
-rm -f ./gcmt_centroid_init.txt
+# rm -f ./gcmt_origin_init.txt
+# rm -f ./gcmt_centroid_init.txt
