@@ -1,0 +1,22 @@
+# tectoplot CPT management
+
+# These are the names of CPT files that are generated within the temporary directory each run, as necessary
+
+TOPO_CPT="topo.cpt"
+TOPO_CPT_DEF="geo"
+TOPO_CPT_DEF_MIN=-8000
+TOPO_CPT_DEF_MAX=8000
+TOPO_CPT_DEF_STEP=100
+
+
+SEISDEPTH_CPT="seisdepth.cpt"
+SEISDEPTH_NODEEPEST_CPT=""seisdepth_nodeepest.cpt""
+GRAV_CPT="grav.cpt"
+MAG_CPT="mag.cpt"
+POPULATION_CPT="population.cpt"
+FAULTSLIP_CPT="faultslip.cpt"
+CYCLEAZIMUTH_CPT="cycleaz.cpt"
+GCDM_CPT="gcdm.cpt"
+PLATEVEL_CPT="platevel.cpt"
+PLATEVEL_NORM_CPT="platevel_one.cpt"
+SLIPRATE_DEF_CPT="slipratedeficit.cpt"

@@ -2,6 +2,8 @@
 # Read in array in main body. END block processes it.
 # window is half-width of moving mean (number of lines to each side to include)
 
+# Output is column number followed by row data in a single column
+
 awk -v window="${1}" '{
     if (max_nf < NF) {
         max_nf = NF
@@ -9,7 +11,7 @@ awk -v window="${1}" '{
     max_nr = NR
     for (x = 1; x <= NF; ++x) {
         vector[x, NR] = $x
-        result[x, NR] 0
+        result[x, NR] 0   # This seems to be a bug, = missing?
     }
 } END {
     for (p = 1; p < window + 1; ++p) {

@@ -1,6 +1,7 @@
 #!/bin/bash
 # Read in array in main body. END block processes it.
 # window is half-width of moving mean (number of lines to each side to include)
+# Input rows are averaged with each other.
 
 awk -v window="${1}" '{
     if (max_nf < NF) {
@@ -9,7 +10,7 @@ awk -v window="${1}" '{
     max_nr = NR
     for (x = 1; x <= NF; ++x) {
         vector[x, NR] = $x
-        result[x, NR] 0
+        result[x, NR] = 0  # This seems to be a bug, = missing?
     }
 } END {
     for (p = 1; p < window + 1; ++p) {
@@ -37,9 +38,10 @@ awk -v window="${1}" '{
       }
     }
     for (p = 1; p <= max_nr; ++p) {
-      for (k = 1; k <= max_nf; ++k) {
+      for (k = 1; k < max_nf; ++k) {
         printf("%s ", result[k, p]/total_rows[p])
       }
+      printf("%s", result[k, p]/total_rows[p])
       printf("\n")
     }
 }' < "${2}"

@@ -1,6 +1,6 @@
 ################################################################################
 # PATHS DEFINITION FILE
-# Assumes $TECTOPLOTDIR is set
+# Assumes $TECTOPLOTDIR and $DEFDIR are set
 
 # SRTM1S: ~42 GB, dynamically downloaded using GMT
 # GEBCO20: ~7GB
@@ -17,6 +17,9 @@ DATAROOT="/Users/kylebradley/Dropbox/TectoplotData/"
 SCRAPE_GCMT=$TECTOPLOTDIR"scrape_gcmt.sh"
 SCRAPE_ISCFOC=$TECTOPLOTDIR"scrape_isc_focals_expand.sh"
 SCRAPE_ANSS=$TECTOPLOTDIR"scrape_anss_data.sh"
+
+###### Country ID codes
+COUNTRY_CODES=$DEFDIR"tectoplot.countrycentroids"
 
 ###### Coastline data
 COASTS_SHORT_SOURCESTRING="GHSSG"
@@ -46,6 +49,10 @@ SRTM30FILE=$SRTM30DIR"topo30.grd"
 
 EARTHRELIEFDIR=$DATAROOT"EARTHRELIEF/"
 EARTHRELIEFPREFIX="@earth_relief_"
+
+GMRTDIR=$DATAROOT"GMRT/"
+
+# We will store 1°x1° tiles of GMRT and manage their re-download as needed
 
 GEBCO_SOURCESTRING="GEBCO Compilation Group (2020) GEBCO 2020 Grid (doi:10.5285/a29c5465-b138-234d-e053-6c86abc040b9)"
 GEBCO_SHORT_SOURCESTRING="GEBCO"

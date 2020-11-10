@@ -44,7 +44,8 @@ TMP="tempfiles_to_delete/"   # Temporary directory
 VERBOSE="-Ve"                # verbosity flag
 
 ##### Topography
-BATHYCPT=$CPTDIR"topobathy.cpt"
+BATHYCPT=$CPTDIR"topobathy.cpt"  # Default CPT for bathymetry
+ILLUM="-I+d"                 # Default option for shaded relief
 
 ##### Formatting options, general
 ARROWFMT="0.03/0.12/0.06"    # format for velocity arrows, GMT 4 style
@@ -69,6 +70,16 @@ CITIES_LABEL_MINPOP=100000
 CITIES_LABEL_FONTSIZE="8p"
 CITIES_LABEL_FONT="Helvetica"
 CITIES_LABEL_FONTCOLOR="black"
+
+##### Country borders and labels
+
+BORDER_QUALITY="-Da"
+BORDER_LINEWIDTH="0.5p"
+BORDER_LINECOLOR="red"
+
+COUNTRY_LABEL_FONTSIZE="8p"
+COUNTRY_LABEL_FONT="Helvetica"
+COUNTRY_LABEL_FONTCOLOR="red"
 
 ##### Global Curie Depth Map (GCDM)
 GCDMMIN=4                   # Minimum depth of CPT
@@ -128,7 +139,17 @@ CONTOUR_LINECOLOR="white"    # contour line color
 CONTOUR_LINEWIDTH="0.2p"     # contour line width
 CONTOUR_MINLEN="100k"        # length of smallest contour plotted
 
+##### Topographic contours
+TOPOCONTOURNUMDEF=20         # Number of contours to plot
+TOPOCONTOURWIDTH=0.1p
+TOPOCONTOURCOLOUR="black"
+TOPOCONTOURSMOOTH=100
+TOPOCONTOURLABELS="on"
+TOPOCONTOURMINPTS="500"
+
 ##### Seismicity
+EQ_MINMAG=0
+EQ_MAXMAG=10
 EQCUTMINDEPTH=-1000          # Ignore seismicity and CMT data above this depth
 EQCUTMAXDEPTH=6000           # Ignore seismicity and CMT data below this depth
 REMOVE_DEFAULTDEPTHS=1       # Should we remove events with D=10,5,33,etc
@@ -233,3 +254,10 @@ POINTCPT=$CPTDIR"defaultpt.cpt"
 SLIPMINIMUM=3                # SRCMOD minimum slip that is colored (m)
 SLIPMAXIMUM=25               # SRCMOD maximum slip that is colored (m)
 SLIPCONTOURINTERVAL=2        # SRCMOD contour interval (m)
+
+### Contoured grids
+CONTOURNUMDEF=20             # Number of contours to plot
+GRIDCONTOURWIDTH=0.1p
+GRIDCONTOURCOLOUR="black"
+GRIDCONTOURSMOOTH=100
+GRIDCONTOURLABELS="on"
