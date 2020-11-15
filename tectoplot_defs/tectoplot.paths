@@ -36,6 +36,8 @@ EULERADD_AWK=$TECTOPLOTDIR"euleradd.awk"
 ###### Global Curie Depth Map
 GCDMDIR=$DATAROOT"GCDM/"
 GCDMDATA=$GCDMDIR"GCDM.nc"
+GCDM_SOURCEURL="https://static-content.springer.com/esm/art%3A10.1038%2Fsrep45129/MediaObjects/41598_2017_BFsrep45129_MOESM71_ESM.txt"
+GCDM_CMD="xyz2grd -R-180/180/-80/80 GCDM.xyz.txt -I10m -GGCDM.nc"
 
 ###### DEMs used for bathymetry/topography
 
@@ -46,6 +48,7 @@ SRTM_SHORT_SOURCESTRING="SRTM"
 
 SRTM30DIR=$DATAROOT"SRTM30_plus/"
 SRTM30FILE=$SRTM30DIR"topo30.grd"
+SRTM30_SOURCEURL="ftp://topex.ucsd.edu/pub/srtm30_plus/topo30/topo30.grd"
 
 EARTHRELIEFDIR=$DATAROOT"EARTHRELIEF/"
 EARTHRELIEFPREFIX="@earth_relief_"
@@ -57,11 +60,17 @@ GMRTDIR=$DATAROOT"GMRT/"
 GEBCO_SOURCESTRING="GEBCO Compilation Group (2020) GEBCO 2020 Grid (doi:10.5285/a29c5465-b138-234d-e053-6c86abc040b9)"
 GEBCO_SHORT_SOURCESTRING="GEBCO"
 
+
 GEBCO20DIR=$DATAROOT"GEBCO20/"
 GEBCO20FILE=$GEBCO20DIR"GEBCO_2020.nc"
+GEBCO20_SOURCEURL="https://www.bodc.ac.uk/data/open_download/gebco/gebco_2020/zip/"
+GEBCO20_TID=$GEBCO20DIR"GEBCO_2020_TID.nc"
 
 GEBCO1DIR=$DATAROOT"GEBCO_ONE/"
 GEBCO1FILE=$GEBCO1DIR"GRIDONE_2D.nc"
+GEBCO1_SOURCEURL="https://www.bodc.ac.uk/data/open_download/gebco/GEBCO_1MIN/zip/"
+
+BESTDIR=$DATAROOT"BEST_TOPO/"
 
 ###### GCMT focal mechanism data
 
@@ -87,12 +96,13 @@ KIN_MAXMAG=10.0
 
 ###### World City Data
 ###### Format: Lon,Lat,Name,Population
-# http://download.geonames.org/export/dump/cities500.zip
+#
 
 CITIES_SOURCESTRING="City data from geonames (CC-BY)"
 CITIES_SHORT_SOURCESTRING="geonames"
 
 CITIES=$DATAROOT"WorldCities/geonames_cities_500.txt"
+CITIES_SOURCEURL="http://download.geonames.org/export/dump/cities500.zip"
 
 ###### GPS velocities
 #
@@ -112,6 +122,7 @@ MAG_SHORT_SOURCESTRING="EMAG2_V2"
 
 EMAG_V2=$DATAROOT"EMAG2_V2/EMAG2_V2.tif"
 EMAG_V2_CPT=$DATAROOT"EMAG2_V2/EMAG2_V2.cpt"
+EMAG_V2_SOURCEURL="http://geomag.colorado.edu/images/EMAG2/EMAG2_V2.tif"
 
 ###### Gravity data
 
@@ -120,14 +131,24 @@ GRAV_SHORT_SOURCESTRING="WGM2012"
 
 WGMBOUGUER=$DATAROOT"WGM2012/WGM2012_Bouguer_ponc_2min.grd"
 WGMBOUGUER_CPT=$DATAROOT"WGM2012/PALET_WGM_Bouguer_Global.cpt"
+WGMBOUGUER_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/WGM2012_Bouguer_ponc_2min.grd"
 
 WGMISOSTATIC=$DATAROOT"WGM2012/WGM2012_Isostatic_ponc_2min.grd"
 WGMISOSTATIC_CPT=$DATAROOT"WGM2012/PALET_WGM_Isostatic_Global.cpt"
+WGMISOSTATIC_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/WGM2012_Isostatic_ponc_2min.grd"
 
 WGMFREEAIR=$DATAROOT"WGM2012/WGM2012_Freeair_ponc_2min.grd"
 WGMFREEAIR_CPT=$DATAROOT"WGM2012/PALET_WGM_Freeair_Global.cpt"
+WGMFREEAIR_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/WGM2012_Freeair_ponc_2min.grd"
 
 ###### Smithsonian Pleistocene volcanoes database
+
+GVP_PLEISTOCENE_SOURCEURL="https://volcano.si.edu/database/list_volcano_pleistocene_excel.cfm"
+GVP_HOLOCENE_SOURCEURL="https://volcano.si.edu/database/list_volcano_holocene_excel.cfm"
+
+# Output from Excel to tab delimited file, 2 header lines at start.
+GVP_PLEISTOCENE_TABTXT="GVP_Volcano_List_Holocene.txt"
+GVP_HOLOCENE_TABTXT="GVP_Volcano_List_Holocene.txt"
 
 VOLC_SOURCESTRING="Volcano data from Smithsonian GVP (https://volcano.si.edu/), Whelley et al. 2015 doi:10.1007/s00445-014-0893-8"
 VOLC_SHORT_SOURCESTRING="GVP"
@@ -155,6 +176,7 @@ FAULTS_SOURCESTRING="GEM Active Faults https://github.com/GEMScienceTools/gem-gl
 FAULTS_SHORT_SOURCESTRING="GEM"
 
 GEMFAULTS=$DATAROOT"GEMActiveFaults/gem-global-active-faults/gmt/gem_active_faults_harmonized.gmt"
+GEMFAULTS_SOURCEURL="https://raw.githubusercontent.com/cossatot/gem-global-active-faults/master/gmt/gem_active_faults_harmonized.gmt"
 
 ###### SRCMOD slip distribution folder
 SRCMOD_SOURCESTRING="SRCMOD, http://equake-rc.info/srcmod/"

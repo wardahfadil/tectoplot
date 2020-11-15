@@ -458,7 +458,7 @@ for i in $(seq 1 $k); do
       sed 1d < dat.txt > dat1.txt
     	paste  dat.txt dat1.txt | awk -v zscale=${ptgridzscalelist[$i]} '{ if ($7 && $6 != "NaN" && $12 != "NaN") { print "> -Z"($6+$12)/2*zscale*-1; print $3, $6*zscale; print $9, $12*zscale } }' > ${LINEID}_${ptgrididnum[$i]}_data.txt
       echo "gmt psxy -Vn -R -J -O -K -L ${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> "${PSFILE}"" >> plot.sh
-      cat ${LINEID}_${ptgrididnum[$i]}_data.txt >> all_data.txt
+      grep "^[-*0-9]" ${LINEID}_${ptgrididnum[$i]}_data.txt >> all_data.txt
     done
 
     for i in ${!gridfilelist[@]}; do
@@ -906,7 +906,6 @@ LINETEXT=$(cat IDfile.txt)
 
 # Plot the frame. This sets -R and -J for the actual plotting script commands in plot.sh
 
-# echo range $min_x/$max_x/$min_z/$max_z
 gmt psbasemap -Vn -JX${PROFILE_WIDTH_IN}/${PROFILE_HEIGHT_IN} -X"${PROFILE_X}" -Y"${PROFILE_Y}" -Bltrb -R$min_x/$max_x/$min_z/$max_z --MAP_FRAME_PEN=0p,black -K -O >> "${PSFILE}"
 # Execute plot script
 chmod a+x ./plot.sh

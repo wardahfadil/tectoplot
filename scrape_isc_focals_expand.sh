@@ -5,6 +5,10 @@
 # Sanitize the data to be included with GCMT focal mechanisms. This means removing events
 # that have a GCMT entry in the ISC database, removing events without Mw or S/D/R data.
 
+# An exception is that we need to include all mechanisms before 1976 (GCMT catalog starts) as ISC-GCMT solutions.
+# Those old "pre"GCMT mechanisms are mainly deep focus earthquakes
+# Many old "ISC" mechanisms do not have associated magnitudes, but equivalent events are in the ANSS database
+
 # If you want to update a catalog with the most recent events, delete the current years' .dat file before running.
 
 # Required files (run scrape_gcmt.sh first):
@@ -75,14 +79,22 @@ if [[ $DODOWNLOAD -eq 1 ]]; then
   this_year=$(date | awk '{print $(NF)}')
 
   echo "Removing file from this year to ensure updated catalog: isc_focals_${this_year}.dat"
-  rm -f isc_focals_${this_year}.dat
+#  rm -f isc_focals_${this_year}.dat
 
   for year in $(seq $earliest_year $this_year); do
     if [[ ! -e isc_focals_${year}.dat ]]; then
       echo "Dowloading focal mechanisms for ${year}"
-      curl "http://www.isc.ac.uk/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=FMCSV&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&searchshape=GLOBAL&srn=&grn=&start_year=${year}&start_month=05&start_day=01&start_time=00%3A00%3A00&end_year=${year}&end_month=12&end_day=31&end_time=00%3A00%3A00" > isc_focals_${year}.dat
+      curl "http://www.isc.ac.uk/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=FMCSV&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&searchshape=GLOBAL&srn=&grn=&start_year=${year}&start_month=01&start_day=01&start_time=00%3A00%3A00&end_year=${year}&end_month=12&end_day=31&end_time=23%3A59%3A59" > isc_focals_${year}.dat
+      # Label GCMT solutions earlier than 1976 so we don't delete them later.
     else
       echo "Already have file isc_focals_${year}.dat... not downloading."
+    fi
+  done
+
+  echo "Changing GCMT to G_CMTpre in files before 1976"
+  for year in $(seq $earliest_year $this_year); do
+    if [[ $(echo "${year} < 1976" | bc) -eq 1 ]]; then
+      sed -i '' 's/GCMT     /G_CMTpre  /' isc_focals_${year}.dat
     fi
   done
 
@@ -128,6 +140,8 @@ if [[ $DODOWNLOAD -eq 1 ]]; then
   # Need to make an event ID code out of $1 that matches: 2018-04-01T01:14:42
   # PNSN contributes nasty events with values of 9999999999 - remove!
 
+  # The following code seems kind of like... the same...?
+
   # Remove GCMT mechanisms and events with centroid locations, output to psmeca I+14+13 format
   sed -f replacebackward.cat isc_focals_allyears_trim_withstrike_rep1.cat | awk -F, '{if ($2 !~ /GCMT/ && $8 !~ /TRUE/) print}' >  isc_focals_allyears_trim_withstrike_rep1_nogcmt_origin.cat
   awk < isc_focals_allyears_trim_withstrike_rep1_nogcmt_origin.cat -F, '{print "I", $6+0, $5+0, $7+0, $20+0, $21+0, $22+0, $23+0, $24+0, $25+0, $36+0, $37+0, $6+0, $5+0, sprintf("%sT%s", $3, substr($4, 1, 8)), $29+0, $28+0, $35+0, $34+0, $32+0, $31+0, $14+0, $15+0, $16+0, $17+0, $19+0, $18+0, $12+0, $7+0 }' | grep -v 9999999999 > isc_nogcmt_origin.txt
@@ -135,6 +149,8 @@ if [[ $DODOWNLOAD -eq 1 ]]; then
   # Keep only non-GCMT ISC centroid locations, output to psmeca I+14+13 format
   sed -f replacebackward.cat isc_focals_allyears_trim_withstrike_rep1.cat | awk -F, '{if ($2 !~ /GCMT/ && $8 ~ /TRUE/) print}' >  isc_focals_allyears_trim_withstrike_rep1_nogcmt_centroid.cat
   awk < isc_focals_allyears_trim_withstrike_rep1_nogcmt_centroid.cat -F, '{print "I", $6+0, $5+0, $7+0, $20+0, $21+0, $22+0, $23+0, $24+0, $25+0, $36+0, $37+0, $6+0, $5+0, sprintf("%sT%s", $3, substr($4, 1, 8)), $29+0, $28+0, $35+0, $34+0, $32+0, $31+0, $14+0, $15+0, $16+0, $17+0, $19+0, $18+0, $12+0, $7+0 }' | grep -v 9999999999 > isc_nogcmt_centroid.txt
+
+  # Keep GCMT focal mechanisms listed in ISC catalog for years prior to 1979
 fi
 
 # Currently, GCMT mechanisms not reported in the ISC catalog have their non-GCMT equivalents from ISC added to the mixed archive.
@@ -817,4 +833,4 @@ awk < ${ISC_FOCALS_DIR}IG_gcmt_isc_centroid.txt '{
     printf("\n")
   }' > ${GCMT_DIR}gcmt_isc_centroid.txt
 
-rm -f *.cat I_* IG_* 3comp_*.txt isc_focals_allyears* ${GCMT_DIR}G_gcmt_centroid.txt ${GCMT_DIR}G_gcmt_origin.txt
+# rm -f *.cat I_* IG_* 3comp_*.txt isc_focals_allyears* ${GCMT_DIR}G_gcmt_centroid.txt ${GCMT_DIR}G_gcmt_origin.txt

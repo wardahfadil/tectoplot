@@ -6,8 +6,6 @@
 # Kyle Bradley, Nanyang Technological University, August 2020
 # Prefers GS 9.26 (and no later) for transparency
 
-
-
 # -a|--arg) req FILE VARIABLE req TYPE VARIABLE req TYPE VARIABLE opt TYPE VARIABLE opt TYPE VARIABLE gmtvars { REPLACELIST }
 #
 # TYPES:
@@ -28,6 +26,14 @@
 
 # CHANGELOG
 
+# November 15, 2020: Added BEST option for topography that merges 01s resampled to 2s and GMRT tiles.
+# November 15, 2020: Added -gdalt option to use gdal to plot nice hillshade/slope shaded relief, with flexible options
+# November 13, 2020: Added -zs option to include supplemental seismic dataset (cat onto eqs.txt)
+# November 13, 2020: Fixed a bug in gridded data profile that added bad info to all_data.txt
+# November 12, 2020: Added -rect option for -RJ UTM to plot rectangular map (updating AOI as needed)
+# November 11, 2020: Added -zsort option to sort EQs before plotting
+# November 11, 2020: Added ability to plot scale bar of specified length centered on lon/lat point
+# November 11, 2020: Fixed a bug in ISC focal mechanism scraper that excluded all Jan-April events! (!!!), also adds pre-1976 GCMT/ISC mechanisms, mostly deep focus
 # November 10, 2020: Updated topo contour plotting and CPT management scheme
 # November 9, 2020: Adjusted GMRT tile size check, added -printcountries and edited country selection code
 # November 3, 2020: Updated GMRT raster tile scraping and merging to avoid several crash issues
@@ -57,6 +63,8 @@
 
 # HIGH PRIORITY:
 #
+# Add routines to download and process the base datasets (SRTM30, GEBCO20, volcanoes, gravity, emag, etc.)
+#
 # Add routines to plot existing cached data tile extents (e.g. GMRT, other topo) and clear cached data
 # Need to formalize argument checking approach and apply it to all options
 # Need to change program structure so that multiple grids can be overlaid onto shaded relief.
@@ -64,12 +72,10 @@
 # Add option to plot a USGS event from a URL?
 # Add option to plot stacked data across a profile swath
 # Add option to take a data selection polygon from a plate model?
-# Add option to -ob) to specify vertical exaggeration
+# Add option to -ob) to specify vertical exaggeration for oblique plots
 # Add option to not plot the grid
 # add option to plot NASA Blue Marble / day/night images, and crustal age maps, from GMT online server
-# update -RJ to automatically set MINLON MAXLON MINLAT MAXLAT depending on necessary values so that grid cutting etc works
-# Update legend to include all plot elements
-# Change CPT behavior to generate new CPT files and not replace the standard ones in distributed CPT folder
+# Update legend to include more plot elements
 #
 # LOW PRIORITY
 #
@@ -77,9 +83,8 @@
 # Sample elevation at GPS point; project onto profile, plot horizontal velocity since verticals are not usually in the data
 # add a box-and-whisker option to the -mprof command, taking advantage of our quantile calculations and gmt psxy -E
 # Check behavior for plots with areas that cross the Lon=0/360 meridian [general behavior is to FAIL HARD]
-#
 # Add options for controlling CPT of focal mechanisms/seismicity beyond coloring with depth (e.g. color with time)
-# Add option to color based on distance from profile?
+# Add option to color data based on distance from profile?
 #
 # Update script to apply gmt.conf at start and also at various other points
 # Update commands to use --GMT_HISTORY=false when necessary, rather than using extra tmp dirs
@@ -111,6 +116,22 @@ function info_msg() {
     printf "TECTOPLOT %05s: " ${BASH_LINENO[0]}
     printf "${@}\n"
   fi
+}
+
+# Grid range query. Try to avoid querying the full grid when determining the range of Z values
+
+# I have replaced many instances of gmt grdinfo with this function but not all have been tested.
+# Commented original lines worked though
+
+function grid_zrange() {
+   output=$(gmt grdinfo -C $1 -Vn)
+   zmin=$(echo $output | awk '{print $6}')
+   zmax=$(echo $output | awk '{print $7}')
+   if [[ $(echo "$zmin == 0 && $zmax == 0" | bc) -eq 1 ]]; then
+      # echo "Querying full grid as zrange is 0"
+      output=$(gmt grdinfo -C -L $1 -Vn)
+   fi
+   echo $output | awk '{print $6, $7}'
 }
 
 #########
@@ -266,6 +287,8 @@ GMT control
   -cpts                                                remake default CPT files
   -geotiff                                             output GeoTIFF and .tfw, frame inside
   -kml                                                 output KML, frame inside
+  -scale           [length] [lon] [lat]                place scale bar centered at lon/lat point
+  -rect                                                use rectangular map frame (UTM projection only)
 
 Plotting/control commands:
   --data                                               list data sources and exit
@@ -291,6 +314,7 @@ Plotting/control commands:
   --verbose                                            set gmt -V flag for all calls
   -vars            [variables file]                    set variable values using bash sourcing of file
   -setvars         { VAR1 VAL1 VAR2 VAL2 }             set bash variable values
+  -scale           [length] [lon] [lat]                plot a scale bar. length needs suffix (e.g. 100k).
 
 Profiles:
   -mprof           [control_file] A B X Y                 multiple swath profile
@@ -300,12 +324,13 @@ Profiles:
   -oto             adjust vertical scale (following all other options) to set V:H ratio at 1 (no exagg)
 
 Topography/bathymetry:
-  -t|--topo        [[ SRTM30 | GEBCO20 | GEBCO1 | ERCODE | GMRT | custom_grid_file ]] [[cpt]]
+  -t|--topo        [[ SRTM30 | GEBCO20 | GEBCO1 | ERCODE | GMRT | BEST | custom_grid_file ]] [[cpt]]
                    plot shaded relief (including a custom grid)
                    ERCODE: GMT Earth Relief Grids, dynamically downloaded and stored locally:
                    01d ~100km | 30m ~55 km | 20m ~37km | 15m ~28km | 10m ~18 km | 06m ~10km
                    05m ~9km | 04m ~7.5km | 03m ~5.6km | 02m ~3.7km | 01m ~1.9km | 15s ~500m
                    03s ~100m | 01s ~30m
+                   BEST uses GMRT for elev < 0 and 01s for elev >= 0 (resampled to match GMRT)
   -ts                                                  don't plot shaded relief/topo grid
   -ti              [off] | [azimuth (°)]               set parameters for grid illumination
   -tn              [interval (m)]                      plot topographic contours
@@ -313,6 +338,8 @@ Topography/bathymetry:
   -tc|--cpt        [cptfile]                           use custom cpt file for topo grid
   -tt|--topotrans  [transparency%]                     transparency of topo grid
   -clipdem                                             save terrain as a DEM in temporary directory
+  -gebcotid                                            plot GEBCO TID raster
+  -gdalt           [[gamma (0-1)]] [[% HS (0-1)]]      render colored multiple hillshade using gdal
 
 Additional map layers:
   -a|--coast       [[quality]] [[a,b]] { gmtargs }     plot coastlines [[a]] and borders [[b]]
@@ -337,17 +364,21 @@ Additional map layers:
   -pb                                                  plot political boundaries
   -pp|--cities     [[min population]]                  plot cities with minimum population, color by population
   -ppl             [[min population]]                  label cities with a minimum population
-  -z|--seis        [[scale]]                           plot seismic epicenters (from scraped earthquake data)
-  -zd              [[scale]] [STARTTIME ENDTIME]       plot seismic epicenters (new download from ANSS for AOI)
   -gcdm                                                plot Global Curie Depth Map
-  --time           [STARTTIME ENDTIME]                 Select EQ/CMT between dates (midnight AM), format YYYY-MM-DD
 
 GIS datasets:
   Multiple calls to these functions are allowed. Options are specified in order, replacing default values.
   -pt|--point      [filename] [[symbol]] [[size]] [[cptfile]]    data: x y z
   -l|--line        [filename] [[color]] [[width]]                data: > ID (z)\n x y\n x y\n > ID2 (z) x y\n ...
 
-Seismicity/focal mechanisms:
+Seismicity:
+  -z|--seis        [[scale]]                           plot seismic epicenters (from scraped earthquake data)
+! -zd              [[scale]] [STARTTIME ENDTIME]       plot seismic epicenters (new download from ANSS for AOI)
+  --time           [STARTTIME ENDTIME]                 select EQ/CMT between dates (midnight AM), format YYYY-MM-DD
+  -zsort           [date|depth|mag] [up|down]          sort earthquake data before plotting
+  -zs              [file]                              add supplemental seismicity file [lon lat depth mag]
+
+Seismicity/focal mechanism data control:
   -reportdates                                         print date range of seismic, focal mechanism catalogs and exit
   -scrapedata                                          run the GCMT/ISC/ANSS scraper scripts and exit
   -recenteq                                            run scraper and plot recent earthquakes. Need to specify -c, -z, -r options.
@@ -671,11 +702,17 @@ do
 	-c|--cmt) # args: none || number
 		calccmtflag=1
 		plotcmt=1
+    cmtsourcesflag=1
+
     # Select focal mechanisms from GCMT, ISC, GCMT+ISC
     if [[ ${2:0:1} == [-] || -z $2 ]]; then
       info_msg "[-c]: No source of CMTs indicated. Using ISC+GCMT, centroid."
       CMTFILE=$ISC_GCMT_CENTROID
       CMTTYPE="GCMT_ISC_CENTROID"
+      echo $ISC_SHORT_SOURCESTRING >> $THISDIR/tectoplot.shortsources
+      echo $ISC_SOURCESTRING >> $THISDIR/tectoplot.sources
+      echo $GCMT_SHORT_SOURCESTRING >> $THISDIR/tectoplot.shortsources
+      echo $GCMT_SOURCESTRING >> $THISDIR/tectoplot.sources
     else
       CMTTYPE="${2}"
       shift
@@ -683,31 +720,51 @@ do
         GCMT_ORIGIN)
           info_msg "[-c]: Using GCMT solutions, origin"
           CMTFILE=$GCMTORIGIN
+          echo $GCMT_SHORT_SOURCESTRING >> $THISDIR/tectoplot.shortsources
+          echo $GCMT_SOURCESTRING >> $THISDIR/tectoplot.sources
         ;;
         GCMT_CENTROID)
           info_msg "[-c]: Using GCMT solutions, centroid"
           CMTFILE=$GCMTCENTROID
+          echo $GCMT_SHORT_SOURCESTRING >> $THISDIR/tectoplot.shortsources
+          echo $GCMT_SOURCESTRING >> $THISDIR/tectoplot.sources
         ;;
         ISC_ORIGIN)
           info_msg "[-c]: Using non-GCMT solutions from ISC, origin"
           CMTFILE=$ISC_ORIGIN
+          echo $ISC_SHORT_SOURCESTRING >> $THISDIR/tectoplot.shortsources
+          echo $ISC_SOURCESTRING >> $THISDIR/tectoplot.sources
         ;;
         ISC_CENTROID)
           info_msg "[-c]: Using non-GCMT solutions from ISC, centroid"
           CMTFILE=$ISC_CENTROID
+          echo $ISC_SHORT_SOURCESTRING >> $THISDIR/tectoplot.shortsources
+          echo $ISC_SOURCESTRING >> $THISDIR/tectoplot.sources
           ;;
         GCMT_ISC_ORIGIN)
           info_msg "[-c]: Using combined ISC and GCMT, origin"
           CMTFILE=$ISC_GCMT_ORIGIN
+          echo $ISC_SHORT_SOURCESTRING >> $THISDIR/tectoplot.shortsources
+          echo $ISC_SOURCESTRING >> $THISDIR/tectoplot.sources
+          echo $GCMT_SHORT_SOURCESTRING >> $THISDIR/tectoplot.shortsources
+          echo $GCMT_SOURCESTRING >> $THISDIR/tectoplot.sources
         ;;
         GCMT_ISC_CENTROID)
           info_msg "[-c]: Using combined ISC and GCMT, origin"
           CMTFILE=$ISC_GCMT_CENTROID
+          echo $ISC_SHORT_SOURCESTRING >> $THISDIR/tectoplot.shortsources
+          echo $ISC_SOURCESTRING >> $THISDIR/tectoplot.sources
+          echo $GCMT_SHORT_SOURCESTRING >> $THISDIR/tectoplot.shortsources
+          echo $GCMT_SOURCESTRING >> $THISDIR/tectoplot.sources
         ;;
         *)
           info_msg "[-c]: Unknown CMT source. Using ISC and GCMT, origin"
           CMTFILE=$ISC_GCMT_CENTROID
           CMTTYPE="GCMT_ISC_CENTROID"
+          echo $ISC_SHORT_SOURCESTRING >> $THISDIR/tectoplot.shortsources
+          echo $ISC_SOURCESTRING >> $THISDIR/tectoplot.sources
+          echo $GCMT_SHORT_SOURCESTRING >> $THISDIR/tectoplot.shortsources
+          echo $GCMT_SOURCESTRING >> $THISDIR/tectoplot.sources
         ;;
       esac
       if [[ ${2:0:1} == [-] || -z $2 ]]; then
@@ -907,6 +964,25 @@ do
     plots+=("gcdm")
     cpts+=("gcdm")
     ;;
+  -gdalt)
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-gdalt]: No gamma value specified. Using default: ${HS_GAMMA}"
+    else
+      HS_GAMMA="${2}"
+      info_msg "[-gdalt]: Gamma value set to ${HS_GAMMA}"
+      shift
+    fi
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-gdalt]: No hillshade/slope blend specified. Using default: ${HSSLOPEBLEND} "
+    else
+      HSSLOPEBLEND="${2}"
+      info_msg "[-gdalt]: Gamma value set to ${HS_GAMMA}"
+      shift
+    fi
+    gdemtopoplotflag=1
+    clipdemflag=1
+    gdaltzerohingeflag=1
+    ;;
   -geotiff)
     # Need to replicate the following commands to plot a geotiff: -Jx projection, -RMINLON/MAXLON/MINLAT/MAXLAT
     #   -geotiff -RJ { -R88/98/17/30 -Jx5i } -gmtvars { MAP_FRAME_TYPE inside }
@@ -930,6 +1006,10 @@ do
     usecustomrjflag=1
     insideframeflag=1
     kmlflag=1
+    ;;
+  -gebcotid)
+    plots+=("gebcotid")
+    clipdemflag=1
     ;;
   -gg|--extragps) # args: file
     if [[ ${2:0:1} == [-] || -z $2 ]]; then
@@ -1439,13 +1519,19 @@ do
         shift
       elif [[ -e $(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")") ]]; then
         info_msg "[-r]: Raster file given to -r command"
-        gmt grdinfo $(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")") > tmp.ras.data 2>/dev/null
-        MINLON=$(grep "x_min" tmp.ras.data | cut -d ":" -f 3 | awk '{print $1}')
-        MAXLON=$(grep "x_min" tmp.ras.data | cut -d ":" -f 4 | awk '{print $1}')
-        MINLAT=$(grep "y_min" tmp.ras.data | cut -d ":" -f 3 | awk '{print $1}')
-        MAXLAT=$(grep "y_min" tmp.ras.data | cut -d ":" -f 4 | awk '{print $1}')
 
-        # echo "$MINLON/$MAXLON/$MINLAT/$MAXLAT"
+        # gmt grdinfo $(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")") > tmp.ras.data 2>/dev/null
+        # MINLON=$(grep "x_min" tmp.ras.data | cut -d ":" -f 3 | awk '{print $1}')
+        # MAXLON=$(grep "x_min" tmp.ras.data | cut -d ":" -f 4 | awk '{print $1}')
+        # MINLAT=$(grep "y_min" tmp.ras.data | cut -d ":" -f 3 | awk '{print $1}')
+        # MAXLAT=$(grep "y_min" tmp.ras.data | cut -d ":" -f 4 | awk '{print $1}')
+
+        rasrange=$(gmt grdinfo $(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")") -C -Vn)
+        MINLON=$(echo $rasrange | awk '{print $2}')
+        MAXLON=$(echo $rasrange | awk '{print $3}')
+        MINLAT=$(echo $rasrange | awk '{print $4}')
+        MAXLAT=$(echo $rasrange | awk '{print $5}')
+
         if [[ $(echo "$MAXLON > $MINLON" | bc) -eq 1 ]]; then
           if [[ $(echo "$MAXLAT > $MINLAT" | bc) -eq 1 ]]; then
             info_msg "Set region to $MINLON/$MAXLON/$MINLAT/$MAXLAT to match $2"
@@ -1552,6 +1638,9 @@ do
     ENDTIME=$(echo "${FIRSTDAY}T:00:00:00")
     # Set to global extent
   ;;
+  -rect)
+    MAKERECTMAP=1
+  ;;
   -reportdates)
      echo -n "GCMT focal mechanism data: "
      cat $GCMTORIGIN $GCMTCENTROID | cut -d ' ' -f 15 | sort | sed -n -e '1p;$p' |  awk '(NR==1){ printf "%s to ", $1} (NR!=1) {printf "%s", $1 } END { printf "\n"}'
@@ -1607,6 +1696,29 @@ do
     echo $SRCMOD_SHORT_SOURCESTRING >> $THISDIR/tectoplot.shortsources
     echo $SRCMOD_SOURCESTRING >> $THISDIR/tectoplot.sources
 	  ;;
+  -scale)
+    plots+=("mapscale")  # We just use this section to create the SCALECMD
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-scale]: No scale length specified. Using 100km"
+      SCALELEN="100k"
+    else
+      SCALELEN="${2}"
+      shift
+    fi
+    # Adjust position and buffering of scale bar using either letter combinations OR Lat/Lon location
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-scale]: No reference point given. Using upper left corner."
+      SCALEREFLAT=$MAXLAT
+      SCALEREFLON=$MINLON
+      SCALELENLAT=$MAXLAT
+    else
+      SCALEREFLON="${2}"
+      shift
+      SCALEREFLAT="${2}"
+      shift
+      SCALELENLAT=$SCALEREFLAT
+    fi
+    ;;
   -scrapedata) # args: none | gia
     if [[ ${2:0:1} == [-] || -z $2 ]]; then
       info_msg "[-scrapedata]: No datasets specified. Scraping GCMT/ISC/ANSS"
@@ -1684,6 +1796,15 @@ do
         GRIDFILE=${EARTHRELIEFPREFIX}${BATHYMETRY}
         plots+=("topo")
         remotetileget=1
+        ;;
+      BEST)
+        BATHYMETRY="01s"
+        plottopo=1
+        GRIDDIR=$EARTHRELIEFDIR
+        GRIDFILE=${EARTHRELIEFPREFIX}${BATHYMETRY}
+        plots+=("topo")
+        remotetileget=1
+        besttopoflag=1
         ;;
 			SRTM30)
 			  plottopo=1
@@ -2025,14 +2146,36 @@ do
     plots+=("seisrake1")
     ;;
   -zr2|--eqrake2) # args: number
-      if [[ ${2:0:1} == [-] || -z $2 ]]; then
-        info_msg "[-zr]:  No rake color scale indicated. Using default: ${RAKE2SCALE}"
-      else
-        RAKE2SCALE="${2}"
-        shift
-      fi
-      plots+=("seisrake2")
-      ;;
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-zr]:  No rake color scale indicated. Using default: ${RAKE2SCALE}"
+    else
+      RAKE2SCALE="${2}"
+      shift
+    fi
+    plots+=("seisrake2")
+    ;;
+  -zs) # args: file   - supplemental seismicity catalog in lon lat depth mag [datestr] [id] format
+    suppseisflag=1
+    SUPSEISFILE=$(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")")
+    shift
+    ;;
+  -zsort)
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-zsort]:  No sort dimension specified. Using depth."
+      ZSORTTYPE="depth"
+    else
+      ZSORTTYPE="${2}"
+      shift
+    fi
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-zsort]:  No sort direction specified. Using down."
+      ZSORTDIR="down"
+    else
+      ZSORTDIR="${2}"
+      shift
+    fi
+    dozsortflag=1
+    ;;
 	*)    # unknown option.
 		echo "Unknown argument encountered: ${1}" 1>&2
     exit 1
@@ -2040,6 +2183,69 @@ do
   esac
   shift
 done
+
+
+################################################################################
+###### Calculate some sizes for the final map document based on AOI aspect ratio
+
+LATSIZE=$(echo "$MAXLAT - $MINLAT" | bc -l)
+LONSIZE=$(echo "$MAXLON - $MINLON" | bc -l)
+
+# For a standard run, we want something like this. For other projections, unlikely to be sufficient
+# We want a page that is PSSIZE wide with a MARGIN. It scales vertically based on the
+# aspect ratio of the map region
+
+PSSIZEH=$(echo "$PSSIZE * $PSSCALE" | bc -l)
+PSSIZEV=$(echo "$LATSIZE / $LONSIZE * $PSSIZEH + 2" | bc -l)
+INCH=$(echo "$PSSIZEH - $MARGIN * 2" | bc -l)
+
+##### Define the output filename for the map, in PDF
+if [[ $outflag == 0 ]]; then
+	MAPOUT="tectomap_"$MINLAT"_"$MAXLAT"_"$MINLON"_"$MAXLON
+  MAPOUTLEGEND="tectomap_"$MINLAT"_"$MAXLAT"_"$MINLON"_"$MAXLON"_legend.pdf"
+  info_msg "Output file is $MAPOUT, legend is $MAPOUTLEGEND"
+else
+  info_msg "Output file is $MAPOUT, legend is legend.pdf"
+  MAPOUTLEGEND="legend.pdf"
+fi
+
+
+# If MAKERECTMAP is set to 1, the RJSTRING will be changed to a different format
+# to allow plotting of a rectangular map not bounded by parallels/meridians.
+# However, data that does not fall within the AOI region given by MINLON/MAXLON/etc
+# will not be processed or plotted. So we would need to recalculate these parameters
+# based on the maximal range present in the final plot. I would usually do this by
+# rendering the map frame as populated polylines and finding the maximal coordinates of the vertices.
+
+# We have to set the RJ flag after setting the plot size (INCH)
+
+if [[ $setutmrjstringfromarrayflag -eq 1 ]]; then
+  if [[ $MAKERECTMAP -eq 1 ]]; then
+    rj[1]="-R${MINLON}/${MINLAT}/${MAXLON}/${MAXLAT}r"
+    rj[2]="-JU${UTMZONE}/${INCH}i"
+    RJSTRING="${rj[@]}"
+
+    gmt psbasemap -A $RJSTRING | grep -v "#" > mapoutline.txt
+    MINLONNEW=$(awk < mapoutline.txt 'BEGIN {getline;min=$1} NF { min=(min>$1)?$1:min } END{print min}')
+    MAXLONNEW=$(awk < mapoutline.txt 'BEGIN {getline;max=$1} NF { max=(max>$1)?max:$1 } END{print max}')
+    MINLATNEW=$(awk < mapoutline.txt 'BEGIN {getline;min=$2} NF { min=(min>$2)?$2:min } END{print min}')
+    MAXLATNEW=$(awk < mapoutline.txt 'BEGIN {getline;max=$2} NF { max=(max>$2)?max:$2} END{print max}')
+    info_msg "Updating AOI from ${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} to ${MINLONNEW}/${MAXLONNEW}/${MINLATNEW}/${MAXLATNEW}"
+    MINLON=$MINLONNEW
+    MAXLON=$MAXLONNEW
+    MINLAT=$MINLATNEW
+    MAXLAT=$MAXLATNEW
+
+  else
+    rj[1]="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
+    rj[2]="-JU${UTMZONE}/${INCH}i"
+  fi
+  rj[2]="-JU${UTMZONE}/${INCH}i"
+  RJSTRING="${rj[@]}"
+  info_msg "[-RJ]: Custom region and projection string is: ${RJSTRING[@]}"
+fi
+
+
 
 MSG=$(echo ">>>>>>>>> Plotting order is ${plots[@]} <<<<<<<<<<<<<")
 # echo $MSG
@@ -2061,15 +2267,6 @@ else
 	exit 1
 fi
 
-##### Define the output filename for the map, in PDF
-if [[ $outflag == 0 ]]; then
-	MAPOUT="tectomap_"$MINLAT"_"$MAXLAT"_"$MINLON"_"$MAXLON
-  MAPOUTLEGEND="tectomap_"$MINLAT"_"$MAXLAT"_"$MINLON"_"$MAXLON"_legend.pdf"
-  info_msg "Output file is $MAPOUT, legend is $MAPOUTLEGEND"
-else
-  info_msg "Output file is $MAPOUT, legend is legend.pdf"
-  MAPOUTLEGEND="legend.pdf"
-fi
 
 # Fixed scaling of the kinematic vectors from focal mechanisms
 # Length of slip vector azimuth
@@ -2114,26 +2311,6 @@ fi
 
 cd "${TMP}"
 
-################################################################################
-###### Calculate some sizes for the final map document based on AOI aspect ratio
-
-LATSIZE=$(echo "$MAXLAT - $MINLAT" | bc -l)
-LONSIZE=$(echo "$MAXLON - $MINLON" | bc -l)
-
-# For a standard run, we want something like this. For other projections, unlikely to be sufficient
-# We want a page that is PSSIZE wide with a MARGIN. It scales vertically based on the
-# aspect ratio of the map region
-
-PSSIZEH=$(echo "$PSSIZE * $PSSCALE" | bc -l)
-PSSIZEV=$(echo "$LATSIZE / $LONSIZE * $PSSIZEH + 2" | bc -l)
-INCH=$(echo "$PSSIZEH - $MARGIN * 2" | bc -l)
-
-if [[ $setutmrjstringfromarrayflag -eq 1 ]]; then
-  rj[1]="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
-  rj[2]="-JU${UTMZONE}/${INCH}i"
-  RJSTRING="${rj[@]}"
-  info_msg "[-RJ]: Custom region and projection string is: ${RJSTRING[@]}"
-fi
 
 # Forget about that... just make a giant page and trim it later
 
@@ -2247,10 +2424,20 @@ else
 fi
 
 ##### TOPOGRAPHY/BATHYMETRY
-if [[ $plottopo -eq 1 ]]; then
-	info_msg "Making basemap $BATHYMETRY"
 
-  if [[ $BATHYMETRY =~ "GMRT" ]]; then   # We manage GMRT tiling ourselves
+if [[ $plottopo -eq 1 ]]; then
+  info_msg "Making basemap $BATHYMETRY"
+
+  if [[ $besttopoflag -eq 1 ]]; then
+    bestname=$BESTDIR"best_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}.nc"
+    if [[ -e $bestname ]]; then
+      info_msg "Best topography already exists."
+      BATHY=$bestname
+      bestexistsflag=1
+    fi
+  fi
+
+  if [[ $BATHYMETRY =~ "GMRT" || $besttopoflag -eq 1 && $bestexistsflag -eq 0 ]]; then   # We manage GMRT tiling ourselves
 
     minlon360=$(echo $MINLON | awk '{ if ($1<0) {print $1+360} else {print $1} }')
     maxlon360=$(echo $MAXLON | awk '{ if ($1<0) {print $1+360} else {print $1} }')
@@ -2297,10 +2484,10 @@ if [[ $plottopo -eq 1 ]]; then
           # gdal_edit.py -a_srs "+proj=longlat +datum=WGS84 +no_defs" $GMRTDIR"GMRT_${i}_${iplus}_${j}_${jplus}.tif"
           #
           # Test whether the file was correctly downloaded
-          fsize=$(wc -c < GMRTDIR"GMRT_${i}_${iplus}_${j}_${jplus}.nc")
+          fsize=$(wc -c < $GMRTDIR"GMRT_${i}_${iplus}_${j}_${jplus}.nc")
           if [[ $(echo "$fsize < 12000000" | bc) -eq 1 ]]; then
             info_msg "File GMRT_${i}_${iplus}_${j}_${jplus}.nc was not properly downloaded: too small ($fsize bytes). Removing."
-            rm -f GMRTDIR"GMRT_${i}_${iplus}_${j}_${jplus}.nc"
+            rm -f $GMRTDIR"GMRT_${i}_${iplus}_${j}_${jplus}.nc"
           fi
 
         else
@@ -2310,7 +2497,6 @@ if [[ $plottopo -eq 1 ]]; then
         tilecount=$(echo "$tilecount + 1" | bc)
       done
     done
-
 
     if [[ ! -e $GMRTDIR"GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.nc" ]]; then
       info_msg "Merging tiles to form GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.nc: " ${filelist[@]}
@@ -2322,9 +2508,14 @@ if [[ $plottopo -eq 1 ]]; then
       info_msg "GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.nc exists"
     fi
     name=$GMRTDIR"GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.nc"
-    BATHY=$name
 
-  else
+    if [[ $BATHYMETRY =~ "GMRT" ]]; then
+      BATHY=$name
+    elif [[ $besttopoflag -eq 1 ]]; then
+      NEGBATHYGRID=$name
+    fi
+  fi
+  if [[ ! $BATHYMETRY =~ "GMRT" && $bestexistsflag -eq 0 ]]; then
 
     info_msg "Using grid $GRIDFILE"
 
@@ -2343,17 +2534,11 @@ if [[ $plottopo -eq 1 ]]; then
         SRTM30|GEBCO20|GEBCO1|01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
           # echo gmt grdcut $GRIDFILE -G${name} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
           gmt grdcut $GRIDFILE -G${name} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
+          demiscutflag=1
         ;;
       esac
   	fi
   	BATHY=$name
-  fi
-
-  if [[ $clipdemflag -eq 1 ]]; then
-    if [[ -e $name ]]; then
-      info_msg "[-clipdem]: saving DEM as dem.nc"
-      cp $name dem.nc
-    fi
   fi
 fi
 
@@ -2380,10 +2565,38 @@ if [[ $plotcustomtopo -eq 1 ]]; then
 	CUSTOMINTN=$int
 fi
 
+
+# At this point, if best topo flag is set, combine POSBATHYGRID and BATHY into one grid and make it the new BATHY grid
+
+if [[ $besttopoflag -eq 1 && $bestexistsflag -eq 0 ]]; then
+  info_msg "Combining GMRT ($NEGBATHYGRID) and 01s ($BATHY) grids to form best topo grid"
+  gmt grdsample -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -I2s $NEGBATHYGRID -Gneg.nc -fg ${VERBOSE}
+  gmt grdsample -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -I2s $BATHY -Gpos.nc -fg ${VERBOSE}
+  gmt grdclip -Sb0/0 pos.nc -Gposclip.nc ${VERBOSE}
+  gmt grdclip -Si0/10000000/0 neg.nc -Gnegclip.nc ${VERBOSE}
+  gmt grdmath posclip.nc negclip.nc ADD = merged.nc ${VERBOSE}
+  mv merged.nc $bestname
+  BATHY=$bestname
+fi
+
+if [[ $clipdemflag -eq 1 ]]; then
+  if [[ -e $BATHY ]]; then
+    info_msg "[-clipdem]: saving DEM as dem.nc"
+    if [[ $demiscutflag -eq 1 ]]; then
+      cp $BATHY dem.nc
+    else
+      gmt grdcut $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -Gdem.nc ${VERBOSE}
+    fi
+  fi
+fi
+
 # Contour interval for grid if not specified using -cn
 if [[ $gridcontourcalcflag -eq 1 ]]; then
-  MINCONTOUR=$(gmt grdinfo $CONTOURGRID -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_min" | cut -d ":" -f 3 | awk '{print $1}')
-  MAXCONTOUR=$(gmt grdinfo $CONTOURGRID -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_max" | cut -d ":" -f 4 | awk '{print $1}')
+  zrange=$(grid_zrange $CONTOURGRID -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
+  MINCONTOUR=$(echo $zrange | awk '{print $1}')
+  MAXCONTOUR=$(echo $zrange | awk '{print $2}')
+  # MINCONTOUR=$(gmt grdinfo $CONTOURGRID -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_min" | cut -d ":" -f 3 | awk '{print $1}')
+  # MAXCONTOUR=$(gmt grdinfo $CONTOURGRID -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_max" | cut -d ":" -f 4 | awk '{print $1}')
   CONTOURINTGRID=$(echo "($MAXCONTOUR - $MINCONTOUR) / $CONTOURNUMDEF" | bc -l)
   if [[ $(echo "$CONTOURINTGRID > 1" | bc -l) -eq 1 ]]; then
     CONTOURINTGRID=$(echo "$CONTOURINTGRID / 1" | bc)
@@ -2392,8 +2605,11 @@ fi
 
 # Contour interval for grid if not specified using -cn
 if [[ $topocontourcalcflag -eq 1 ]]; then
-  MINCONTOUR=$(gmt grdinfo $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_min" | cut -d ":" -f 3 | awk '{print $1}')
-  MAXCONTOUR=$(gmt grdinfo $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_max" | cut -d ":" -f 4 | awk '{print $1}')
+  zrange=$(grid_zrange $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
+  MINCONTOUR=$(echo $zrange | awk '{print $1}')
+  MAXCONTOUR=$(echo $zrange | awk '{print $2}')
+  # MINCONTOUR=$(gmt grdinfo $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_min" | cut -d ":" -f 3 | awk '{print $1}')
+  # MAXCONTOUR=$(gmt grdinfo $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_max" | cut -d ":" -f 4 | awk '{print $1}')
   TOPOCONTOURINT=$(echo "($MAXCONTOUR - $MINCONTOUR) / $TOPOCONTOURNUMDEF" | bc -l)
   if [[ $(echo "$TOPOCONTOURINT > 1" | bc -l) -eq 1 ]]; then
     TOPOCONTOURINT=$(echo "$TOPOCONTOURINT / 1" | bc)
@@ -2448,6 +2664,13 @@ if [[ $plotseis -eq 1 ]]; then
   # Select seismicity based on AOI and min/max depth
   awk < $EQANSSFILETXT -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} '($1 < maxlon && $1 > minlon && $2 < maxlat && $2 > minlat && $3 > mindepth && $3 < maxdepth) {print}' > eqs.txt
 
+  if [[ $suppseisflag -eq 1 ]]; then
+    echo adding EQs
+    awk < $SUPSEISFILE '{
+      printf "%f %f %f %f 1000:00:00T00:00:00 ID\n", $1, $2, $3, $4
+    }' >> eqs.txt
+  fi
+
   if [[ $polygonselectflag -eq 1 ]]; then
     info_msg "Selecting seismicity within AOI polygon ${POLYGONAOI}"
     mv eqs.txt eqs_preselect.txt
@@ -2463,6 +2686,29 @@ if [[ $plotseis -eq 1 ]]; then
     sort eqs.txt -k 5 > eqsort.txt
     cat eqsort.txt | sed -n '/REMOVESTART/,/REMOVEEND/p' | sed '1d' | sed '$d' > eqs.txt
   fi
+
+  if [[ $dozsortflag -eq 1 ]]; then
+    info_msg "Sorting earthquakes by $ZSORTTYPE"
+    case $ZSORTTYPE in
+      "depth")
+        SORTFIELD=3
+      ;;
+      "time")
+        SORTFIELD=5
+      ;;
+      "mag")
+        SORTFIELD=4
+      ;;
+      *)
+        info_msg "[-zsort]: Sort field $ZSORTTYPE not recognized. Using depth."
+        SORTFIELD=3
+      ;;
+    esac
+    [[ $ZSORTDIR =~ "down" ]] && sort -n -k $SORTFIELD eqs.txt > eqsort.txt
+    [[ $ZSORTDIR =~ "up" ]] && sort -n -r -k $SORTFIELD eqs.txt > eqsort.txt
+    [[ -e eqsort.txt ]] && mv eqsort.txt eqs.txt
+  fi
+
 
 fi # if [[ $plotseis -eq 1 ]]
 
@@ -2768,6 +3014,105 @@ if [[ $calccmtflag -eq 1 ]]; then
 	awk 'NR > 1' kin_normal.txt | awk -v symsize=$SYMSIZE1 '{ print $1, $2, ($4+270) % 360, symsize }' > normal_slip_vectors_np2.txt
 
 fi # if [[ $calccmtflag -eq 1 ]]
+
+##### EQUIVALENT EARTHQUAKES AND RESCALING
+# If the REMOVE_EQUIVS variable is set, compare with cmt.dat to remove EQs that have a focal mechanism equivalent
+# There is almost certainly a number of much better ways to do this. In awk, likely using getline.
+if [[ $REMOVE_EQUIVS -eq 1 && -e cmt_scale.dat && -e eqs.txt ]]; then
+  before_e=$(wc -l < eqs.txt)
+  info_msg "Removing duplicate ANSS events based on CMT"
+  # Currently we only use the first 6 columns of the EQ data. Commented code indicates how to add more/pad if necessary
+  # A LON LAT DEPTH MAG TIMECODE ID
+  awk < eqs.txt '{
+    printf "A %s %s %s %s %s %s", $1, $2, $3, $4, $5, $6
+    # for(i=6; i<= NF; i++) {
+    #   printf " %s", $(i)
+    # }
+    # for(j=i; j<=29; ++j) {
+    #   printf " remove"
+    # }
+    printf("\n")
+  }' > eqd1.txt
+  # For origin data, comparisons between fields 2,3 and lon,lat in EQ dataset are valid
+  # For centroid data, there can be larger displacements and we would want to use catalog location 13/14
+  # 1     2    3    4      5   6   7   8   9   10  11        12        13   14   15     16   17   18   19   20   21   22   23   24   25   26   27   28  29
+  # Code, Lon, Lat, Depth, S1, D1, R1, S2, D2, R2, Mantissa, Exponent, Lon, Lat, NewID, TAz, Tpl, Naz, Npl, Paz, Ppl, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, Mw, Seconds
+
+  awk < cmt_scale.dat '{
+    # We no longer need to pad this with an ID code because it already has one.
+    # C LON LAT DEPTH MAG TIMECODE 0
+    printf "C %s %s %s %s %s 0\n", $2, $3, $4, $28, $15
+  }' > cmtd1.txt
+  cat eqd1.txt cmtd1.txt | awk '{
+      split($6, a, "-")
+      year=a[1]
+      month=a[2]
+      split(a[3],b,"T")
+      day=b[1]
+      split(b[2],c,":")
+      hour=c[1]
+      minute=c[2]
+      second=c[3]
+      the_time=sprintf("%i %i %i %i %i %i",year,month,day,hour,minute,int(second+0.5));
+      secs = mktime(the_time);
+      print secs, $0
+    }' | sort -n -k 1 > timed1.txt
+    sed '1d' timed1.txt > timed1_cut.txt
+    sed '1d' timed1_cut.txt > timed1_cut2.txt
+
+    paste timed1.txt timed1_cut.txt timed1_cut2.txt > 3comp.txt
+
+    # 1    2 3   4   5     6   7        8 9    10 11  12   13  14   15       16  17  18 19  20  21    22 23        24
+    # SECS C LON LAT DEPTH MAG TIMECODE 0 SECS A LON LAT DEPTH MAG  TIMECODE ID SECS C LON LAT DEPTH MAG TIMECODE  0
+    # We want to remove from A any A event that is close to a C event
+    awk < 3comp.txt 'function abs(v) {return v < 0 ? -v : v} {
+      if ($10 == "A") { # Only examine ANSS EQ events
+        printme = 1
+        secondlimit=5
+       # if ($14 > 6.5) { # For large EQs, use a stricter time and a wider distance window, and compare magnitudes
+          if ($2 == "C" && $9-$1 < secondlimit && abs($11-$3) < 2 && abs($12-$4) < 2 && abs($14-$6) < 0.3 ) {
+              printme = 0
+          } else if ($18 == "C" && $17-$9 < secondlimit && abs($19-$11) < 2 && abs($20-$12) < 2 ) {
+              printme = 0
+          }
+        # } else {
+        #   # If EQ is within 3 seconds, 0.2 degrees
+        #   if ($2 == "C" && $9-$1 < 10 && abs($11-$3) < 0.2 && abs($12-$4) < 0.2) {
+        #       printme = 0
+        #   } else if ($18 == "C" && $17-$9 < 10 && abs($19-$11) < 0.2 && abs($20-$12) < 0.2) {
+        #       printme = 0
+        #   }
+        # }
+        #
+        if (printme == 1) {
+            print $11, $12, $13, $14, $15, $16
+        } else {
+            print $11, $12, $13, $14, $15, $16 > "eq_culled.txt"
+            print  > "eq_culled_comp.txt"
+        }
+      }
+    }' > eqs.txt
+    after_e=$(wc -l < eqs.txt)
+    info_msg "Before equivalent EQ culling: $before_e ; after culling: $after_e"
+fi
+if [[ $REMOVE_DEFAULTDEPTHS -eq 1 && -e eqs.txt ]]; then
+  info_msg "Removing earthquakes with poorly determined depths"
+  [[ REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && info_msg "Plotting removed events separately"
+  # Plotting in km instead of in map geographic coords
+  awk < eqs.txt '{
+    if ($3 == 10 || $3 == 33 || $3 == 30 || $3 == 5 ||$3 == 1 || $3 == 6  || $3 == 35 ) {
+      print > "/dev/stderr"
+    } else {
+      print
+    }
+  }
+  ' > tmp.dat 2>removed_eqs.txt
+  mv tmp.dat eqs.txt
+fi
+if [[ $SCALEEQS -eq 1 && -e eqs.txt ]]; then
+  awk < removed_eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6}' > removed_eqs_scaled.txt
+  awk < eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6}' > eqs_scaled.txt
+fi
 
 ##### PLOT PLATES
 if [[ $plotplates -eq 1 ]]; then
@@ -3297,8 +3642,11 @@ for cptfile in ${cpts[@]} ; do
       GRAV_CPT=$(echo "$(cd "$(dirname "$GRAV_CPT")"; pwd)/$(basename "$GRAV_CPT")")
       if [[ $rescalegravflag -eq 1 ]]; then
         # gmt grdcut $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -Ggravtmp.nc
-        MINZ=$(gmt grdinfo $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep z_min | awk '{ print int($3/100)*100 }')
-        MAXZ=$(gmt grdinfo $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep z_min | awk '{print int($5/100)*100}')
+        zrange=$(grid_zrange $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
+        MINZ=$(echo $zrange | awk '{print int($1/100)*100}')
+        MAXZ=$(echo $zrange | awk '{print int($2/100)*100}')
+        # MINZ=$(gmt grdinfo $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep z_min | awk '{ print int($3/100)*100 }')
+        # MAXZ=$(gmt grdinfo $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep z_min | awk '{print int($5/100)*100}')
         # echo MINZ MAXZ $MINZ $MAXZ
         # GRAVCPT is set by the type of gravity we selected (BG, etc) and is not the same as GRAV_CPT
         gmt makecpt -C$GRAVCPT -T$MINZ/$MAXZ $VERBOSE > $GRAV_CPT
@@ -3328,6 +3676,7 @@ for cptfile in ${cpts[@]} ; do
       ;;
 
     topo)
+      info_msg "Plotting topo from $BATHY"
       touch $TOPO_CPT
       TOPO_CPT=$(echo "$(cd "$(dirname "$TOPO_CPT")"; pwd)/$(basename "$TOPO_CPT")")
       if [[ customgridcptflag -eq 1 ]]; then
@@ -3335,15 +3684,18 @@ for cptfile in ${cpts[@]} ; do
         cp $CUSTOMCPT $TOPO_CPT
       else
         info_msg "Building default TOPO CPT file from $TOPO_CPT_DEF"
-        gmt makecpt -C${TOPO_CPT_DEF} -T${TOPO_CPT_DEF_MIN}/${TOPO_CPT_DEF_MAX}/${TOPO_CPT_DEF_STEP} $VERBOSE > $TOPO_CPT
+        gmt makecpt -Fr -C${TOPO_CPT_DEF} -T${TOPO_CPT_DEF_MIN}/${TOPO_CPT_DEF_MAX}/${TOPO_CPT_DEF_STEP}  $VERBOSE > $TOPO_CPT
       fi
       if [[ $rescaletopoflag -eq 1 ]]; then
-        # MINZ=$(gmt grdinfo $BATHY ${VERBOSE} | grep z_min | awk '{ print int($3/100)*100 }')
-        # MAXZ=$(gmt grdinfo $BATHY ${VERBOSE} | grep z_min | awk '{print int($5/100)*100}')
-        MINZ=$(gmt grdinfo $BATHY ${VERBOSE} | grep z_min | awk '{ print $3 }')
-        MAXZ=$(gmt grdinfo $BATHY ${VERBOSE} | grep z_min | awk '{ print $5 }')
-        info_msg "Rescaling topo CPT to $MINZ/$MAXZ with hinge at 0"
-        gmt makecpt -C$TOPO_CPT_DEF -T$MINZ/$MAXZ -Z ${VERBOSE} > topotmp.cpt
+        zrange=$(grid_zrange $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
+        MINZ=$(echo $zrange | awk '{printf "%d\n", $1}')
+        MAXZ=$(echo $zrange | awk '{printf "%d\n", $2}')
+        # # MINZ=$(gmt grdinfo $BATHY ${VERBOSE} | grep z_min | awk '{ print int($3/100)*100 }')
+        # # MAXZ=$(gmt grdinfo $BATHY ${VERBOSE} | grep z_min | awk '{print int($5/100)*100}')
+        # MINZ=$(gmt grdinfo -L $BATHY ${VERBOSE} | grep z_min | awk '{ print $3 }')
+        # MAXZ=$(gmt grdinfo -L $BATHY ${VERBOSE} | grep z_min | awk '{ print $5 }')
+        info_msg "Rescaling topo $BATHY with CPT to $MINZ/$MAXZ with hinge at 0"
+        gmt makecpt -Fr -C$TOPO_CPT_DEF -T$MINZ/$MAXZ/${TOPO_CPT_DEF_STEP}  ${VERBOSE} > topotmp.cpt
         mv topotmp.cpt $TOPO_CPT
         GDIFFZ=$(echo "($MAXZ - $MINZ) > 4000" | bc)  # Scale range is greater than 4 km
         # Set the interval value for the legend scale based on the range of the data
@@ -3375,8 +3727,6 @@ for cptfile in ${cpts[@]} ; do
       cp $SEISDEPTH_CPT $SEISDEPTH_NODEEPEST_CPT
       echo "${EQMAXDEPTH_COLORSCALE}	0/17.937/216.21	6370	0/0/255" >> $SEISDEPTH_CPT
     ;;
-
-
 
   esac
 done
@@ -3651,6 +4001,11 @@ for plot in ${plots[@]} ; do
       gmt grdimage $GCDMDATA -C$GCDM_CPT $RJOK $VERBOSE >> map.ps
       ;;
 
+    gebcotid)
+      gmt makecpt -Ccategorical -T1/100/1 > gebco_tid.cpt
+      gmt grdimage $GEBCO20_TID -t50 -Cgebco_tid.cpt $RJOK $VERBOSE >> map.ps
+
+      ;;
     gemfaults)
       info_msg "Plotting GEM active faults"
       gmt psxy $GEMFAULTS -W$AFLINEWIDTH,$AFLINECOLOR $RJOK $VERBOSE >> map.ps
@@ -3777,6 +4132,31 @@ for plot in ${plots[@]} ; do
       info_msg "Plotting magnetic data"
       # gmt grdimage $EMAG_V2 -C$EMAG_V2_CPT -t$MAGTRANS $RJOK $VERBOSE >> map.ps
       gmt grdimage $EMAG_V2 -C$MAG_CPT -t$MAGTRANS $RJOK -Q $VERBOSE >> map.ps
+      ;;
+
+    mapscale)
+      # Set this variable during plotting to ensure that MINLAT is already set?
+      SCALECMD="-Lg${SCALEREFLON}/${SCALEREFLAT}+c${SCALELENLAT}+w${SCALELEN}+l+at+f"
+     #  -L Draw a map scale at specified reference point.
+	   # Positioning is specified via one of four coordinate systems:
+	   #   Use -Lg to specify <refpoint> with map coordinates.
+	   #   Use -Lj or -LJ to specify bounding-box <refpoint> with 2-char justification code (BL, MC, etc).
+	   #   Use -Ln to specify <refpoint> with normalized coordinates in 0-1 range.
+	   #   Use -Lx to specify <refpoint> with plot coordinates.
+	   # All except -Lx require the -R and -J options to be set.
+	   # Use J if item should be placed outside the map frame and j if inside.
+	   # Append 2-char +j<justify> code to associate that anchor point on the map scale with <refpoint>.
+	   # If +j<justify> is not given then <justify> will default to the same as <refpoint> (with -Lj),
+	   #   or the mirror opposite of <refpoint> (with -LJ), or MC (else).
+	   # Optionally, append +o<dx>[/<dy>] to offset map scale from <refpoint> in direction implied by <justify> [0/0].
+	   # Use +c<slat> (with central longitude) or +c<slon>/<slat> to specify scale origin for geographic projections.
+	   # Set scale length with +w<length> and (for geo projection) append a unit from e|f|k|M|n|u [km].
+	   # Several modifiers are optional:
+	   # Add +f to draw a "fancy" scale [Default is plain].
+	   # By default, the scale label equals the distance unit name and is placed on top [+at].  Use the +l<label>
+	   # and +a<align> mechanisms to specify another label and placement (t,b,l,r).  For the fancy scale,
+	   # +u appends units to annotations while for plain scale it uses unit abbreviation instead of name as label.
+	   # To get a vertical scale instead for Cartesian plots, append +v.
       ;;
 
     mprof)
@@ -4141,9 +4521,15 @@ for plot in ${plots[@]} ; do
         gmt grdmask plate.xy ${VERBOSE} -R"$LEAD"_velraster.nc -fg -NNaN/1/1 -Gmask.nc
         info_msg "Calculating $LEAD masked raster"
         gmt grdmath -fg ${VERBOSE} "$LEAD"_velraster.nc mask.nc MUL = "$LEAD"_masked.nc
-        MAXV_I=$(gmt grdinfo ${LEAD}_velraster.nc 2>/dev/null | grep "z_max" | awk -v max=$MAXV_I '{ if ($5 > max) { print $5 } else { print max } }')
-        MINV_I=$(gmt grdinfo ${LEAD}_velraster.nc 2>/dev/null | grep "z_max" | awk -v min=$MINV_I '{ if ($3 < min) { print $3 } else { print min } }')
-        # gmt grdedit -fg -A -R$pl_min_x/$pl_max_x/$pl_min_y/$pl_max_y "$LEAD"_masked.nc -G"$LEAD"_masked_edit.nc
+        zrange=$(grid_zrange ${LEAD}_velraster.nc -C -Vn)
+        MINZ=$(echo $zrange | awk '{print $1}')
+        MAXZ=$(echo $zrange | awk '{print $2}')
+        MAXV_I=$(echo $MAXZ | awk -v max=$MAXV_I '{ if ($1 > max) { print $1 } else { print max } }')
+        MINV_I=$(echo $MINZ | awk -v min=$MINV_I '{ if ($1 < min) { print $1 } else { print min } }')
+        # unverified code above...
+        # MAXV_I=$(gmt grdinfo ${LEAD}_velraster.nc 2>/dev/null | grep "z_max" | awk -v max=$MAXV_I '{ if ($5 > max) { print $5 } else { print max } }')
+        # MINV_I=$(gmt grdinfo ${LEAD}_velraster.nc 2>/dev/null | grep "z_max" | awk -v min=$MINV_I '{ if ($3 < min) { print $3 } else { print min } }')
+        # # gmt grdedit -fg -A -R$pl_min_x/$pl_max_x/$pl_min_y/$pl_max_y "$LEAD"_masked.nc -G"$LEAD"_masked_edit.nc
         # echo "${LEAD}_masked_edit.nc -R$pl_min_x/$pl_max_x/$pl_min_y/$pl_max_y 1" >> grdblend.cmd
         cd ../
       done
@@ -4212,127 +4598,132 @@ for plot in ${plots[@]} ; do
     seis)
       info_msg "Plotting seismicity; should include options for CPT/fill color"
 
-      # If the REMOVE_EQUIVS variable is set, compare with cmt.dat to remove EQs that have a focal mechanism equivalent
-      # There is almost certainly a number of much better ways to do this. In awk, likely using getline.
-      if [[ $REMOVE_EQUIVS -eq 1 && -e cmt_scale.dat ]]; then
-        before_e=$(wc -l < eqs.txt)
-        info_msg "Removing duplicate ANSS events based on CMT"
-        # Currently we only use the first 6 columns of the EQ data. Commented code indicates how to add more/pad if necessary
-        # A LON LAT DEPTH MAG TIMECODE ID
-        awk < eqs.txt '{
-          printf "A %s %s %s %s %s %s", $1, $2, $3, $4, $5, $6
-          # for(i=6; i<= NF; i++) {
-          #   printf " %s", $(i)
-          # }
-          # for(j=i; j<=29; ++j) {
-          #   printf " remove"
-          # }
-          printf("\n")
-        }' > eqd1.txt
-        # For origin data, comparisons between fields 2,3 and lon,lat in EQ dataset are valid
-        # For centroid data, there can be larger displacements and we would want to use catalog location 13/14
-        # 1     2    3    4      5   6   7   8   9   10  11        12        13   14   15     16   17   18   19   20   21   22   23   24   25   26   27   28  29
-        # Code, Lon, Lat, Depth, S1, D1, R1, S2, D2, R2, Mantissa, Exponent, Lon, Lat, NewID, TAz, Tpl, Naz, Npl, Paz, Ppl, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, Mw, Seconds
+      ### MOVED TO CALCULATION SECTION ABOVE
+      # # If the REMOVE_EQUIVS variable is set, compare with cmt.dat to remove EQs that have a focal mechanism equivalent
+      # # There is almost certainly a number of much better ways to do this. In awk, likely using getline.
+      # if [[ $REMOVE_EQUIVS -eq 1 && -e cmt_scale.dat ]]; then
+      #   before_e=$(wc -l < eqs.txt)
+      #   info_msg "Removing duplicate ANSS events based on CMT"
+      #   # Currently we only use the first 6 columns of the EQ data. Commented code indicates how to add more/pad if necessary
+      #   # A LON LAT DEPTH MAG TIMECODE ID
+      #   awk < eqs.txt '{
+      #     printf "A %s %s %s %s %s %s", $1, $2, $3, $4, $5, $6
+      #     # for(i=6; i<= NF; i++) {
+      #     #   printf " %s", $(i)
+      #     # }
+      #     # for(j=i; j<=29; ++j) {
+      #     #   printf " remove"
+      #     # }
+      #     printf("\n")
+      #   }' > eqd1.txt
+      #   # For origin data, comparisons between fields 2,3 and lon,lat in EQ dataset are valid
+      #   # For centroid data, there can be larger displacements and we would want to use catalog location 13/14
+      #   # 1     2    3    4      5   6   7   8   9   10  11        12        13   14   15     16   17   18   19   20   21   22   23   24   25   26   27   28  29
+      #   # Code, Lon, Lat, Depth, S1, D1, R1, S2, D2, R2, Mantissa, Exponent, Lon, Lat, NewID, TAz, Tpl, Naz, Npl, Paz, Ppl, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, Mw, Seconds
+      #
+      #   awk < cmt_scale.dat '{
+      #     # We no longer need to pad this with an ID code because it already has one.
+      #     # C LON LAT DEPTH MAG TIMECODE 0
+      #     printf "C %s %s %s %s %s 0\n", $2, $3, $4, $28, $15
+      #   }' > cmtd1.txt
+      #   cat eqd1.txt cmtd1.txt | awk '{
+      #       split($6, a, "-")
+      #       year=a[1]
+      #       month=a[2]
+      #       split(a[3],b,"T")
+      #       day=b[1]
+      #       split(b[2],c,":")
+      #       hour=c[1]
+      #       minute=c[2]
+      #       second=c[3]
+      #       the_time=sprintf("%i %i %i %i %i %i",year,month,day,hour,minute,int(second+0.5));
+      #       secs = mktime(the_time);
+      #       print secs, $0
+      #     }' | sort -n -k 1 > timed1.txt
+      #     sed '1d' timed1.txt > timed1_cut.txt
+      #     sed '1d' timed1_cut.txt > timed1_cut2.txt
+      #
+      #     paste timed1.txt timed1_cut.txt timed1_cut2.txt > 3comp.txt
+      #
+      #     # 1    2 3   4   5     6   7        8 9    10 11  12   13  14   15       16  17  18 19  20  21    22 23        24
+      #     # SECS C LON LAT DEPTH MAG TIMECODE 0 SECS A LON LAT DEPTH MAG  TIMECODE ID SECS C LON LAT DEPTH MAG TIMECODE  0
+      #     # We want to remove from A any A event that is close to a C event
+      #     awk < 3comp.txt 'function abs(v) {return v < 0 ? -v : v} {
+      #       if ($10 == "A") { # Only examine ANSS EQ events
+      #         printme = 1
+      #         secondlimit=5
+      #        # if ($14 > 6.5) { # For large EQs, use a stricter time and a wider distance window, and compare magnitudes
+      #           if ($2 == "C" && $9-$1 < secondlimit && abs($11-$3) < 2 && abs($12-$4) < 2 && abs($14-$6) < 0.3 ) {
+      #               printme = 0
+      #           } else if ($18 == "C" && $17-$9 < secondlimit && abs($19-$11) < 2 && abs($20-$12) < 2 ) {
+      #               printme = 0
+      #           }
+      #         # } else {
+      #         #   # If EQ is within 3 seconds, 0.2 degrees
+      #         #   if ($2 == "C" && $9-$1 < 10 && abs($11-$3) < 0.2 && abs($12-$4) < 0.2) {
+      #         #       printme = 0
+      #         #   } else if ($18 == "C" && $17-$9 < 10 && abs($19-$11) < 0.2 && abs($20-$12) < 0.2) {
+      #         #       printme = 0
+      #         #   }
+      #         # }
+      #         #
+      #         if (printme == 1) {
+      #             print $11, $12, $13, $14, $15, $16
+      #         } else {
+      #             print $11, $12, $13, $14, $15, $16 > "eq_culled.txt"
+      #             print  > "eq_culled_comp.txt"
+      #         }
+      #       }
+      #     }' > eqs.txt
+      #     after_e=$(wc -l < eqs.txt)
+      #     info_msg "Before equivalent EQ culling: $before_e ; after culling: $after_e"
+      # fi
+      #
+      # if  [[ $REMOVE_DEFAULTDEPTHS -eq 1 ]]; then
+      #   info_msg "Removing earthquakes with poorly determined depths"
+      #   [[ REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && info_msg "Plotting removed events separately"
+      #   # Plotting in km instead of in map geographic coords
+      #   awk < eqs.txt '{
+      #     if ($3 == 10 || $3 == 33 || $3 == 30 || $3 == 5 ||$3 == 1 || $3 == 6  || $3 == 35 ) {
+      #       print > "/dev/stderr"
+      #     } else {
+      #       print
+      #     }
+      #   }
+      #   ' > tmp.dat 2>removed_eqs.txt
+      #   mv tmp.dat eqs.txt
+      # fi
+      # if [[ $SCALEEQS -eq 1 ]]; then
+      #   awk < removed_eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6}' > removed_eqs_scaled.txt
+      #   awk < eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6}' > eqs_scaled.txt
+      # fi
 
-        awk < cmt_scale.dat '{
-          # We no longer need to pad this with an ID code because it already has one.
-          # C LON LAT DEPTH MAG TIMECODE 0
-          printf "C %s %s %s %s %s 0\n", $2, $3, $4, $28, $15
-        }' > cmtd1.txt
-        cat eqd1.txt cmtd1.txt | awk '{
-            split($6, a, "-")
-            year=a[1]
-            month=a[2]
-            split(a[3],b,"T")
-            day=b[1]
-            split(b[2],c,":")
-            hour=c[1]
-            minute=c[2]
-            second=c[3]
-            the_time=sprintf("%i %i %i %i %i %i",year,month,day,hour,minute,int(second+0.5));
-            secs = mktime(the_time);
-            print secs, $0
-          }' | sort -n -k 1 > timed1.txt
-          sed '1d' timed1.txt > timed1_cut.txt
-          sed '1d' timed1_cut.txt > timed1_cut2.txt
-
-          paste timed1.txt timed1_cut.txt timed1_cut2.txt > 3comp.txt
-
-          # 1    2 3   4   5     6   7        8 9    10 11  12   13  14   15       16  17  18 19  20  21    22 23        24
-          # SECS C LON LAT DEPTH MAG TIMECODE 0 SECS A LON LAT DEPTH MAG  TIMECODE ID SECS C LON LAT DEPTH MAG TIMECODE  0
-          # We want to remove from A any A event that is close to a C event
-          awk < 3comp.txt 'function abs(v) {return v < 0 ? -v : v} {
-            if ($10 == "A") { # Only examine ANSS EQ events
-              printme = 1
-              secondlimit=5
-             # if ($14 > 6.5) { # For large EQs, use a stricter time and a wider distance window, and compare magnitudes
-                if ($2 == "C" && $9-$1 < secondlimit && abs($11-$3) < 2 && abs($12-$4) < 2 && abs($14-$6) < 0.3 ) {
-                    printme = 0
-                } else if ($18 == "C" && $17-$9 < secondlimit && abs($19-$11) < 2 && abs($20-$12) < 2 ) {
-                    printme = 0
-                }
-              # } else {
-              #   # If EQ is within 3 seconds, 0.2 degrees
-              #   if ($2 == "C" && $9-$1 < 10 && abs($11-$3) < 0.2 && abs($12-$4) < 0.2) {
-              #       printme = 0
-              #   } else if ($18 == "C" && $17-$9 < 10 && abs($19-$11) < 0.2 && abs($20-$12) < 0.2) {
-              #       printme = 0
-              #   }
-              # }
-              #
-              if (printme == 1) {
-                  print $11, $12, $13, $14, $15, $16
-              } else {
-                  print $11, $12, $13, $14, $15, $16 > "eq_culled.txt"
-                  print  > "eq_culled_comp.txt"
-              }
-            }
-          }' > eqs.txt
-          after_e=$(wc -l < eqs.txt)
-          info_msg "Before equivalent EQ culling: $before_e ; after culling: $after_e"
-      fi
-
-      if  [[ $REMOVE_DEFAULTDEPTHS -eq 1 ]]; then
-        info_msg "Removing earthquakes with poorly determined depths"
-        [[ REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && info_msg "Plotting removed events separately"
-        # Plotting in km instead of in map geographic coords
-        awk < eqs.txt '{
-          if ($3 == 10 || $3 == 33 || $3 == 30 || $3 == 5 ||$3 == 1 || $3 == 6  || $3 == 35 ) {
-            print > "/dev/stderr"
-          } else {
-            print
-          }
-        }
-        ' > tmp.dat 2>removed_eqs.txt
-        mv tmp.dat eqs.txt
-      fi
-
-      # Seismicity rescaling is done here, whereas CMT rescaling is done in the main cody body above
+      # Seismicity rescaling is done here, whereas CMT rescaling is done in the main code body above
 
       OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
       gmt gmtset PROJ_LENGTH_UNIT p
       if [[ $SCALEEQS -eq 1 ]]; then
-        [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && awk < removed_eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6}' | gmt psxy -Cgray -W0.25p,black -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
-        awk < eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6}' | gmt psxy -C$SEISDEPTH_CPT -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
+        # the -Cwhite option here is so that we can pass the removed EQs in the same file format as the non-scaled events
+        [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && gmt psxy removed_eqs_scaled.txt -Cwhite -W${EQLINEWIDTH},${EQLINECOLOR} -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
+        gmt psxy eqs_scaled.txt -C$SEISDEPTH_CPT -i0,1,2,3+s${SEISSCALE} -W${EQLINEWIDTH},${EQLINECOLOR} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
       else
-        [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && gmt psxy removed_eqs.txt -Gblack -W0.25p,white -t50 -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL}${SEISSIZE} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
-        gmt psxy -C$SEISDEPTH_CPT -i0,1,2 -S${SEISSYMBOL}${SEISSIZE} -t${SEISTRANS} eqs.txt $RJOK $VERBOSE >> map.ps
+        [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && gmt psxy removed_eqs.txt -Gwhite -W${EQLINEWIDTH},${EQLINECOLOR} -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL}${SEISSIZE} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
+        gmt psxy eqs.txt -C$SEISDEPTH_CPT -i0,1,2 -W${EQLINEWIDTH},${EQLINECOLOR} -S${SEISSYMBOL}${SEISSIZE} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
       fi
       gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
 
 			;;
 
-    seisrake1)
-      info_msg "Seis rake 1"
-
-      # Plot the rake of the N1 nodal plane
-      # lonc latc depth str1 dip1 rake1 str2 dip2 rake2 M lon lat ID
-      awk < $CMTFILE '($6 > 45 && $6 < 135) { print $1, $2, $4-($6-180) }' | awk '{ if ($3 > 180) { print $1, $2, $3-360;} else {print $1,$2,$3} }' > eqaz1.txt
-      gmt psxy -C$CPTDIR"cycleaz.cpt" -St${RAKE1SCALE}/0 eqaz1.txt $RJOK $VERBOSE >> map.ps
-      ;;
-
-    seisrake2)
-      ;;
+    # seisrake1)
+    #   info_msg "Plotting rake of N1 nodal planes"
+    #   # Plot the rake of the N1 nodal plane
+    #   # lonc latc depth str1 dip1 rake1 str2 dip2 rake2 M lon lat ID
+    #   awk < $CMTFILE '($6 > 45 && $6 < 135) { print $1, $2, $4-($6-180) }' | awk '{ if ($3 > 180) { print $1, $2, $3-360;} else {print $1,$2,$3} }' > eqaz1.txt
+    #   gmt psxy -C$CPTDIR"cycleaz.cpt" -St${RAKE1SCALE}/0 eqaz1.txt $RJOK $VERBOSE >> map.ps
+    #   ;;
+    #
+    # seisrake2)
+    #   ;;
 
     slab2)
       info_msg "Slab 2"
@@ -4340,6 +4731,7 @@ for plot in ${plots[@]} ; do
         info_msg "Plotting SLAB2 depth grids"
       fi
 			if [[ ${SLAB2STR} =~ .*c.* ]]; then
+        # We used to select slab2 grids to use but can just plot everything and see what sticks.
 				info_msg "Plotting SLAB2 contours"
 				# if ! [[ -f ${SLAB2CLIPDIR}slab2clippolys.dat ]]; then
 				# 	for i in ${SLAB2CLIPDIR}*.csv; do
@@ -4560,7 +4952,6 @@ for plot in ${plots[@]} ; do
         done < faultid_groups.txt
       fi
 
-
 			if [[ ${TDSTRING} =~ .*X.* ]]; then
 				# FAULTS ############
         info_msg "TDEFNODE faults"
@@ -4571,6 +4962,7 @@ for plot in ${plots[@]} ; do
 				gmt psxy ${TDPATH}${TDMODEL}_blk1.gmt -R -J -W1p,green -O -K $VERBOSE >> map.ps 2>/dev/null
 				awk < ${TDPATH}${TDMODEL}_blk1.gmt '{ if ($1 == ">") print $3,$4,$5 }' | gmt pstext -F+f8,Helvetica,brown+jBL $RJOK $VERBOSE >> map.ps
 			fi
+
 			if [[ ${TDSTRING} =~ .*s.* ]]; then
 				# SLIP VECTORS ######
         legendwords+=("slipvectors")
@@ -4580,6 +4972,7 @@ for plot in ${plots[@]} ; do
 				gmt psxy -SV"${PVHEAD}"+jc -W"${SVBIGW}",black ${TDMODEL}.svobs $RJOK $VERBOSE >> map.ps
 				gmt psxy -SV"${PVHEAD}"+jc -W"${SVSMALLW}",lightgreen ${TDMODEL}.svcalc $RJOK $VERBOSE >> map.ps
 			fi
+
 			if [[ ${TDSTRING} =~ .*o.* ]]; then
 				# GPS ##############
 				# observed vectors
@@ -4592,6 +4985,7 @@ for plot in ${plots[@]} ; do
         # awk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.obs > ${TDMODEL}.xyobs
         # gmt psxy -SV$ARROWFMT -W0.25p,white -Gblack ${TDMODEL}.xyobs $RJOK $VERBOSE >> map.ps
 			fi
+
 			if [[ ${TDSTRING} =~ .*v.* ]]; then
 				# calculated vectors  UPDATE TO PSVELO
         info_msg "TDEFNODE modeled GPS velocities"
@@ -4605,6 +4999,7 @@ for plot in ${plots[@]} ; do
         # gmt psxy -SV$ARROWFMT -W0.25p,black -Gwhite ${TDMODEL}.xyvec $RJOK $VERBOSE >> map.ps
         # gmt psxy -SC$SMALLRES -W0.25p,black -Gwhite ${TDMODEL}_smallcalc.xyvec $RJOK $VERBOSE >> map.ps
 			fi
+
 			if [[ ${TDSTRING} =~ .*r.* ]]; then
         legendwords+=("TDEFresidgps")
 				#residual vectors UPDATE TO PSVELO
@@ -4618,8 +5013,8 @@ for plot in ${plots[@]} ; do
         # gmt psxy -SV$ARROWFMT -W0.1p,black -Ggreen ${TDMODEL}.xyres $RJOK $VERBOSE >> map.ps
         # awk '(sqrt($3*$3+$4*$4) <= 5) { print $1, $2 }' ${TDMODEL}.res > ${TDMODEL}_smallres.xyvec
         # gmt psxy -SC$SMALLRES -W0.25p,black -Ggreen ${TDMODEL}_smallres.xyvec $RJOK $VERBOSE >> map.ps
-
 			fi
+
 			if [[ ${TDSTRING} =~ .*f.* ]]; then
         # Fault segment midpoint slip rates
         # CONVERT TO PSVELO ONLY
@@ -4692,10 +5087,71 @@ for plot in ${plots[@]} ; do
 			;;
 
     topo)
-      if [[ $dontplottopoflag -eq 0 ]]; then
-        gmt grdimage $BATHY ${ILLUM} -t$TOPOTRANS -C$TOPO_CPT $RJOK ${VERBOSE} >> map.ps
+      if [[ $gdemtopoplotflag -eq 1 ]]; then
+        # DEM will have been clipped already
+        if [[ $gdaltzerohingeflag -eq 1 ]]; then
+          # We need to make a gdal color file that respects the CPT hinge value (usually 0)
+          # gdaldem is a bit funny about coloring around the hinge, so do some magic to make
+          # the color from land not bleed to the hinge elevation.
+          CPTHINGE=0
+          awk < $TOPO_CPT -v hinge=$CPTHINGE '{
+            if ($1 != "B" && $1 != "F" && $1 != "N" ) {
+              if (count==1) {
+                print $1+0.01, $2
+                count=2
+              } else {
+                print $1, $2
+              }
+
+              if ($3 == hinge) {
+                if (count==0) {
+                  print $3-0.0001, $4
+                  count=1
+                }
+              }
+            }
+            }' | tr '/' ' ' > topocolor.dat
+        else
+          awk < $TOPO_CPT '{ print $1, $2 }' | tr '/' ' ' > topocolor.dat
+        fi
+        gdaldem color-relief dem.nc topocolor.dat colordem.tif -q
+        # gdaldem hillshade -multidirectional -s 111120 dem.nc hs.tif -q
+        gdaldem hillshade -multidirectional -s 111120 dem.nc hs_md.tif -q
+        gdaldem hillshade -combined -s 111120 dem.nc hs_c.tif -q
+
+        # gdaldem slope -s 111120 dem.nc slope.tif -q
+
+        # if the colordem.tif band has a value of 0, this apparently messes things up badly as gdal
+        # interprets that as the nodata value.
+
+        gdal_calc.py --quiet -A hs_md.tif -B hs_c.tif --outfile=gamma_hs.tif --calc="uint8( ( ((A/255.)*(${HSSLOPEBLEND}) + (B/255.)*(1-${HSSLOPEBLEND}) ) )**(1/${HS_GAMMA}) * 255)"
+
+        # gdal_calc.py --quiet -A slope.tif --outfile=gamma_slope.tif --calc="uint8( 255 - ((A / 90.)**(1/${SLOPE_GAMMA})) * 255)"
+        # gdal_calc.py --quiet -A cut_slope.tif -B gamma_hs.tif --outfile=gamma_slope_hs.tif --calc="uint8(B/255. * A/255.)"
+
+        # gdal_calc.py --quiet -A gamma_hs.tif -B  cut_slope.tif --calc="uint8( (A/255.) * 255 )" --outfile=slope_hillshade.tif
+
+        # gamma the hillshade
+
+        # gdal_translate -a_nodata 1 colordem.tif fixed.tif
+
+        gdal_calc.py --quiet -A gamma_hs.tif -B colordem.tif --allBands=B --calc="uint8( ( \
+                        2 * (A/255.)*(B/255.)*(A<128) + \
+                        ( 1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128) \
+                      ) * 255 )" --outfile=colored_hillshade.tif
+        # gdalbuildvrt -srcnodata 0 myVrt.vrt colored_hillshade.tif
+        # gdal_translate -scale -a_nodata 0 myVrt.vrt colored_hillshade_out.tif
+        # No data exist in some
+         # gmt grdimage -Ctopo.cpt dem.nc $RJOK ${VERBOSE} >> map.ps
+
+        gmt grdimage colored_hillshade.tif -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
+
       else
-        info_msg "Plotting of topo shaded relief suppressed by -ts"
+        if [[ $dontplottopoflag -eq 0 ]]; then
+          gmt grdimage $BATHY ${ILLUM} -t$TOPOTRANS -C$TOPO_CPT $RJOK ${VERBOSE} >> map.ps
+        else
+          info_msg "Plotting of topo shaded relief suppressed by -ts"
+        fi
       fi
       ;;
 
@@ -4716,28 +5172,28 @@ gmt gmtset FONT_TITLE 12p,Helvetica,black
 # legendovermapflag=0
 # makelegendflag=0
 
-##### PLOT GRID OVER MAP
+##### PLOT GRID (AND SCALE BAR) OVER MAP
 if [[ $legendovermapflag -eq 0 ]]; then
   info_msg "Plotting grid and keeping PS file open if --keepopenps is set ($KEEPOPEN)"
   if [[ $usecustombflag -eq 1 ]]; then
     echo gmt psbasemap -R -J -O $KEEPOPEN $VERBOSE ${BSTRING[@]}
-    gmt psbasemap -R -J -O $KEEPOPEN $VERBOSE ${BSTRING[@]} >> map.ps
+    gmt psbasemap -R -J -O $KEEPOPEN $VERBOSE ${BSTRING[@]} ${SCALECMD} >> map.ps
   else
     if [[ $PLOTTITLE == "BlankMapTitle" ]]; then
-      gmt psbasemap -R -J -O $KEEPOPEN $VERBOSE -Bxa"$GRIDSP""$GRIDSP_LINE" -Bya"$GRIDSP""$GRIDSP_LINE" -B"${GRIDCALL}" >> map.ps
+      gmt psbasemap -R -J -O $KEEPOPEN $VERBOSE -Bxa"$GRIDSP""$GRIDSP_LINE" -Bya"$GRIDSP""$GRIDSP_LINE" -B"${GRIDCALL}" ${SCALECMD} >> map.ps
     else
-      gmt psbasemap -R -J -O $KEEPOPEN $VERBOSE -Bxa"$GRIDSP""$GRIDSP_LINE" -Bya"$GRIDSP""$GRIDSP_LINE" -B"${GRIDCALL}"+t"${PLOTTITLE}" >> map.ps
+      gmt psbasemap -R -J -O $KEEPOPEN $VERBOSE -Bxa"$GRIDSP""$GRIDSP_LINE" -Bya"$GRIDSP""$GRIDSP_LINE" -B"${GRIDCALL}"+t"${PLOTTITLE}" ${SCALECMD} >> map.ps
     fi
   fi
 else # We are overplotting a legend, so keep it open in any case
   info_msg "Plotting grid and keeping PS file open for legend"
   if [[ $usecustombflag -eq 1 ]]; then
-    gmt psbasemap -R -J -O -K $VERBOSE ${BSTRING[@]} >> map.ps
+    gmt psbasemap -R -J -O -K $VERBOSE ${BSTRING[@]} ${SCALECMD} >> map.ps
   else
     if [[ $PLOTTITLE == "BlankMapTitle" ]]; then
-      gmt psbasemap -R -J -O -K $VERBOSE -Bxa"$GRIDSP""$GRIDSP_LINE" -Bya"$GRIDSP""$GRIDSP_LINE" -B"${GRIDCALL}" >> map.ps
+      gmt psbasemap -R -J -O -K $VERBOSE -Bxa"$GRIDSP""$GRIDSP_LINE" -Bya"$GRIDSP""$GRIDSP_LINE" -B"${GRIDCALL}" ${SCALECMD} >> map.ps
     else
-      gmt psbasemap -R -J -O -K $VERBOSE -Bxa"$GRIDSP""$GRIDSP_LINE" -Bya"$GRIDSP""$GRIDSP_LINE" -B"${GRIDCALL}"+t"${PLOTTITLE}" >> map.ps
+      gmt psbasemap -R -J -O -K $VERBOSE -Bxa"$GRIDSP""$GRIDSP_LINE" -Bya"$GRIDSP""$GRIDSP_LINE" -B"${GRIDCALL}"+t"${PLOTTITLE}" ${SCALECMD} >> map.ps
     fi
   fi
 fi
@@ -4784,11 +5240,20 @@ if [[ $makelegendflag -eq 1 ]]; then
 
         ;;
 
-      cmt)
+      cmt|seis|slab2)
         if [[ $plottedneiscptflag -eq 0 ]]; then
           plottedneiscptflag=1
+          if [[ $(echo "$EQMAXDEPTH_COLORSCALE > 1000" | bc) -eq 1 ]]; then
+            EQXINT=500
+          elif [[ $(echo "$EQMAXDEPTH_COLORSCALE > 500" | bc) -eq 1 ]]; then
+            EQXINT=250
+          elif [[ $(echo "$EQMAXDEPTH_COLORSCALE > 100" | bc) -eq 1 ]]; then
+            EQXINT=50
+          else
+            EQXINT=20
+          fi
           echo "G 0.2i" >> legendbars.txt
-          echo "B $SEISDEPTH_NODEEPEST_CPT 0.2i 0.1i+malu -Bxa100f50+l\"Earthquake / slab depth (km)\"" >> legendbars.txt
+          echo "B $SEISDEPTH_NODEEPEST_CPT 0.2i 0.1i+malu -Bxa${EQXINT}+l\"Earthquake / slab depth (km)\"" >> legendbars.txt
           barplotcount=$barplotcount+1
         fi
         ;;
@@ -4819,23 +5284,23 @@ if [[ $makelegendflag -eq 1 ]]; then
         barplotcount=$barplotcount+1
         ;;
 
-      seis)
-        if [[ $plottedneiscptflag -eq 0 ]]; then
-          plottedneiscptflag=1
-          echo "G 0.2i" >> legendbars.txt
-          echo "B $SEISDEPTH_NODEEPEST_CPT 0.2i 0.1i+malu -Bxa100f50+l\"Earthquake / slab depth (km)\"" >> legendbars.txt
-          barplotcount=$barplotcount+1
-        fi
-  			;;
+      # seis)
+      #   if [[ $plottedneiscptflag -eq 0 ]]; then
+      #     plottedneiscptflag=1
+      #     echo "G 0.2i" >> legendbars.txt
+      #     echo "B $SEISDEPTH_NODEEPEST_CPT 0.2i 0.1i+malu -Bxa100f50+l\"Earthquake / slab depth (km)\"" >> legendbars.txt
+      #     barplotcount=$barplotcount+1
+      #   fi
+  		# 	;;
 
-  		slab2)
-        if [[ $plottedneiscptflag -eq 0 ]]; then
-          plottedneiscptflag=1
-          echo "G 0.2i" >> legendbars.txt
-          echo "B ${SEISDEPTH_NODEEPEST_CPT} 0.2i 0.1i+malu -Bxa100f50+l\"Earthquake / slab depth (km)\"" >> legendbars.txt
-          barplotcount=$barplotcount+1
-        fi
-  			;;
+  		# slab2)
+      #   if [[ $plottedneiscptflag -eq 0 ]]; then
+      #     plottedneiscptflag=1
+      #     echo "G 0.2i" >> legendbars.txt
+      #     echo "B ${SEISDEPTH_NODEEPEST_CPT} 0.2i 0.1i+malu -Bxa100f50+l\"Earthquake / slab depth (km)\"" >> legendbars.txt
+      #     barplotcount=$barplotcount+1
+      #   fi
+  		# 	;;
 
       topo)
         echo "G 0.2i" >> legendbars.txt
