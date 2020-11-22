@@ -1,17 +1,13 @@
 ################################################################################
-# PATHS DEFINITION FILE
-# Assumes $TECTOPLOTDIR and $DEFDIR are set
+# DATA AND SCRUPT PATHS DEFINITION FILE
+# Assumes $TECTOPLOTDIR (root directory of tectoplot script) and $DEFDIR (tectoplot definitions directory) are already set
 
-# SRTM1S: ~42 GB, dynamically downloaded using GMT
-# GEBCO20: ~7GB
-# SRTM30: ~2GB
-# GEBCO1: ~450MB
+###### DATAROOT is the root directory that contains the downloaded data directories.
+
+DATAROOT="/Users/kylebradley/Dropbox/TectoplotData/"
 
 #####
 CPTDIR=$TECTOPLOTDIR"CPT/"
-
-###### This is the root directory that contains the data directories. Arguably, we could define directories without DATAROOT to allow more flexibility.
-DATAROOT="/Users/kylebradley/Dropbox/TectoplotData/"
 
 ###### Scraper scripts
 SCRAPE_GCMT=$TECTOPLOTDIR"scrape_gcmt.sh"
@@ -33,15 +29,26 @@ EULERVECLIST_AWK=$TECTOPLOTDIR"eulervec_2pole_cart_list.awk"
 MPROFILE_SH_SRC=$TECTOPLOTDIR"multi_profile_tectoplot_sourced.sh"
 EULERADD_AWK=$TECTOPLOTDIR"euleradd.awk"
 
-###### Global Curie Depth Map
-GCDMDIR=$DATAROOT"GCDM/"
-GCDMDATA=$GCDMDIR"GCDM.nc"
-GCDM_SOURCEURL="https://static-content.springer.com/esm/art%3A10.1038%2Fsrep45129/MediaObjects/41598_2017_BFsrep45129_MOESM71_ESM.txt"
-GCDM_CMD="xyz2grd -R-180/180/-80/80 GCDM.xyz.txt -I10m -GGCDM.nc"
+
+####
+#### Downloaded data sets
+#### Set DATAROOT above and then run tectoplot -getdata to validate and download these to your hard disk
+####
+
+###### World City Data; Format: Lon,Lat,Name,Population
+
+CITIES_SOURCESTRING="City data from geonames (CC-BY)"
+CITIES_SHORT_SOURCESTRING="geonames"
+CITIESDIR=$DATAROOT"WorldCities/"
+CITIES500=$CITIESDIR"cities500.txt"
+CITIES=$CITIESDIR"geonames_cities_500.txt"
+CITIES_SOURCEURL="http://download.geonames.org/export/dump/cities500.zip"
+CITIES_ZIP_BYTES="10353983"
+CITIES500_BYTES="31818630"
 
 ###### DEMs used for bathymetry/topography
 
-CUSTOMEXTDIR=$DATAROOT"customDEM/"
+# Downloaded SRTM DEM
 
 SRTM_SOURCESTRING="Topography from Shuttle Radar Topography Mission (SRTM): doi:10.5066/F7PR7TFT"
 SRTM_SHORT_SOURCESTRING="SRTM"
@@ -49,28 +56,110 @@ SRTM_SHORT_SOURCESTRING="SRTM"
 SRTM30DIR=$DATAROOT"SRTM30_plus/"
 SRTM30FILE=$SRTM30DIR"topo30.grd"
 SRTM30_SOURCEURL="ftp://topex.ucsd.edu/pub/srtm30_plus/topo30/topo30.grd"
+SRTM30_BYTES="1866759096"
 
-EARTHRELIEFDIR=$DATAROOT"EARTHRELIEF/"
-EARTHRELIEFPREFIX="@earth_relief_"
-
-GMRTDIR=$DATAROOT"GMRT/"
-
-# We will store 1°x1° tiles of GMRT and manage their re-download as needed
+# Downloaded GEBCO DEMs
 
 GEBCO_SOURCESTRING="GEBCO Compilation Group (2020) GEBCO 2020 Grid (doi:10.5285/a29c5465-b138-234d-e053-6c86abc040b9)"
 GEBCO_SHORT_SOURCESTRING="GEBCO"
-
 
 GEBCO20DIR=$DATAROOT"GEBCO20/"
 GEBCO20FILE=$GEBCO20DIR"GEBCO_2020.nc"
 GEBCO20_SOURCEURL="https://www.bodc.ac.uk/data/open_download/gebco/gebco_2020/zip/"
 GEBCO20_TID=$GEBCO20DIR"GEBCO_2020_TID.nc"
+GEBCO20_BYTES="7466008877"
+GEBCO20_ZIP_BYTES="4008688379"
 
 GEBCO1DIR=$DATAROOT"GEBCO_ONE/"
 GEBCO1FILE=$GEBCO1DIR"GRIDONE_2D.nc"
 GEBCO1_SOURCEURL="https://www.bodc.ac.uk/data/open_download/gebco/GEBCO_1MIN/zip/"
+GEBCO1_BYTES="466885748"
+GEBCO1_ZIP_BYTES="287717935"
 
+###### Oceanic crustal age data (Seton et al. 2020)
+OC_AGE_DIR=$DATAROOT"OC_AGE/"
+OC_AGE=$OC_AGE_DIR"age.2020.1.GTS2012.1m.nc"
+OC_AGE_URL="https://www.earthbyte.org/webdav/ftp/earthbyte/agegrid/2020/Grids/age.2020.1.GTS2012.1m.nc"
+OC_AGE_BYTES="215659543"
+
+OC_AGE_CPT=$OC_AGE_DIR"age_2020.cpt"
+OC_AGE_CPT_URL="https://www.earthbyte.org/webdav/ftp/earthbyte/agegrid/2020/Grids/cpt/age_2020.cpt"
+OC_AGE_CPT_BYTES="1062"
+
+###### Crustal magnetization data
+
+MAG_SOURCESTRING="Magnetic data from EMAG2_V2 (USGW), https://catalog.data.gov/dataset/emag2-earth-magnetic-anomaly-grid-2-arc-minute-resolution"
+MAG_SHORT_SOURCESTRING="EMAG2_V2"
+
+EMAG_V2_DIR=$DATAROOT"EMAG_V2/"
+EMAG_V2=$EMAG_V2_DIR"EMAG2_V2.tif"
+EMAG_V2_CPT=$EMAG_V2_DIR"EMAG2_V2.cpt"
+EMAG_V2_SOURCEURL="http://geomag.colorado.edu/images/EMAG2/EMAG2_V2.tif"
+EMAG_V2_BYTES="233388712"
+
+###### Gravity data
+
+GRAV_SOURCESTRING="World Gravity Model 2012: http://bgi.omp.obs-mip.fr/data-products/Grids-and-models/wgm2012"
+GRAV_SHORT_SOURCESTRING="WGM2012"
+
+WGMDIR=$DATAROOT"WGM2012/"
+
+WGMBOUGUER=$WGMDIR"WGM2012_Bouguer_ponc_2min.grd"
+WGMBOUGUER_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/WGM2012_Bouguer_ponc_2min.grd"
+WGMBOUGUER_BYTES="233410500"
+
+WGMBOUGUER_CPT=$WGMDIR"PALET_WGM_Bouguer_Global.cpt"
+WGMBOUGUER_CPT_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/PALET_WGM_Bouguer_Global.cpt"
+WGMBOUGUER_CPT_BYTES="841"
+
+WGMISOSTATIC=$WGMDIR"WGM2012_Isostatic_ponc_2min.grd"
+WGMISOSTATIC_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/WGM2012_Isostatic_ponc_2min.grd"
+WGMISOSTATIC_BYTES="233410324"
+
+WGMISOSTATIC_CPT=$WGMDIR"PALET_WGM_Isostatic_Global.cpt"
+WGMISOSTATIC_CPT_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/PALET_WGM_Isostatic_Global.cpt"
+WGMISOSTATIC_CPT_BYTES="538"
+
+WGMFREEAIR=$WGMDIR"WGM2012_Freeair_ponc_2min.grd"
+WGMFREEAIR_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/WGM2012_Freeair_ponc_2min.grd"
+WGMFREEAIR_BYTES="233410292"
+
+WGMFREEAIR_CPT=$WGMDIR"PALET_WGM_Freeair_Global.cpt"
+WGMFREEAIR_CPT_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/PALET_WGM_Freeair_Global.cpt"
+WGMFREEAIR_CPT_BYTES="538"
+
+###### Global Curie Depth Map
+GCDMDIR=$DATAROOT"GCDM/"
+GCDMDATA=$GCDMDIR"GCDM.nc"
+GCDMDATA_ORIG=$GCDMDIR"gcdm.txt"
+GCDM_SOURCEURL="https://static-content.springer.com/esm/art%3A10.1038%2Fsrep45129/MediaObjects/41598_2017_BFsrep45129_MOESM71_ESM.txt"
+GCDM_BYTES="123810173"
+
+SLAB2_SOURCESTRING="Slab geometries from Slab 2.0, Hayes et al. 2018, doi:10.1126/science.aat4723"
+SLAB2_SHORT_SOURCESTRING="SLAB2"
+
+SLAB2DATADIR=$DATAROOT"SLAB2/"
+SLAB2_SOURCEURL="https://www.sciencebase.gov/catalog/file/get/5aa1b00ee4b0b1c392e86467"
+
+SLAB2CHECKFILE=$SLAB2DATADIR"Slab2Distribute_Mar2018.tar.gz"
+SLAB2_CHECK_BYTES="140213438"
+SLAB2_ZIP_BYTES="93730583"
+
+SLAB2DIR=$SLAB2DATADIR"Slab2Distribute_Mar2018/"
+SLAB2CLIPDIR=$SLAB2DIR"Slab2Clips/"
+SLAB2CONTOURDIR=$SLAB2DIR"Slab2_CONTOURS/"
+
+### Additional directories where we store cached DEM data or custom DEMs
+###
+###
+
+# We will store 1°x1° tiles of GMRT and manage their re-download as needed
+
+GMRTDIR=$DATAROOT"GMRT/"
 BESTDIR=$DATAROOT"BEST_TOPO/"
+CUSTOMEXTDIR=$DATAROOT"customDEM/"
+EARTHRELIEFDIR=$DATAROOT"EARTHRELIEF/"
+EARTHRELIEFPREFIX="@earth_relief_"
 
 ###### GCMT focal mechanism data
 
@@ -89,23 +178,7 @@ ISC_CENTROID=$DATAROOT"ISC/isc_nogcmt_centroid.txt"
 ISC_GCMT_ORIGIN=$DATAROOT"GCMT/gcmt_isc_origin.txt"
 ISC_GCMT_CENTROID=$DATAROOT"GCMT/gcmt_isc_centroid.txt"
 
-GCMT_MINMAG=0.0
-GCMT_MAXMAG=10.0
-KIN_MINMAG=0.0
-KIN_MAXMAG=10.0
-
-###### World City Data
-###### Format: Lon,Lat,Name,Population
-#
-
-CITIES_SOURCESTRING="City data from geonames (CC-BY)"
-CITIES_SHORT_SOURCESTRING="geonames"
-
-CITIES=$DATAROOT"WorldCities/geonames_cities_500.txt"
-CITIES_SOURCEURL="http://download.geonames.org/export/dump/cities500.zip"
-
 ###### GPS velocities
-#
 
 GPS_SOURCESTRING="GPS velocities from Kreemer et al. 2014 doi:10.1002/2014GC005407"
 GPS_SHORT_SOURCESTRING="GPS-GSRM"
@@ -114,32 +187,6 @@ GPS=$DATAROOT"Kreemer/KreemerGPS"
 
 # GPS will only plot if the REFPLATE exists in the Kreemer dataset with the same ID code...
 GPS_FILE=`echo $GPS"/GPS_ITRF08.gmt"`
-
-###### Crustal magnetization data
-
-MAG_SOURCESTRING="Magnetic data from EMAG2_V2 (USGW), https://catalog.data.gov/dataset/emag2-earth-magnetic-anomaly-grid-2-arc-minute-resolution"
-MAG_SHORT_SOURCESTRING="EMAG2_V2"
-
-EMAG_V2=$DATAROOT"EMAG2_V2/EMAG2_V2.tif"
-EMAG_V2_CPT=$DATAROOT"EMAG2_V2/EMAG2_V2.cpt"
-EMAG_V2_SOURCEURL="http://geomag.colorado.edu/images/EMAG2/EMAG2_V2.tif"
-
-###### Gravity data
-
-GRAV_SOURCESTRING="World Gravity Model 2012: http://bgi.omp.obs-mip.fr/data-products/Grids-and-models/wgm2012"
-GRAV_SHORT_SOURCESTRING="WGM2012"
-
-WGMBOUGUER=$DATAROOT"WGM2012/WGM2012_Bouguer_ponc_2min.grd"
-WGMBOUGUER_CPT=$DATAROOT"WGM2012/PALET_WGM_Bouguer_Global.cpt"
-WGMBOUGUER_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/WGM2012_Bouguer_ponc_2min.grd"
-
-WGMISOSTATIC=$DATAROOT"WGM2012/WGM2012_Isostatic_ponc_2min.grd"
-WGMISOSTATIC_CPT=$DATAROOT"WGM2012/PALET_WGM_Isostatic_Global.cpt"
-WGMISOSTATIC_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/WGM2012_Isostatic_ponc_2min.grd"
-
-WGMFREEAIR=$DATAROOT"WGM2012/WGM2012_Freeair_ponc_2min.grd"
-WGMFREEAIR_CPT=$DATAROOT"WGM2012/PALET_WGM_Freeair_Global.cpt"
-WGMFREEAIR_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/WGM2012_Freeair_ponc_2min.grd"
 
 ###### Smithsonian Pleistocene volcanoes database
 
@@ -223,13 +270,6 @@ GBMPOLES=$DATAROOT"GBM/GMTData/block.180.poles.dat"
 GBMMIDPOINTS=$DATAROOT"GBM/GMTData/GBM_midpoints.txt"
 GBMPLATEEDGES=$DATAROOT"GBM/GMTData/block.180.dat"
 
-SLAB2_SOURCESTRING="Slab geometries from Slab 2.0, Hayes et al. 2018, doi:10.1126/science.aat4723"
-SLAB2_SHORT_SOURCESTRING="SLAB2"
-
-
-SLAB2DIR=$DATAROOT"SLAB2/Slab2Distribute_Mar2018/"
-SLAB2CLIPDIR=$SLAB2DIR"Slab2Clips/"
-SLAB2CONTOURDIR=$SLAB2DIR"Slab2_CONTOURS/"
 
 # Communication cables data
 CABLES=$DATAROOT"gregs_cable_map_v1.58/Cables.gmt"

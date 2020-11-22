@@ -13,6 +13,7 @@
 # PROFILE_HEIGHT_IN
 # PROFILE_X
 # PROFILE_Z
+# PLOT_SECTIONS_PROFILEFLAG   {=1 means plot section PDFs in perpective, =0 means don't}
 #
 # FILES EXPECTED:
 # cmt_normal.txt, cmt_strikeslip.txt, cmt_thrust.txt (for focal mechanisms)
@@ -55,10 +56,12 @@
 # Grid swath profile
 # ^ GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING
 
+echo "#!/bin/bash" > ./make_oblique_plots.sh
+echo "PERSPECTIVE_AZ=\${1}" >> ./make_oblique_plots.sh
+echo "PERSPECTIVE_INC=\${2}" >> ./make_oblique_plots.sh
 
-
-
-
+PFLAG="-px\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}"
+PXFLAG="-px\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}"
 RJOK="-R -J -O -K"
 
 # rm -f /var/tmp/tectoplot/*
@@ -80,6 +83,17 @@ TRACKFILE=$(echo "$(cd "$(dirname "control_file.txt")"; pwd)/$(basename "control
 
 # transfer the control file to the temporary directory and remove commented, blank lines
 grep . $TRACKFILE_ORIG | grep -v "^[#]" > $TRACKFILE
+
+# If we have specified profile IDS, remove lines where the second column is not one of the profiles in PSEL_LIST
+
+if [[ $selectprofilesflag -eq 1 ]]; then
+  awk < $TRACKFILE '{ if ($1 != "P") { print } }' > $TRACKFILE.tmp1
+  for i in ${PSEL_LIST[@]}; do
+    # echo "^[P ${i}]"
+    grep "P ${i} " $TRACKFILE >> $TRACKFILE.tmp1
+  done
+  mv $TRACKFILE.tmp1 $TRACKFILE
+fi
 
 # Read the first line and check whether it is a control line
 firstline=($(head -n 1 $TRACKFILE))
@@ -409,20 +423,20 @@ for i in $(seq 1 $k); do
     paste ${LINEID}_trackfile.txt az_${LINEID}_trackfile.txt > jointrack_${LINEID}.txt
 
     LINETOTAL=$(wc -l < jointrack_${LINEID}.txt)
-    cat jointrack_${LINEID}.txt | awk -v width="${WIDTH_DEG_DATA}" -v color="${COLOR}" -v lineval="${LINETOTAL}" '
+    cat jointrack_${LINEID}.txt | awk -v width="${WIDTH_DEG_DATA}" -v color="${COLOR}" -v lineval="${LINETOTAL}" -v lineid=${LINEID} '
       (NR==1) {
-        print $1, $2, $5, width, color >> "start_points.txt"
+        print $1, $2, $5, width, color, lineid >> "start_points.txt"
         lastval=$5
       }
       (NR>1 && NR<lineval) {
         diff = ( ( $5 - lastval + 180 + 360 ) % 360 ) - 180
         angle = (360 + lastval + ( diff / 2 ) ) % 360
-        print $1, $2, angle, width, color >> "mid_points.txt"
+        print $1, $2, angle, width, color, lineid >> "mid_points.txt"
         thisval=lastval
         lastval=$5
       }
       END {
-        print $1, $2, lastval, width, color >> "end_points.txt"
+        print $1, $2, lastval, width, color, lineid >> "end_points.txt"
       }
       '
 
@@ -458,7 +472,12 @@ for i in $(seq 1 $k); do
       sed 1d < dat.txt > dat1.txt
     	paste  dat.txt dat1.txt | awk -v zscale=${ptgridzscalelist[$i]} '{ if ($7 && $6 != "NaN" && $12 != "NaN") { print "> -Z"($6+$12)/2*zscale*-1; print $3, $6*zscale; print $9, $12*zscale } }' > ${LINEID}_${ptgrididnum[$i]}_data.txt
       echo "gmt psxy -Vn -R -J -O -K -L ${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> "${PSFILE}"" >> plot.sh
-      grep "^[-*0-9]" ${LINEID}_${ptgrididnum[$i]}_data.txt >> all_data.txt
+      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -px\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -R -J -O -K -L ${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+
+      # [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&
+      # ${LINEID}_${ptgrididnum[$i]_profile.ps
+
+      grep "^[-*0-9]" ${LINEID}_${ptgrididnum[$i]}_data.txt >> ${LINEID}_all_data.txt
     done
 
     for i in ${!gridfilelist[@]}; do
@@ -476,20 +495,108 @@ for i in $(seq 1 $k); do
         if ($1 == ">") {
           printf("\n")
         } else {
-          printf("%g ", $5)
+          printf("%s ", $5)
         }
       }' < ${LINEID}_${grididnum[$i]]}_profiletable.txt | sed '1d' > ${LINEID}_${grididnum[$i]}_profiledata.txt
 
+      # First find the maximum value of X. We want X to be negative or zero for the block plot.
+      MAX_X_VAL=$(awk < P1_grid2_profiletable.txt 'BEGIN{maxx=-999999} { if ($1 != ">" && $1 > maxx) {maxx = $1 } } END{print maxx}')
+      echo MAX_X = $MAX_X_VAL
+
+      if [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]]; then
+        awk -v xoff="${XOFFSET_NUM}" -v dinc="${gridspacinglist[$i]}" -v maxx=$MAX_X_VAL '
+          BEGIN{offset=0;minX=99999999;maxX=-99999999; minY=99999999; maxY=-99999999; minZ=99999999; maxZ=-99999999}
+          {
+            if ($1 == ">") {
+              split($5, vec, "-");
+              offset=vec[3]
+            } else {
+              xval=$3
+              yval=(offset * (dinc + 0) + xoff);
+              zval=$5
+              if (zval == "NaN") {
+                print xval*1000 "," yval*1000 "," zval
+              } else {
+                print xval*1000 "," yval*1000 "," zval*1000
+                if (xval < minX) {
+                  minX=xval
+                }
+                if (xval > maxX) {
+                  maxX=xval
+                }
+                if (yval < minY) {
+                  minY=yval
+                }
+                if (yval > maxY) {
+                  maxY=yval
+                }
+                if (zval < minZ) {
+                  minZ=zval
+                }
+                if (zval > maxZ) {
+                  maxZ=zval
+                }
+              }
+            }
+          }
+          END {
+            printf "%d %d %d %d %f %f", minX*1000, maxX*1000, minY*1000, maxY*1000, minZ*1000, maxZ*1000 > "./profilerange.txt"
+          }' < ${LINEID}_${grididnum[$i]]}_profiletable.txt | sed '1d' > ${LINEID}_${grididnum[$i]}_data.csv
+        mv ./profilerange.txt ${LINEID}_${grididnum[$i]}_profilerange.txt
+
+cat << EOF > ${LINEID}_${grididnum[$i]}_data.vrt
+<OGRVRTDataSource>
+    <OGRVRTLayer name="${LINEID}_${grididnum[$i]}_data">
+        <SrcDataSource>${LINEID}_${grididnum[$i]}_data.csv</SrcDataSource>
+        <GeometryType>wkbPoint</GeometryType>
+        <LayerSRS>EPSG:32612</LayerSRS>
+        <GeometryField encoding="PointFromColumns" x="field_1" y="field_2" z="field_3"/>
+    </OGRVRTLayer>
+</OGRVRTDataSource>
+EOF
+
+        minx=$(awk < ${LINEID}_${grididnum[$i]}_profilerange.txt '{print $1}')
+        maxx=$(awk < ${LINEID}_${grididnum[$i]}_profilerange.txt '{print $2}')
+        miny=$(awk < ${LINEID}_${grididnum[$i]}_profilerange.txt '{print $3}')
+        maxy=$(awk < ${LINEID}_${grididnum[$i]}_profilerange.txt '{print $4}')
+        minz=$(awk < ${LINEID}_${grididnum[$i]}_profilerange.txt '{print $5}')
+        maxz=$(awk < ${LINEID}_${grididnum[$i]}_profilerange.txt '{print $6}')
+        echo minx $minx maxx $maxx miny $miny maxy $maxy minz $minz maxz $maxz
+
+        xtoyratio=$(echo "($maxx - $minx)/($maxy - $miny)" | bc -l)
+        ztoyratio=$(echo "($maxz - $minz)/($maxy - $miny)" | bc -l)
+
+        ysize=7
+        xsize=$(echo "$ysize * $xtoyratio" | bc -l)
+        zsize=$(echo "$ysize * $ztoyratio * $PERSPECTIVE_EXAG" | bc -l)
+        numx=$(echo "($maxx - $minx)/$PERSPECTIVE_RES" | bc)
+        numy=$(echo "($maxy - $miny)/$PERSPECTIVE_RES" | bc)
+        # echo numx $numx numy $numy
+
+        gdal_grid -of "netCDF" -txe $minx $maxx -tye $miny $maxy -outsize $numx $numy -zfield field_3 -a nearest -l ${LINEID}_${grididnum[$i]}_data ${LINEID}_${grididnum[$i]}_data.vrt ${LINEID}_${grididnum[$i]}_newgrid.nc
+
+        echo "#!/bin/bash" > ${LINEID}_maketopo.sh
+        echo "PERSPECTIVE_AZ=\${1}" >> ${LINEID}_maketopo.sh
+        echo "PERSPECTIVE_INC=\${2}" >> ${LINEID}_maketopo.sh
+        echo "azplus=\$(echo \"\$PERSPECTIVE_AZ-90\" | bc -l)" >>  ${LINEID}_maketopo.sh
+        echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc -R${minx}/${maxx}/${miny}/${maxy}/${minz}/${maxz} -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -JX${xsize}i/${ysize}i -JZ${zsize}i -W0p,white -Ctopo.cpt -I+d -Qi300  > ${LINEID}_${grididnum[$i]}_topo.ps" >> ${LINEID}_maketopo.sh
+        echo "gmt psconvert ${LINEID}_${grididnum[$i]}_topo.ps -A+m1i -Tf -F${LINEID}_${grididnum[$i]}_topo" >> ${LINEID}_maketopo.sh
+        chmod a+x ./${LINEID}_maketopo.sh
+        echo "./${LINEID}_maketopo.sh \${PERSPECTIVE_AZ} \${PERSPECTIVE_INC}" >> ./make_oblique_plots.sh
+      fi
+
       # profiledata.txt contains space delimited rows of data.
 
-      # This function calculates the 0, 25, 50, 75, and 100 quartiles of the data
-      awk '{
+      # This function calculates the 0, 25, 50, 75, and 100 quartiles of the data. First strip out the NaN values which are in the data.
+      cat ${LINEID}_${grididnum[$i]}_profiledata.txt | sed 's/NaN//g' |  awk '{
         q1=-1;
         q2=-1;
         q3=-1
         split( $0 , a, " " );
+
         asort( a );
         n=length(a);
+
         p[1] = 0;
         for (i = 2; i<=n; i++) {
           p[i] = (i-1)/(n-1);
@@ -507,7 +614,7 @@ for i in $(seq 1 $k); do
           }
         }
         printf("%g %g %g %g %g\n", a[1], q1, q2, q3, a[n])
-      }' < ${LINEID}_${grididnum[$i]}_profiledata.txt > ${LINEID}_${grididnum[$i]}_profilesummary_pre.txt
+      }' > ${LINEID}_${grididnum[$i]}_profilesummary_pre.txt
 
       # Find the value of Z at X=0 and subtract it from the entire dataset
       if [[ $ZOFFSETflag -eq 1 && $dozflag -eq 1 ]]; then
@@ -542,10 +649,14 @@ for i in $(seq 1 $k); do
       echo "gmt psxy -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> "${PSFILE}"" >> plot.sh
       echo "gmt psxy -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> "${PSFILE}"" >> plot.sh
 
+      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -px\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn ${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -px\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -px\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+
       ## Output data files to THIS_DIR
       echo "km_along_profile q0 q25 q25 q75 q100" > $THIS_DIR${LINEID}_${grididnum[$i]}_data.txt
       paste ${LINEID}_${grididnum[$i]}_profilekm.txt ${LINEID}_${grididnum[$i]}_profilesummary.txt >> $THIS_DIR${LINEID}_${grididnum[$i]}_data.txt
-      paste ${LINEID}_${grididnum[$i]}_profilekm.txt ${LINEID}_${grididnum[$i]}_profilesummary.txt >> all_data.txt
+      paste ${LINEID}_${grididnum[$i]}_profilekm.txt ${LINEID}_${grididnum[$i]}_profilesummary.txt >> ${LINEID}_all_data.txt
     done  # for each grid
 
     echo -n "@;${COLOR};${LINEID}@;; " >> IDfile.txt
@@ -561,7 +672,7 @@ for i in $(seq 1 $k); do
     fi
 
 
-    # Now treat the XYZ data. Make sure to append data to all_data.txt in the form km_along_profile val val val val val
+    # Now treat the XYZ data. Make sure to append data to ${LINEID}_all_data.txt in the form km_along_profile val val val val val
     # gmt sample1d  ${LINEID}_trackfile.txt -T10e -Ar >  ${LINEID}_track_distance_pts.txt
 
     # currently breaks for files without exactly 3 data columns.
@@ -685,7 +796,7 @@ for i in $(seq 1 $k); do
         }
       }' > finaldist_${FNAME}
 
-      awk < finaldist_${FNAME} '{print $1, $2, $2, $2, $2, $2 }' >> all_data.txt
+      awk < finaldist_${FNAME} '{print $1, $2, $2, $2, $2, $2 }' >> ${LINEID}_all_data.txt
 
       if [[ ${xyzscaleeqsflag[i]} -eq 1 ]]; then
 
@@ -711,8 +822,15 @@ for i in $(seq 1 $k); do
         echo "gmt gmtset PROJ_LENGTH_UNIT p" >> plot.sh
         echo "gmt psxy stretch_finaldist_${FNAME} -G$COLOR -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} ${xyzcommandlist[i]} $RJOK ${VERBOSE} >> ${PSFILE}" >> plot.sh
         echo "gmt gmtset PROJ_LENGTH_UNIT \$OLD_PROJ_LENGTH_UNIT" >> plot.sh
+
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "OLD_PROJ_LENGTH_UNIT=\$(gmt gmtget PROJ_LENGTH_UNIT -Vn)" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt gmtset PROJ_LENGTH_UNIT p" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy stretch_finaldist_${FNAME} -px\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -G$COLOR -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} ${xyzcommandlist[i]} $RJOK ${VERBOSE} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt gmtset PROJ_LENGTH_UNIT \$OLD_PROJ_LENGTH_UNIT" >> ${LINEID}_plot.sh
+
       else
         echo "gmt psxy finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> "${PSFILE}"" >> plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy finaldist_${FNAME} -px\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
 
       rm -f presort_${FNAME}
@@ -781,7 +899,7 @@ for i in $(seq 1 $k); do
             }
             printf "\n"
           }' >> ${LINEID}_cmt_thrust_profile_data.txt
-          awk <  ${LINEID}_cmt_thrust_profile_data.txt '{print $1, $2, $2, $2, $2, $2}' >> all_data.txt
+          awk <  ${LINEID}_cmt_thrust_profile_data.txt '{print $1, $2, $2, $2, $2, $2}' >> ${LINEID}_all_data.txt
         done
         rm -f Aa*
 
@@ -798,7 +916,7 @@ for i in $(seq 1 $k); do
             }
             printf "\n"
           }' >> ${LINEID}_cmt_normal_profile_data.txt
-          awk <  ${LINEID}_cmt_normal_profile_data.txt '{print $1, $2, $2, $2, $2, $2}' >> all_data.txt
+          awk <  ${LINEID}_cmt_normal_profile_data.txt '{print $1, $2, $2, $2, $2, $2}' >> ${LINEID}_all_data.txt
         done
         rm -f Aa*
 
@@ -815,8 +933,9 @@ for i in $(seq 1 $k); do
             }
             printf "\n"
           }' >> ${LINEID}_cmt_strikeslip_profile_data.txt
-          awk <  ${LINEID}_cmt_strikeslip_profile_data.txt '{print $1, $2, $2, $2, $2, $2}' >> all_data.txt
+          awk <  ${LINEID}_cmt_strikeslip_profile_data.txt '{print $1, $2, $2, $2, $2, $2}' >> ${LINEID}_all_data.txt
         done
+
         rm -f Aa*
 
         if [[ ! $segind -eq $numsegs ]]; then
@@ -832,15 +951,21 @@ for i in $(seq 1 $k); do
 
       if [[ cmtthrustflag -eq 1 ]]; then
         echo "sort < ${LINEID}_cmt_thrust_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_THRUSTCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
+
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${LINEID}_cmt_thrust_profile_data.txt -n -k 11 | gmt psmeca -px\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -E${CMT_THRUSTCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -G$COLOR $CMTCOMMANDS $RJOK ${VERBOSE} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+
         # gmt psmeca -E"${CMT_THRUSTCOLOR}" -Z$CPTDIR"neis2.cpt" -Sc"$CMTRESCALE"i/0 cmt_thrust.txt -L0.25p,black $RJOK "${VERBOSE}" >> map.ps
       fi
       if [[ cmtnormalflag -eq 1 ]]; then
          echo "sort < ${LINEID}_cmt_normal_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_NORMALCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
         # gmt psmeca -E"${CMT_NORMALCOLOR}" -Z$CPTDIR"neis2.cpt" -Sc"$CMTRESCALE"i/0 cmt_normal.txt -L0.25p,black $RJOK "${VERBOSE}" >> map.ps
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${LINEID}_cmt_normal_profile_data.txt -n -k 11 | gmt psmeca -px\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -E${CMT_NORMALCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -G$COLOR $CMTCOMMANDS $RJOK ${VERBOSE} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+
       fi
       if [[ cmtssflag -eq 1 ]]; then
         echo "sort < ${LINEID}_cmt_strikeslip_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_SSCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
         # gmt psmeca -E"${CMT_SSCOLOR}" -Z$CPTDIR"neis2.cpt" -Sc"$CMTRESCALE"i/0 cmt_strikeslip.txt -L0.25p,black $RJOK "${VERBOSE}" >> map.ps
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${LINEID}_cmt_strikeslip_profile_data.txt -n -k 11 | gmt psmeca -px\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -E${CMT_SSCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -G$COLOR $CMTCOMMANDS $RJOK ${VERBOSE} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
     fi
 
@@ -848,11 +973,90 @@ for i in $(seq 1 $k); do
     echo "awk < xpts_${LINEID}_dist_km.txt '(NR==1) { print \$1 + $XOFFSET_NUM, \$2}' | gmt psxy -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} -G${COLOR} >> ${PSFILE}" >> plot.sh
     echo "awk < xpts_${LINEID}_dist_km.txt 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+$XOFFSET_NUM, \$2; runtotal=\$1+runtotal; }' | gmt psxy -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} >> ${PSFILE}" >> plot.sh
 
+    [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "awk < xpts_${LINEID}_dist_km.txt '(NR==1) { print \$1 + $XOFFSET_NUM, \$2}' | gmt psxy -px\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} -G${COLOR} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+    [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "awk < xpts_${LINEID}_dist_km.txt 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+$XOFFSET_NUM, \$2; runtotal=\$1+runtotal; }' | gmt psxy -px\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+
+    if [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]]; then
+
+      awk < ${LINEID}_all_data.txt '{
+          km[++c]=$1;
+          val[++d]=$2;
+          val[++d]=$6;
+        } END {
+          asort(km);
+          asort(val);
+          print km[1]-(km[length(km)]-km[1])*0.01,km[length(km)]+(km[length(km)]-km[1])*0.01,val[1]-(val[length(val)]-val[1])*0.1,val[length(val)]+(val[length(val)]-val[1])*0.1
+      }' > ${LINEID}_limits.txt
+
+      if [[ $xminflag -eq 1 ]]; then
+        line_min_x=$(awk < ${LINEID}_limits.txt '{print $1}')
+      else
+        line_min_x=$min_x
+      fi
+      if [[ $xmaxflag -eq 1 ]]; then
+        line_max_x=$(awk < ${LINEID}_limits.txt '{print $2}')
+      else
+        line_max_x=$max_x
+      fi
+      if [[ $zminflag -eq 1 ]]; then
+        line_min_z=$(awk < ${LINEID}_limits.txt '{print $3}')
+      else
+        line_min_z=$min_z
+      fi
+      if [[ $zmaxflag -eq 1 ]]; then
+        line_max_z=$(awk < ${LINEID}_limits.txt '{print $4}')
+      else
+        line_max_z=$max_z
+      fi
+
+      # Set minz to ensure that H=W
+      if [[ $profileonetooneflag -eq 1 ]]; then
+        info_msg "Setting vertical aspect ratio to H=W for profile ${LINEID}"
+        line_diffx=$(echo "$line_max_x - $line_min_x" | bc -l)
+        line_hwratio=$(awk -v h=${PROFILE_HEIGHT_IN} -v w=${PROFILE_WIDTH_IN} 'BEGIN { print (h+0)/(w+0) }')
+        line_diffz=$(echo "$line_hwratio * $line_diffx" | bc -l)
+        line_min_z=$(echo "$line_max_z - $line_diffz" | bc -l)
+        info_msg "Profile ${LINEID} new min_z is $line_min_z"
+      fi
+
+      # Create the data files that will be used to plot the profile vertex points above the profile
+
+      # for distfile in *_dist_km.txt; do
+      #   awk < $distfile -v maxz=$max_z -v minz=$min_z -v profheight=${PROFILE_HEIGHT_IN} '{
+      #     print $1, (maxz+minz)/2
+      #   }' > xpts_$distfile
+      # done
+
+      # maxzval=$(awk -v maxz=$max_z -v minz=$min_z 'BEGIN {print (maxz+minz)/2}')
+
+      # echo "echo \"0 $maxzval\" | gmt psxy -J -R -K -O -St0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.7p,black -Gwhite >> ${PSFILE}" >> plot.sh
+
+      LINETEXT=$(echo $LINEID)
+      # echo LINETEXT is "${LINETEXT}"
+
+      # Plot the frame. This sets -R and -J for the actual plotting script commands in plot.sh
+      echo "#!/bin/bash" > ${LINEID}_plot_final.sh
+      echo "PERSPECTIVE_AZ=\${1}" >> ${LINEID}_plot_final.sh
+      echo "PERSPECTIVE_INC=\${2}" >> ${LINEID}_plot_final.sh
+      echo "gmt psbasemap -px\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -JX${PROFILE_WIDTH_IN}/${PROFILE_HEIGHT_IN} -Bltrb -R$line_min_x/$line_max_x/$line_min_z/$line_max_z --MAP_FRAME_PEN=0p,black -K > ${LINEID}_profile.ps" >> ${LINEID}_plot_final.sh
+      cat ${LINEID}_plot.sh >> ${LINEID}_plot_final.sh
+      echo "gmt psbasemap -px\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -BtESW+t\"${LINETEXT}\" -Baf -Bx+l\"Distance (km)\" --FONT_TITLE=\"10p,Helvetica,black\" --MAP_FRAME_PEN=0.5p,black -R -J -O >> ${LINEID}_profile.ps" >> ${LINEID}_plot_final.sh
+      echo "gmt psconvert ${LINEID}_profile.ps -A+m1i -Tf -F${LINEID}_profile" >> ${LINEID}_plot_final.sh
+      # Execute plot script
+      chmod a+x ${LINEID}_plot_final.sh
+      echo "./${LINEID}_plot_final.sh \${PERSPECTIVE_AZ} \${PERSPECTIVE_INC}" >> ./make_oblique_plots.sh
+
+      # gmt psconvert ${LINEID}_profile.ps -A+m1i -Tf -F${LINEID}_profile
+
+    fi # Finalize individual profile plots
+
     PROFILE_INUM=$(echo "$PROFILE_INUM + 1" | bc)
   fi
 done < $TRACKFILE
 
 # Set a buffer around the data extent to give a nice visual appearance when setting auto limits
+cat *_all_data.txt > all_data.txt
+
 awk < all_data.txt '{
     km[++c]=$1;
     val[++d]=$2;
@@ -880,12 +1084,12 @@ fi
 
 # Set minz to ensure that H=W
 if [[ $profileonetooneflag -eq 1 ]]; then
-  echo "Setting vertical aspect ratio to H=W"
+  info_msg "Setting vertical aspect ratio to H=W"
   diffx=$(echo "$max_x - $min_x" | bc -l)
   hwratio=$(awk -v h=${PROFILE_HEIGHT_IN} -v w=${PROFILE_WIDTH_IN} 'BEGIN { print (h+0)/(w+0) }')
   diffz=$(echo "$hwratio * $diffx" | bc -l)
   min_z=$(echo "$max_z - $diffz" | bc -l)
-  echo "new min_z is $min_z"
+  info_msg "new min_z is $min_z"
 fi
 
 # Create the data files that will be used to plot the profile vertex points above the profile
@@ -906,10 +1110,15 @@ LINETEXT=$(cat IDfile.txt)
 
 # Plot the frame. This sets -R and -J for the actual plotting script commands in plot.sh
 
-gmt psbasemap -Vn -JX${PROFILE_WIDTH_IN}/${PROFILE_HEIGHT_IN} -X"${PROFILE_X}" -Y"${PROFILE_Y}" -Bltrb -R$min_x/$max_x/$min_z/$max_z --MAP_FRAME_PEN=0p,black -K -O >> "${PSFILE}"
+echo "gmt psbasemap -Vn -JX${PROFILE_WIDTH_IN}/${PROFILE_HEIGHT_IN} -X${PROFILE_X} -Y${PROFILE_Y} -Bltrb -R$min_x/$max_x/$min_z/$max_z --MAP_FRAME_PEN=0p,black -K -O >> ${PSFILE}" > newplot.sh
+cat plot.sh >> newplot.sh
+echo "gmt psbasemap -Vn -BtESW+t\"${LINETEXT}\" -Baf -Bx+l\"Distance (km)\" --FONT_TITLE=\"10p,Helvetica,black\" --MAP_FRAME_PEN=0.5p,black $RJOK >> ${PSFILE}" >> newplot.sh
+
 # Execute plot script
-chmod a+x ./plot.sh
-./plot.sh
+chmod a+x ./newplot.sh
+./newplot.sh
+
+[[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && chmod a+x ./make_oblique_plots.sh && ./make_oblique_plots.sh ${PERSPECTIVE_AZ} ${PERSPECTIVE_INC}
 
 # Pass intersection points, profile data back to tectoplot
 #
@@ -920,7 +1129,7 @@ chmod a+x ./plot.sh
 # cp buf_poly.txt /var/tmp/tectoplot
 # [[ $zeropointflag -eq 1 && $doxflag -eq 1 ]] && cp all_intersect.txt /var/tmp/tectoplot/all_intersect.txt
 
-gmt psbasemap -Vn -BtESW+t"${LINETEXT}" -Baf -Bx+l"Distance (km)" --FONT_TITLE="10p,Helvetica,black" --MAP_FRAME_PEN=0.5p,black $RJOK >> "${PSFILE}"
+# gmt psbasemap -Vn -BtESW+t"${LINETEXT}" -Baf -Bx+l"Distance (km)" --FONT_TITLE="10p,Helvetica,black" --MAP_FRAME_PEN=0.5p,black $RJOK >> "${PSFILE}"
 
 if [[ ${PROFILE_X:0:1} == "-" ]]; then
   PROFILE_X="${PROFILE_X:1}"

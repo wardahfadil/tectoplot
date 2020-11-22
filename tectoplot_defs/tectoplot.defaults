@@ -10,16 +10,32 @@ SCALECMD=""
 GRAV_RESCALE=0
 MAG_RESCALE=0
 
+# Export format options
+
 GEOTIFFRES=720
 KMLRES=300
 
-OBLIQUEAZ=135
-OBLIQUEINC=25
+# Oblique topo view
+
+OBLIQUEAZ=135                # Azimuth of perspective view of topography, exported to oblique.pdf in temp folder
+OBLIQUEINC=25                # Inclination of perspective matching to above
+
+# Profile options
+PROFILE_WIDTH_IN="7i"        # Width of profile
+PROFILE_HEIGHT_IN="2i"       # Height of profile
+PROFILE_X="0"                # X axis offset of the profile relative to the current plot origin (usually lower left corner)
+PROFILE_Y="-3i"              # Y axis offset of the profile relative to the current plot origin (usually lower left corner)
+PERSPECTIVE_AZ=110           # Azimuth of perspective view of profiles, subplot pieces exported in PDFs in temp folder
+PERSPECTIVE_INC=10           # Inclination matching to above
+PERSPECTIVE_RES=1000         # resolution of swath topo profile grid, in meters
+PERSPECTIVE_EXAG=1           # vertical exaggeration of topo, plot space only
 
 SWATHTRANS=50                # Percent transparency for swath profile envelopes
 SWATHLINE_WIDTH=0.25p        # Width of q50 (median) swath line
+PROFILE_FONT_LABEL_SIZE=12p  # Font size of profile labels
+PROFILE_TRACK_WIDTH=1.5p     # Width of profile line drawn onto the map
 
-SPROF_MAXELEV=5            # Maximum elevation of SPROF profile data. Set to a number in km (5) or to auto
+SPROF_MAXELEV=5              # Maximum elevation of SPROF profile data. Set to a number in km (5) or to auto
 SPROF_MINELEV=-50            # Maximum elevation of SPROF profile data. Set to a number in km (5) or to auto
 
 ##### General options
@@ -44,6 +60,12 @@ REFPTLAT=-6                  # reference point latitude
 REFPTLON=160                 # reference point longitude
 TMP="tempfiles_to_delete/"   # Temporary directory
 VERBOSE="-Ve"                # verbosity flag
+
+##### Oblique view
+OBLIQUE_VEXAG=1              # Vertical exaggeration for oblique view of topography
+OBLIQUERES=300
+NCALL=""
+#NCALL="-N-6000+gwhite"
 
 ##### Topography
 BATHYCPT=$CPTDIR"topobathy.cpt"  # Default CPT for bathymetry
@@ -133,6 +155,9 @@ PLATEVEC_TEXT_COLOR="white"  # plate velocity label color
 PLATEVEC_TEXT_FONT="Helvetica" # plate velocity font
 PLATEVEC_TEXT_PLOT=1         # If 1, plot text, if not, don't
 
+##### Ocean age raster
+OC_TRANS=0
+
 ##### Topography/bathymetry
 BATHYMETRY="SRTM30"          # topo dataset
 TOPOTRANS=0                  # transparency of topography raster
@@ -142,8 +167,10 @@ CONTOUR_LINEWIDTH="0.2p"     # contour line width
 CONTOUR_MINLEN="100k"        # length of smallest contour plotted
 
 ##### GDAL DEM options
-HSSLOPEBLEND=0.5             # Percent of shaded relief from hillshade (rest goes to slope)
-HS_GAMMA=0.3                 # gamma factor for overlaying DEM color ramp onto slope+hs
+HSSLOPEBLEND=0.6             # Percent of shaded relief from hillshade (rest goes to slope)
+HS_GAMMA=0.6                 # gamma factor for overlaying DEM color ramp onto slope+hs
+HS_ALT=60                    # Altitude of sun for multiple hillshade
+HS_VEXAG=1                   # Vertical exaggeration applied to terrain for hillshading
 
 ##### Topographic contours
 TOPOCONTOURNUMDEF=20         # Number of contours to plot
@@ -196,12 +223,15 @@ CMTAXESSCALE=0.75            # Focal mechanism principal axes, general scale fac
 T0PEN="0.1p,black"           # Focal mechanism, nodal planes and bubble pen
 FMLPEN="0p,black"            # Focal mechanism line pen, main
 
+
 ##### GCMT kinematics
 KINSCALE=0.1                 # scale of kinematic elements
 NP1_COLOR="white"            # nodal plane 1 color, kinematics
 NP2_COLOR="black"            # nodal plane 2 color, kinematics
 RAKE1SCALE=0.25              # length of kinematic vector indicating NP 1 rake
 RAKE2SCALE=0.15              # length of kinematic vector indicating NP 2 rake
+KIN_MINMAG=0.0
+KIN_MAXMAG=10.0
 
 ##### GEM active faults
 AFLINECOLOR=red             # GEM fault map, line color

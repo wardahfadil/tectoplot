@@ -1,7 +1,8 @@
 #!/bin/bash
 # Kyle Bradley, NTU, kbradley@ntu.edu.sg, 2020
 
-# Download the entire global ANSS event catalog and store in semi-monthly data files, then process into a single smaller database file.
+# Download the entire global ANSS (Advanced National Seismic System) event catalog and store in semi-monthly data files,
+# Then process into a single smaller database file.
 # All data files are downloaded into the current folder. The total download size is currently ~650 Mb (2020) and takes some time.
 
 # Call: scrape_anss_data.sh [YYYY-MM-DD]
