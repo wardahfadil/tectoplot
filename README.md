@@ -4,9 +4,11 @@ Kyle Edward Bradley, Asian School of the Environment, Nanyang Technological Univ
 kbradley@ntu.edu.sg
 
 ![Solomon Islands seismicity](pictures/solomon2.png?raw=true "Title")
+
 tectoplot -r SB -t -gdalt 0.2 0.5 -b c -z -c --open --legend
 
 ![MORVEL NNR](pictures/morvel-nnr.png?raw=true "Title")
+
 tectoplot -n -r g -p MORVEL NNR -pvg -a l -pf 1200 -i 1 -setvars { PLATELINE_COLOR white PLATEVEC_COLOR black PLATEVEC_TRANS 30 PLATEVELRES 0.5d COAST_KM2 1000 } -pe -o MORVEL_Global_Velocities.pdf -RJ { -Rd -JN180/5i } -title "MORVEL NNR velocity"
 
 
