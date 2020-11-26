@@ -3,7 +3,7 @@
 Kyle Edward Bradley, Asian School of the Environment, Nanyang Technological University, Singapore - November 2020
 kbradley@ntu.edu.sg
 
-![Solomon Islands seismicity](pictures/solomon.png?raw=true "Title")
+![Solomon Islands seismicity](pictures/solomon2.png?raw=true "Title")
 tectoplot -r SB -t -gdalt 0.2 0.5 -b c -z -c --open --legend
 
 ![MORVEL NNR](pictures/morvel-nnr.png?raw=true "Title")
