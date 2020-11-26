@@ -1,6 +1,8 @@
 ##### TECTOPLOT
 ##### Initialize default variable values. Use bash formatting.
 
+
+
 SCALECMD=""
 
 ##### Rescaling CPT settings
@@ -12,8 +14,8 @@ MAG_RESCALE=0
 
 # Export format options
 
-GEOTIFFRES=720
-KMLRES=300
+GEOTIFFRES=720               # Resolution (dpi) of output GeoTiff if --geotiff is selected
+KMLRES=300                   # Resolution (dpi) of output KML image if --geotiff is selected
 
 # Oblique topo view
 
@@ -23,20 +25,26 @@ OBLIQUEINC=25                # Inclination of perspective matching to above
 # Profile options
 PROFILE_WIDTH_IN="7i"        # Width of profile
 PROFILE_HEIGHT_IN="2i"       # Height of profile
+PROFILE_DEPTH_IN="2i"        # Depth of profile (for box plot): generally recalculated to match HEIGHT
+WFACT=1                      # Factor which is multiplied onto PROFILE_DEPTH_IN
 PROFILE_X="0"                # X axis offset of the profile relative to the current plot origin (usually lower left corner)
 PROFILE_Y="-3i"              # Y axis offset of the profile relative to the current plot origin (usually lower left corner)
-PERSPECTIVE_AZ=110           # Azimuth of perspective view of profiles, subplot pieces exported in PDFs in temp folder
-PERSPECTIVE_INC=10           # Inclination matching to above
-PERSPECTIVE_RES=1000         # resolution of swath topo profile grid, in meters
-PERSPECTIVE_EXAG=1           # vertical exaggeration of topo, plot space only
+PERSPECTIVE_AZ=165           # Azimuth of perspective view of profiles, subplot pieces exported in PDFs in temp folder
+PERSPECTIVE_INC=15           # Inclination matching to above
+PERSPECTIVE_RES=1         # resolution of swath topo profile grid, in km
+PERSPECTIVE_EXAG=2           # vertical exaggeration of topo, plot space only
+PERSPECTIVE_TOPO_HALF=""     # Set to "+l" (-msl) (or less obviously "+r") to restrict profiling to one side or the other (grdtrack)
 
 SWATHTRANS=50                # Percent transparency for swath profile envelopes
 SWATHLINE_WIDTH=0.25p        # Width of q50 (median) swath line
 PROFILE_FONT_LABEL_SIZE=12p  # Font size of profile labels
 PROFILE_TRACK_WIDTH=1.5p     # Width of profile line drawn onto the map
+SWATH_USE_SIGNED_D_FOR_MULTIPOINT_PROFILES=0
 
 SPROF_MAXELEV=5              # Maximum elevation of SPROF profile data. Set to a number in km (5) or to auto
 SPROF_MINELEV=-50            # Maximum elevation of SPROF profile data. Set to a number in km (5) or to auto
+
+
 
 ##### General options
 LEGENDX="0"                  # Offset from left side of page, inches
@@ -47,7 +55,6 @@ MAXLAT=-4.5                  # default region, Solomon Islands
 MAXLON=162                   # default region, Solomon Islands
 MINLAT=-12                   # default region, Solomon Islands
 MINLON=154                   # default region, Solomon Islands
-OPENPROGRAM="Preview"        # program to call to open PDF file
 PLOTFILE="map.ps"            # name of PS file bearing plot data
 PLOTORIGIN=1                 # Plot the origin locations of focal mechanisms. 1 = origin, 0 = centroid
 PLOTSHIFTX="1i"              # GMT shift of origin, X direction
@@ -70,6 +77,10 @@ NCALL=""
 ##### Topography
 BATHYCPT=$CPTDIR"topobathy.cpt"  # Default CPT for bathymetry
 ILLUM="-I+d"                 # Default option for shaded relief
+
+##### Slab2
+
+SLAB2GRID_TRANS=20
 
 ##### Formatting options, general
 ARROWFMT="0.03/0.12/0.06"    # format for velocity arrows, GMT 4 style

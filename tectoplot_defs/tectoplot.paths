@@ -4,7 +4,10 @@
 
 ###### DATAROOT is the root directory that contains the downloaded data directories.
 
-DATAROOT="/Users/kylebradley/Dropbox/TectoplotData/"
+DATAROOT=$(head -n 1 $DEFDIR"tectoplot.dataroot")
+
+###### OPENPROGRAM is the program to call from the command line to view PDF file
+OPENPROGRAM=$(head -n 1 $DEFDIR"tectoplot.pdfviewer")
 
 #####
 CPTDIR=$TECTOPLOTDIR"CPT/"
@@ -28,7 +31,6 @@ EULERVEC_AWK=$TECTOPLOTDIR"eulervec_2pole_cart.awk"
 EULERVECLIST_AWK=$TECTOPLOTDIR"eulervec_2pole_cart_list.awk"
 MPROFILE_SH_SRC=$TECTOPLOTDIR"multi_profile_tectoplot_sourced.sh"
 EULERADD_AWK=$TECTOPLOTDIR"euleradd.awk"
-
 
 ####
 #### Downloaded data sets
@@ -148,6 +150,7 @@ SLAB2_ZIP_BYTES="93730583"
 SLAB2DIR=$SLAB2DATADIR"Slab2Distribute_Mar2018/"
 SLAB2CLIPDIR=$SLAB2DIR"Slab2Clips/"
 SLAB2CONTOURDIR=$SLAB2DIR"Slab2_CONTOURS/"
+SLAB2GRIDDIR=$SLAB2DIR
 
 ### Additional directories where we store cached DEM data or custom DEMs
 ###
@@ -269,7 +272,6 @@ GBMPLATES=$DATAROOT"GBM/GMTData/block.180_fixed.dat"
 GBMPOLES=$DATAROOT"GBM/GMTData/block.180.poles.dat"
 GBMMIDPOINTS=$DATAROOT"GBM/GMTData/GBM_midpoints.txt"
 GBMPLATEEDGES=$DATAROOT"GBM/GMTData/block.180.dat"
-
 
 # Communication cables data
 CABLES=$DATAROOT"gregs_cable_map_v1.58/Cables.gmt"

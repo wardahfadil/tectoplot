@@ -1,35 +1,25 @@
 #!/bin/bash
+TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 #
-# Script to make nice seismotectonic plots with integrated plate motions and
+# Script to make seismotectonic plots with integrated plate motions and
 # earthquake kinematics, plus cross sections, primarily using GMT.
 #
-# Kyle Bradley, Nanyang Technological University, August 2020
+# Kyle Bradley, Nanyang Technological University, November 2020
 # Prefers GS 9.26 (and no later) for transparency
-
-# -a|--arg) req FILE VARIABLE req TYPE VARIABLE req TYPE VARIABLE opt TYPE VARIABLE opt TYPE VARIABLE gmtvars { REPLACELIST }
-#
-# TYPES:
-# FILE
-# NUMBER[minrange:maxrange]
-# STRING
-
-# Argument logic:
-
-# -s|--long                               # each option should have a short and long form
-# [required] [arguments]                  # ensure required arguments are given
-#   If an argument is a file, parse its absolute path and check for existence
-#   If an argument is numeric, check that its values are within range
-# [[optional]] [[arguments]]              #
-# { gmtvars }                             # For relevant options, can give GMT command line arguments
-#   For each argument, allow overriding of default options (e.g. -As${VARIABLEVAL}) with gmtvars { -As0.1 }
-#
 
 # CHANGELOG
 
+# November 26, 2020: Cleaned up usage, help messages and added installation/setup info
+# November 26, 2020: Fixed a bug whereby CMTs were selected for profiles from too large of an AOI
+# November 26, 2020: Added code to plot -cc alternative locations on profiles and oblique views
+# November 25, 2020: Added ability of -sprof to plot Slab2 and revamped Slab2 selection based on AOI
+# November 24, 2020: Added code to plot -gdalt style topo on oblique plots if that option is active for the map
+# November 24, 2020: Added -msl option to only plot the left half of the DEM for oblique profiles, colocating slice with profile
+# November 24, 2020: Added -msd option to use signed distance for profile DEM generation to avoid kink problems.
 # November 22, 2020: Added -mob option to set parameters for oblique profile component outputs
 # November 20, 2020: Added -psel option to plot only identified profiles from a profile.control file
 # November 19, 2020: Label profiles at their start point
-# November 16, 2020: Added code to download and verify online datasets, removed SLAB2 seismicity
+# November 16, 2020: Added code to download and verify online datasets, removed SLAB2 seismicity+CMTs
 # November 15, 2020: Added BEST option for topography that merges 01s resampled to 2s and GMRT tiles.
 # November 15, 2020: Added -gdalt option to use gdal to plot nice hillshade/slope shaded relief, with flexible options
 # November 13, 2020: Added -zs option to include supplemental seismic dataset (cat onto eqs.txt)
@@ -39,44 +29,46 @@
 # November 11, 2020: Added ability to plot scale bar of specified length centered on lon/lat point
 # November 11, 2020: Fixed a bug in ISC focal mechanism scraper that excluded all Jan-April events! (!!!), also adds pre-1976 GCMT/ISC mechanisms, mostly deep focus
 # November 10, 2020: Updated topo contour plotting and CPT management scheme
-# November 9, 2020: Adjusted GMRT tile size check, added -printcountries and edited country selection code
-# November 3, 2020: Updated GMRT raster tile scraping and merging to avoid several crash issues
-# November 2, 2020: Fixed DEM format problem (save as .nc and not .tif). Use gdal_translate to convert if necessary.
-# October 28, 2020: Added -tt option back to change transparency of topo basemap
-# October 28, 2020: Added -cn option to plot contours from an input grid file (without plotting grid)
-# October 24, 2020: Range can be defined by a raster argument to -r option
-# October 23, 2020: Added GMRT 1° tile scraping option for DEM (best global bathymetry data)
-# October 23, 2020: Added -scrapedata, -reportdates, -recentglobaleq options
-# October 21, 2020: Added -oto option to ensure 1:1 vertical exaggeration of profile plot
-# October 21, 2020: Added -cc option to plot alternative location of CMT (centroid if plotting origin, origin if plotting centroid)
-# October 20, 2020: Updated CMT file format and updated scrape_gcmt and scrape_isc focal mechanism scripts
-# October 20, 2020: Added -clipdem to save a dem.nc file in the temporary data folder, mainly for in-place profile control
-# October 19, 2020: Initial git commit at kyleedwardbradley/tectoplot
-# October 10, 2020: Added code to avoid double plotting of XYZ and CMT data on overlapping profiles.
-# October 9, 2020: Project data only onto the closest profile from the whole collection.
-# October 9, 2020: Add a date range option to restrict seismic/CMT data
-# October 9, 2020: Add option to rotate CMTs based on back azimuth to a specified lon/lat point
-# October 9, 2020: Update seismicity for legend plot using SEISSTRETCH
+# November  9, 2020: Adjusted GMRT tile size check, added -printcountries and edited country selection code
+# November  3, 2020: Updated GMRT raster tile scraping and merging to avoid several crash issues
+# November  2, 2020: Fixed DEM format problem (save as .nc and not .tif). Use gdal_translate to convert if necessary.
+# October  28, 2020: Added -tt option back to change transparency of topo basemap
+# October  28, 2020: Added -cn option to plot contours from an input grid file (without plotting grid)
+# October  24, 2020: Range can be defined by a raster argument to -r option
+# October  23, 2020: Added GMRT 1° tile scraping option for DEM (best global bathymetry data)
+# October  23, 2020: Added -scrapedata, -reportdates, -recentglobaleq options
+# October  21, 2020: Added -oto option to ensure 1:1 vertical exaggeration of profile plot
+# October  21, 2020: Added -cc option to plot alternative location of CMT (centroid if plotting origin, origin if plotting centroid)
+# October  20, 2020: Updated CMT file format and updated scrape_gcmt and scrape_isc focal mechanism scripts
+# October  20, 2020: Added -clipdem to save a dem.nc file in the temporary data folder, mainly for in-place profile control
+# October  19, 2020: Initial git commit at kyleedwardbradley/tectoplot
+# October  10, 2020: Added code to avoid double plotting of XYZ and CMT data on overlapping profiles.
+# October   9, 2020: Project data only onto the closest profile from the whole collection.
+# October   9, 2020: Add a date range option to restrict seismic/CMT data
+# October   9, 2020: Add option to rotate CMTs based on back azimuth to a specified lon/lat point
+# October   9, 2020: Update seismicity for legend plot using SEISSTRETCH
 
 # TO DO:
 #
 # KNOWN BUGS:
-# tectoplot remake seems broken
+# tectoplot remake seems broken?
 #
-#
-#
+# DREAM LEVEL:
+# Generate a map_plot.sh script that contains all GMT/etc commands needed to replicate the plot.
+# This script would be editable and would quite quickly rerun the plotting as the
+# relevant data files would already be generated.
+# Not 100% sure that the script is linear enough to do this without high complexity...
 #
 # HIGHER PRIORITY:
-#
-# I am close to being able to add an option to plot topography above profiles. Need to select one profile to provide the topo using
-# -prtopo PROFILE_ID AZ INC
-#
-# Then the options needed are the azimuth/inclination of the view perspective (-px${az}/${inc})
-#
-# Add option to output profile to a separate PS/PDF file instead of plotting on the map. This isn't hard as we only need to adjust plot.sh to open/close the PS file correctly
-#
+# Add option to decluster CMT/seismicity data before plotting to remove aftershocks?
+# Update legend to include more plot elements
+# Update multi_profile to plot data in 3D on oblique block plots? Need X',Y',Z,mag for eqs.
+# Add option to plot GPS velocity vectors at the surface along profiles?
+#     --> e.g. sample elevation at GPS point; project onto profile, plot horizontal velocity since verticals are not usually in the data
+# Add option to profile.control to plot 3D datasets within the box?
+# Add option to profile.control to plot 2D datasets on the box edge (e.g. data slices)?
 # Add option to smooth/filter the DEM before hillshading?
-# Add option to overlay a globe map with a box indicating the AOI? -globeinset?
+# Add option to overlay a globe map/inset with a box indicating the AOI? -globeinset? Perhaps plotted off the map, above the legend?
 # Add routines to download and process the base datasets (SRTM30, GEBCO20, volcanoes, gravity, emag, etc.) (partially added)
 # Add option to specify only a profile and plot default data onto that profile and a map within that AOI
 # Add routines to plot existing cached data tile extents (e.g. GMRT, other topo) and clear cached data
@@ -87,14 +79,10 @@
 # Add option to plot stacked data across a profile swath
 # Add option to take a data selection polygon from a plate model?
 # Add option to -ob) to specify vertical exaggeration for oblique plots
-# Add option to not plot the grid
 # add option to plot NASA Blue Marble / day/night images, and crustal age maps, from GMT online server
-# Update legend to include more plot elements
 #
 # LOW PRIORITY
 #
-# Add option to plot GPS velocity vectors at the surface along profiles.
-# Sample elevation at GPS point; project onto profile, plot horizontal velocity since verticals are not usually in the data
 # add a box-and-whisker option to the -mprof command, taking advantage of our quantile calculations and gmt psxy -E
 # Check behavior for plots with areas that cross the Lon=0/360 meridian [general behavior is to FAIL HARD]
 # Add options for controlling CPT of focal mechanisms/seismicity beyond coloring with depth (e.g. color with time)
@@ -114,8 +102,9 @@
 ################################################################################
 # Messaging and debugging routines
 
-# set -x
+#set -x
 # Uncomment the above line for the ultimate debugging experience.
+#
 
 _ERR_HDR_FMT="%.23s %s[%s]: "
 _ERR_MSG_FMT="${_ERR_HDR_FMT}%s\n"
@@ -132,10 +121,7 @@ function info_msg() {
   fi
 }
 
-# Grid range query. Try to avoid querying the full grid when determining the range of Z values
-
-# I have replaced many instances of gmt grdinfo with this function but not all have been tested.
-# Commented original lines worked though
+# Grid z range query function. Try to avoid querying the full grid when determining the range of Z values
 
 function grid_zrange() {
    output=$(gmt grdinfo -C $1 -Vn)
@@ -148,8 +134,24 @@ function grid_zrange() {
    echo $output | awk '{print $6, $7}'
 }
 
-#########
+##### A first step toward portability. Credit Jordan@StackExchange
+
+case "$OSTYPE" in
+   cygwin*)
+      alias open="cmd /c start"
+      ;;
+   linux*)
+      alias start="xdg-open"
+      alias open="xdg-open"
+      ;;
+   darwin*)
+      alias start="open"
+      ;;
+esac
+
+################################################################################
 # These variables are array indices and must be equal to ZERO at start
+
 plotpointnumber=0
 
 ################################################################################
@@ -157,15 +159,16 @@ plotpointnumber=0
 
 THISDIR=$(pwd)
 
-TECTOPLOT_VERSION="TECTOPLOT 0.1, August 2020"
 GMTREQ="6"
 RJOK="-R -J -O -K"
 
-# TECTOPLOTDIR should be an absolute path where the script resides
-TECTOPLOTDIR="/Users/kylebradley/Dropbox/scripts/tectoplot/"
+# TECTOPLOTDIR is where the (symlink to the) script resides
+TECTOPLOTDIR=$(dirname "$0")"/"
+
 DEFDIR=$TECTOPLOTDIR"tectoplot_defs/"
 
-# These files are sourced using the . command, so they should be valid bash scripts but without #!/bin/bash
+# These files are sourced using the . command, so they should be valid bash
+# scripts but without #!/bin/bash
 
 TECTOPLOT_DEFAULTS_FILE=$DEFDIR"tectoplot.defaults"
 TECTOPLOT_PATHS_FILE=$DEFDIR"tectoplot.paths"
@@ -251,211 +254,228 @@ NA Lat Lon W
 EOF
 }
 
-##### USAGE MESSAGE
-function usage() {
-cat <<-EOF
+
+
+##### USAGE MESSAGES
+
+function print_help_header() {
+  cat <<-EOF
+
+  -----------------------------------------------------------------------------
+
   $TECTOPLOT_VERSION
   Kyle Bradley, Nanyang Technological University
   kbradley@ntu.edu.sg
 
-  This script uses GMT and custom code to make seismotectonic maps based on
-  relative motions of plates with Euler poles. It can load and interpret
-  TDEFNODE model results.
+  This script uses GMT, gdal, and geod to make seismotectonic maps, cross
+  sections, and oblique block diagrams.
 
   Developed for OSX Catalina, minimal testing indicates works with Fedora linux
 
-  REQUIRES: GMT${GMTREQ} gdal gawk geod ps2pdf Preview(or equivalent)
-
-  USAGE: tectoplot [...]
-
-    'tectoplot remake' will re-calculate using the last tectoplot command
-     executed in the current directory.
-
-    'tectoplot remake file.txt' will use the first line of file.txt to re-run a
-     saved command. The *.history file produced by tectoplot works with this.
+  USAGE: tectoplot -opt1 arg1 -opt2 arg2 arg3 ...
 
   Map layers are generally plotted in the order they are specified.
-  All options are case sensitive (SRTM30 vs srtm30)
 
-  Default variables are stored in $TECTOPLOTDIR/tectoplot.defaults
-  File paths are defined in $TECTOPLOTDIR/tectoplot.paths
+  HELP and INSTALLATION: tectoplot -setup
+  OPTIONS:               tectoplot -options
+  VARIABLES:             tectoplot -variables
+  LONG HELP:             tectoplot  or tectoplot -h|-help|--help
 
-  User-defined default variable values can be loaded from a file with --loaddef.
-  Variables are loaded when --loaddef is called and don't affect earlier command
-  parsing.
+  -----------------------------------------------------------------------------
 
-  Optional arguments:
-  [opt] is required if the flag is present
-  [[opt]] if not specified will assume a default value or will not be used
+EOF
+}
 
-Data control
-  -getdata                                             download and validate builtin datasets
+function print_options() {
+cat <<-EOF
+    Optional arguments:
+    [opt] is required if the flag is present
+    [[opt]] if not specified will assume a default value or will not be used
 
-GMT control
-  -gmtvars         [{VARIABLE value ...}]              set GMT internal variables
-  -pos X Y         Set X Y position of plot origin     (GMT format -X$VAL -Y$VAL; e.g -Xc -Y1i etc)
-  -RJ              [{ -Retc -Jetc }]                   provide custom R, J GMT strings
-                   UTM [[zone]]                        plot UTM, zone is defined by mid longitude (-r) or specified
-  -B               [{ -Betc -Betc }]                   provide custom B strings
-  -pss             [size]                              PS page size in inches (8)
-  -psr             [0-1]                               scale factor of map ofs pssize
-  -psm             [size]                              PS margin in inches (0.5)
-  -pgs             [gridline spacing]                  override map gridline spacing
-  -pgo                                                 turn grid lines off
-  -cpts                                                remake default CPT files
-  -geotiff                                             output GeoTIFF and .tfw, frame inside
-  -kml                                                 output KML, frame inside
-  -scale           [length] [lon] [lat]                place scale bar centered at lon/lat point
-  -rect                                                use rectangular map frame (UTM projection only)
-  -ob
+  Data control and installation
+    -addpath                                             add the tectoplot source directory to your ~.profile
+    -getdata                                             download and validate builtin datasets
 
-Plotting/control commands:
-  --data                                               list data sources and exit
-  --defaults                                           print default values and exit (Can edit and load using -setvars)
-  -e|--execute     [bash script file]                  runs a script using source command
-  --formats                                            print information on data formats and exit
-  -h|--help                                            print this message and exit
-  -i|--vecscale    [value]                             scale all vectors (0.02)
-  -ips             [filename]                          plot on top of an unclosed .ps file
-  --keepopenps                                         don't close the PS file
-  --legend         [[width]]                           plot legend above the map area (color bar width=2i)
-  -n|--narrate                                         echo a lot of information during processing
-  -o|--out         [filename]                          name of output file
-  -op|--overplot   [X Y]                               plot over previous output (save map.ps only)
-                    X,Y are horizontal and vertical offset in inches
-  --open           [[program]]                         open PDF file at end using program
-  -r|--range       [MinLon MaxLon MinLat MaxLat]       area of interest, degrees
-                   [g]                                 global domain
-                   [ID]                                AOI of 2 character country code, breaks if crosses dateline!
-                   [raster_file]                       take the limits of the given raster file
-  -pg|--polygon    [polygon_file.xy]                   use a closed polygon to select data instead of AOI
-  -tm|--tempdir    [tempdir]                           use tempdir as temporary directory
-  --verbose                                            set gmt -V flag for all calls
-  -vars            [variables file]                    set variable values using bash sourcing of file
-  -setvars         { VAR1 VAL1 VAR2 VAL2 }             set bash variable values
-  -scale           [length] [lon] [lat]                plot a scale bar. length needs suffix (e.g. 100k).
+  GMT control
+    -gmtvars         [{VARIABLE value ...}]              set GMT internal variables
+    -pos X Y         Set X Y position of plot origin     (GMT format -X$VAL -Y$VAL; e.g -Xc -Y1i etc)
+    -RJ              [{ -Retc -Jetc }]                   provide custom R, J GMT strings
+                     UTM [[zone]]                        plot UTM, zone is defined by mid longitude (-r) or specified
+    -B               [{ -Betc -Betc }]                   provide custom B strings
+    -pss             [size]                              PS page size in inches (8)
+    -psr             [0-1]                               scale factor of map ofs pssize
+    -psm             [size]                              PS margin in inches (0.5)
+    -pgs             [gridline spacing]                  override map gridline spacing
+    -pgo                                                 turn grid lines off
+    -cpts                                                remake default CPT files
+    -geotiff                                             output GeoTIFF and .tfw, frame inside
+    -kml                                                 output KML, frame inside
+    -scale           [length] [lon] [lat]                place scale bar centered at lon/lat point
+    -rect                                                use rectangular map frame (UTM projection only)
+    -ob
 
-Profiles:
-  -mprof           [control_file] [[A B X Y]]          plot multiple swath profile
-                   A=width (7i) B=height (2i) X,Y=offset relative to current origin (0i -3i)
-  -sprof           [lon1] [lat1] [lon2] [lat2] [width]    plot an automatic profile using data on map
-                   width has units in format, e.g. 100k and is full width of profile
-  -oto             adjust vertical scale (after all other options) to set V:H ratio at 1 (no exaggeration)
-  -psel            [PID1] [[PID2...]]                  only plot profiles with specified PID from control file
-  -mob             [[Azimuth(deg)]] [[Inclination(deg)]] [[VExagg(factor)]] [[Resolution(m)]]
-                        create oblique view components for plotted profiles
+  Plotting/control commands:
+    --data                                               list data sources and exit
+    --defaults                                           print default values and exit (Can edit and load using -setvars)
+    -e|--execute     [bash script file]                  runs a script using source command
+    --formats                                            print information on data formats and exit
+    -h|--help                                            print this message and exit
+    -i|--vecscale    [value]                             scale all vectors (0.02)
+    -ips             [filename]                          plot on top of an unclosed .ps file
+    --keepopenps                                         don't close the PS file
+    --legend         [[width]]                           plot legend above the map area (color bar width=2i)
+    -n|--narrate                                         echo a lot of information during processing
+    -o|--out         [filename]                          name of output file
+    -op|--overplot   [X Y]                               plot over previous output (save map.ps only)
+                      X,Y are horizontal and vertical offset in inches
+    --open           [[program]]                         open PDF file at end using program
+    -r|--range       [MinLon MaxLon MinLat MaxLat]       area of interest, degrees
+                     [g]                                 global domain
+                     [ID]                                AOI of 2 character country code, breaks if crosses dateline!
+                     [raster_file]                       take the limits of the given raster file
+    -pg|--polygon    [polygon_file.xy]                   use a closed polygon to select data instead of AOI
+    -tm|--tempdir    [tempdir]                           use tempdir as temporary directory
+    --verbose                                            set gmt -V flag for all calls
+    -vars            [variables file]                    set variable values using bash sourcing of file
+    -setvars         { VAR1 VAL1 VAR2 VAL2 }             set bash variable values
+    -scale           [length] [lon] [lat]                plot a scale bar. length needs suffix (e.g. 100k).
 
-Topography/bathymetry:
-  -t|--topo        [[ SRTM30 | GEBCO20 | GEBCO1 | ERCODE | GMRT | BEST | custom_grid_file ]] [[cpt]]
-                   plot shaded relief (including a custom grid)
-                   ERCODE: GMT Earth Relief Grids, dynamically downloaded and stored locally:
-                   01d ~100km | 30m ~55 km | 20m ~37km | 15m ~28km | 10m ~18 km | 06m ~10km
-                   05m ~9km | 04m ~7.5km | 03m ~5.6km | 02m ~3.7km | 01m ~1.9km | 15s ~500m
-                   03s ~100m | 01s ~30m
-                   BEST uses GMRT for elev < 0 and 01s for elev >= 0 (resampled to match GMRT)
-  -ts                                                  don't plot shaded relief/topo grid
-  -ti              [off] | [azimuth (°)]               set parameters for grid illumination (GMT shading, not gdalt)
-  -tn              [interval (m)]                      plot topographic contours
-  -tr              [[minelev maxelev]]                 rescale CPT using data range or specified limits
-  -tc|--cpt        [cptfile]                           use custom cpt file for topo grid
-  -tt|--topotrans  [transparency%]                     transparency of topo grid
-  -clipdem                                             save terrain as dem.nc in temporary directory
-  -gebcotid                                            plot GEBCO TID raster
-  -gdalt           [[gamma (0-1)]] [[% HS (0-1)]]      render colored multiple hillshade using gdal
+  Profiles and oblique block diagrams:
+    -mprof           [control_file] [[A B X Y]]          plot multiple swath profile
+                     A=width (7i) B=height (2i) X,Y=offset relative to current origin (0i -3i)
+    -sprof           [lon1] [lat1] [lon2] [lat2] [width]    plot an automatic profile using data on map
+                     width has units in format, e.g. 100k and is full width of profile
+    -oto             adjust vertical scale (after all other options) to set V:H ratio at 1 (no exaggeration)
+    -psel            [PID1] [[PID2...]]                  only plot profiles with specified PID from control file
+    -mob             [[Azimuth(deg)]] [[Inclination(deg)]] [[VExagg(factor)]] [[Resolution(m)]]
+                          create oblique view components for plotted profiles
+    -msd             Use a signed distance formulation for profiling to generate DEM for display (for kinked profiles)
+    -msl             Display only the left side of the profile so that the cut is exactly on-profile
 
-Additional map layers:
-  -a|--coast       [[quality]] [[a,b]] { gmtargs }     plot coastlines [[a]] and borders [[b]]
-                   quality = a,f,h,i,l,c
-  -ac              [[LANDCOLOR]] [[SEACOLOR]]          fill coastlines/sea (requires subsequent -a command)
-  -acb                                                 plot country borders
-  -acl                                                 label country centroids
+  Topography/bathymetry:
+    -t|--topo        [[ SRTM30 | GEBCO20 | GEBCO1 | ERCODE | GMRT | BEST | custom_grid_file ]] [[cpt]]
+                     plot shaded relief (including a custom grid)
+                     ERCODE: GMT Earth Relief Grids, dynamically downloaded and stored locally:
+                     01d ~100km | 30m ~55 km | 20m ~37km | 15m ~28km | 10m ~18 km | 06m ~10km
+                     05m ~9km | 04m ~7.5km | 03m ~5.6km | 02m ~3.7km | 01m ~1.9km | 15s ~500m
+                     03s ~100m | 01s ~30m
+                     BEST uses GMRT for elev < 0 and 01s for elev >= 0 (resampled to match GMRT)
+    -ts                                                  don't plot shaded relief/topo grid
+    -ti              [off] | [azimuth (°)]               set parameters for grid illumination (GMT shading, not gdalt)
+    -tn              [interval (m)]                      plot topographic contours
+    -tr              [[minelev maxelev]]                 rescale CPT using data range or specified limits
+    -tc|--cpt        [cptfile]                           use custom cpt file for topo grid
+    -tt|--topotrans  [transparency%]                     transparency of topo grid
+    -clipdem                                             save terrain as dem.nc in temporary directory
+    -gebcotid                                            plot GEBCO TID raster
+    -gdalt           [[gamma (0-1)]] [[% HS (0-1)]]      render colored multiple hillshade using gdal
 
-  -af              [[AFLINEWIDTH]] [[AFLINECOLOR]]     plot active fault traces
-  -b|--slab2       [[layers string: c]]                plot Slab2 data; default is c
-        c: slab contours
-  -cn              [gridfile] [interval] { gmtargs }   plot contours of a gridded dataset
-                                          gmtargs for -A -S and -C will replace defaults
-  -g|--gps         [[RefPlateID]]                      plot GPS data from Kreemer 2014 / rel. to RefPlateID
-  -gg|--extragps   [filename]                          plot an additional GPS / psvelo format file
-  -im|--image      [filename] { gmtargs }              plot a RGB GeoTiff file
-  -m|--mag         [[transparency%]]                   plot crustal magnetization
-  -s|--srcmod                                          plot fused SRCMOD EQ slip distributions
-  -sv|--slipvector [filename]                          plot data file of slip vector azimuths [Lon Lat Az]
-  -v|--gravity     [[FA | BG | IS]] [transparency%] [rescale]            rescale=rescale colors to min/max
-                    plot WGM12 gravity. FA = free air | BG == Bouguer | IS = Isostatic
-  -vc|--volc                                           plot Pleistocene volcanoes
-  -pb                                                  plot political boundaries
-  -pp|--cities     [[min population]]                  plot cities with minimum population, color by population
-  -ppl             [[min population]]                  label cities with a minimum population
-  -gcdm                                                plot Global Curie Depth Map
+  Additional map layers:
+    -a|--coast       [[quality]] [[a,b]] { gmtargs }     plot coastlines [[a]] and borders [[b]]
+                     quality = a,f,h,i,l,c
+    -ac              [[LANDCOLOR]] [[SEACOLOR]]          fill coastlines/sea (requires subsequent -a command)
+    -acb                                                 plot country borders
+    -acl                                                 label country centroids
 
-GIS datasets:
-  Multiple calls to these functions are allowed. Options are specified in order, replacing default values.
-  -pt|--point      [filename] [[symbol]] [[size]] [[cptfile]]    data: x y z
-  -l|--line        [filename] [[color]] [[width]]                data: > ID (z)\n x y\n x y\n > ID2 (z) x y\n ...
+    -af              [[AFLINEWIDTH]] [[AFLINECOLOR]]     plot active fault traces
+    -b|--slab2       [[layers string: c]]                plot Slab2 data; default is c
+          c: slab contours
+    -cn              [gridfile] [interval] { gmtargs }   plot contours of a gridded dataset
+                                            gmtargs for -A -S and -C will replace defaults
+    -g|--gps         [[RefPlateID]]                      plot GPS data from Kreemer 2014 / rel. to RefPlateID
+    -gg|--extragps   [filename]                          plot an additional GPS / psvelo format file
+    -im|--image      [filename] { gmtargs }              plot a RGB GeoTiff file
+    -m|--mag         [[transparency%]]                   plot crustal magnetization
+    -s|--srcmod                                          plot fused SRCMOD EQ slip distributions
+    -sv|--slipvector [filename]                          plot data file of slip vector azimuths [Lon Lat Az]
+    -v|--gravity     [[FA | BG | IS]] [transparency%] [rescale]            rescale=rescale colors to min/max
+                      plot WGM12 gravity. FA = free air | BG == Bouguer | IS = Isostatic
+    -vc|--volc                                           plot Pleistocene volcanoes
+    -pb                                                  plot political boundaries
+    -pp|--cities     [[min population]]                  plot cities with minimum population, color by population
+    -ppl             [[min population]]                  label cities with a minimum population
+    -gcdm                                                plot Global Curie Depth Map
 
-Seismicity:
-  -z|--seis        [[scale]]                           plot seismic epicenters (from scraped earthquake data)
-! -zd              [[scale]] [STARTTIME ENDTIME]       plot seismic epicenters (new download from ANSS for AOI)
-  --time           [STARTTIME ENDTIME]                 select EQ/CMT between dates (midnight AM), format YYYY-MM-DD
-  -zsort           [date|depth|mag] [up|down]          sort earthquake data before plotting
-  -zs              [file]                              add supplemental seismicity file [lon lat depth mag]
+  GIS datasets:
+    Multiple calls to these functions are allowed. Options are specified in order, replacing default values.
+    -pt|--point      [filename] [[symbol]] [[size]] [[cptfile]]    data: x y z
+    -l|--line        [filename] [[color]] [[width]]                data: > ID (z)\n x y\n x y\n > ID2 (z) x y\n ...
 
-Seismicity/focal mechanism data control:
-  -reportdates                                         print date range of seismic, focal mechanism catalogs and exit
-  -scrapedata                                          run the GCMT/ISC/ANSS scraper scripts and exit
-  -recenteq                                            run scraper and plot recent earthquakes. Need to specify -c, -z, -r options.
+  Seismicity:
+    -z|--seis        [[scale]]                           plot seismic epicenters (from scraped earthquake data)
+  ! -zd              [[scale]] [STARTTIME ENDTIME]       plot seismic epicenters (new download from ANSS for AOI)
+    --time           [STARTTIME ENDTIME]                 select EQ/CMT between dates (midnight AM), format YYYY-MM-DD
+    -zsort           [date|depth|mag] [up|down]          sort earthquake data before plotting
+    -zs              [file]                              add supplemental seismicity file [lon lat depth mag]
 
-Focal mechanisms:
-  -c|--cmt         [[source]] [[scale]]                plot focal mechanisms
-  -cx              [file]                              plot additional focal mechanisms, format matches -cf option
-  -ca              [nts] [tpn]                         plot selected P/T/N axes for selected EQ types
-  -cc                                                  plot dot and line connecting to alternative position (centroid/origin)
-  -cd|--cmtdepth   [depth]                             maximum depth of CMTs, km
-  -cf              [GlobalCMT | MomentTensor]          choose the format of focal mechanism to plot
-  -cm|--cmtmag     [minmag maxmag]                     magnitude bounds for cmt
-  -cr|--cmtrotate) [lon] [lat]                         rotate CMTs based on back-azimuth to a point
-  -cw                                                  plot CMTs with white compressive quads
-  -ct|--cmttype    [nts | nt | ns | n | t | s]         sets earthquake types to plot CMTs
-  -zr1|--eqrake1   [[scale]]                           color focal mechs by N1 rake
-  -zr2|--eqrake2   [[scale]]                           color focal mechs by N2 rake
-  -cs                                                  plot TNP axes on a stereonet (stereo.pdf)
+  Seismicity/focal mechanism data control:
+    -reportdates                                         print date range of seismic, focal mechanism catalogs and exit
+    -scrapedata                                          run the GCMT/ISC/ANSS scraper scripts and exit
+    -recenteq                                            run scraper and plot recent earthquakes. Need to specify -c, -z, -r options.
 
-Focal mechanism kinematics (CMT):
-  -kg|--kingeo                                         plot strike and dip of nodal planes
-  -kl|--nodalplane [1 | 2]                             plot only NP1 (lower dip) or NP2
-  -km|--kinmag     [minmag maxmag]                     magnitude bounds for kinematics
-  -kt|--kintype    [nts | nt | ns | n | t | s]         select types of EQs to plot kin data
-  -ks|--kinscale   [scale]                             scale kinematic elements
-  -kv|--slipvec                                        plot slip vectors
+  Focal mechanisms:
+    -c|--cmt         [[source]] [[scale]]                plot focal mechanisms
+    -cx              [file]                              plot additional focal mechanisms, format matches -cf option
+    -ca              [nts] [tpn]                         plot selected P/T/N axes for selected EQ types
+    -cc                                                  plot dot and line connecting to alternative position (centroid/origin)
+    -cd|--cmtdepth   [depth]                             maximum depth of CMTs, km
+    -cf              [GlobalCMT | MomentTensor]          choose the format of focal mechanism to plot
+    -cm|--cmtmag     [minmag maxmag]                     magnitude bounds for cmt
+    -cr|--cmtrotate) [lon] [lat]                         rotate CMTs based on back-azimuth to a point
+    -cw                                                  plot CMTs with white compressive quads
+    -ct|--cmttype    [nts | nt | ns | n | t | s]         sets earthquake types to plot CMTs
+    -zr1|--eqrake1   [[scale]]                           color focal mechs by N1 rake
+    -zr2|--eqrake2   [[scale]]                           color focal mechs by N2 rake
+    -cs                                                  plot TNP axes on a stereonet (stereo.pdf)
 
-Plate models (require a plate motion model specified by -p or --tdefpm)
-  -f|--refpt       [Lon/Lat]                           reference point location
-  -p|--plate       [[GBM | MORVEL | GSRM]] [[refplate]] select plate motion model, relative to stationary refplate
-  -pe|--plateedge  [[GBM | MORVEL | GSRM]]             plot plate model polygons
-  -pf|--fibsp      [km spacing]                        Fibonacci spacing of plate motion vectors; turns on vector plot
-  -px|--gridsp     [Degrees]                           Gridded spacing of plate motion vectors; turns on vector plot
-  -pl                                                  label plates
-  -ps              [[GBM | MORVEL | GSRM]]             list plates and exit. If -r is set, list plates in region
-  -pr                                                  plot plate rotations as small circles with arrows
-  -pz              [[scale]]                           plot plate boundary azimuth differences (does edge computations)
-                                                       histogram is plotted into az_histogram.pdf
-  -pv              [cutoff distance]                   plot plate boundary relative motion vectors (does edge computations)
-                                                       cutoff distance dictates spacing between plotted velocity pairs
-  -w|--euler       [Lat] [Lon] [Omega]                 plots vel. from Euler Pole (grid)
-  -wp|--eulerplate [PlateID] [RefplateID]              plots vel. of PlateID wrt RefplateID
-                   (requires -p or --tdefpm)
-  -wg              [residual scale]                    plots -w or -wp at GPS sites (plot scaled residuals only)
-  -pvg             [rescale]                           plots a plate motion velocity grid. rescale=rescale colors to min/max
+  Focal mechanism kinematics (CMT):
+    -kg|--kingeo                                         plot strike and dip of nodal planes
+    -kl|--nodalplane [1 | 2]                             plot only NP1 (lower dip) or NP2
+    -km|--kinmag     [minmag maxmag]                     magnitude bounds for kinematics
+    -kt|--kintype    [nts | nt | ns | n | t | s]         select types of EQs to plot kin data
+    -ks|--kinscale   [scale]                             scale kinematic elements
+    -kv|--slipvec                                        plot slip vectors
 
-TDEFNODE block model
-  --tdefnode       [folder path] [lbsovrfet ]          plot TDEFNODE output data.
-        l=locking b=blocks s=slip o=observed gps vectors v=modeled gps vectors
-        r=residual gps vectors; f=fault slip rates; a=block name labels
-        e=elastic component of velocity; t=block rotation component of velocity
-        y=fault midpoint sliprates, spaced
-  --tdefpm         [folder path] [RefPlateID]          use TDEFNODE results as plate model
-  --tdeffaults     [1,2,3,5,...]                       select faults for coupling plotting and contouring
+  Plate models (require a plate motion model specified by -p or --tdefpm)
+    -f|--refpt       [Lon/Lat]                           reference point location
+    -p|--plate       [[GBM | MORVEL | GSRM]] [[refplate]] select plate motion model, relative to stationary refplate
+    -pe|--plateedge  [[GBM | MORVEL | GSRM]]             plot plate model polygons
+    -pf|--fibsp      [km spacing]                        Fibonacci spacing of plate motion vectors; turns on vector plot
+    -px|--gridsp     [Degrees]                           Gridded spacing of plate motion vectors; turns on vector plot
+    -pl                                                  label plates
+    -ps              [[GBM | MORVEL | GSRM]]             list plates and exit. If -r is set, list plates in region
+    -pr                                                  plot plate rotations as small circles with arrows
+    -pz              [[scale]]                           plot plate boundary azimuth differences (does edge computations)
+                                                         histogram is plotted into az_histogram.pdf
+    -pv              [cutoff distance]                   plot plate boundary relative motion vectors (does edge computations)
+                                                         cutoff distance dictates spacing between plotted velocity pairs
+    -w|--euler       [Lat] [Lon] [Omega]                 plots vel. from Euler Pole (grid)
+    -wp|--eulerplate [PlateID] [RefplateID]              plots vel. of PlateID wrt RefplateID
+                     (requires -p or --tdefpm)
+    -wg              [residual scale]                    plots -w or -wp at GPS sites (plot scaled residuals only)
+    -pvg             [rescale]                           plots a plate motion velocity grid. rescale=rescale colors to min/max
+
+  TDEFNODE block model
+    --tdefnode       [folder path] [lbsovrfet ]          plot TDEFNODE output data.
+          l=locking b=blocks s=slip o=observed gps vectors v=modeled gps vectors
+          r=residual gps vectors; f=fault slip rates; a=block name labels
+          e=elastic component of velocity; t=block rotation component of velocity
+          y=fault midpoint sliprates, spaced
+    --tdefpm         [folder path] [RefPlateID]          use TDEFNODE results as plate model
+    --tdeffaults     [1,2,3,5,...]                       select faults for coupling plotting and contouring
+
+EOF
+}
+
+function print_usage() {
+  print_help_header
+  print_setup
+  print_options
+  print_variables
+}
+
+function print_variables {
+  cat <<-EOF
 
 Common variables to modify using -vars [file] and -setvars { VAR value ... }
 
@@ -504,6 +524,56 @@ Point data:     POINTCOLOR [$POINTCOLOR] - POINTSIZE [$POINTSIZE] - POINTLINECOL
 
 Grid contours:  CONTOURNUMDEF [$CONTOURNUMDEF] - GRIDCONTOURWIDTH [$GRIDCONTOURWIDTH] - GRIDCONTOURCOLOUR [$GRIDCONTOURCOLOUR]
                 GRIDCONTOURSMOOTH [$GRIDCONTOURSMOOTH] - GRIDCONTOURLABELS [$GRIDCONTOURLABELS]
+
+EOF
+}
+
+function print_setup() {
+  cat <<-EOF
+  Dependencies:
+    GMT${GMTREQ}
+    gdal, geod
+    Preview(or equivalent PDF viewer)
+    Unix commands: awk, bc, cat, curl, date, grep, sed
+
+  Installation and setup:
+
+  1. First, clone into a new folder from Github, or unzip a Github ZIP file
+
+  ~/# git clone https://github.com/kyleedwardbradley/tectoplot.git tectoplot
+
+  2. cd into the script folder and add its path to ~/.profile, and then source
+    the ~/.profile file to update your current shell environment
+
+  ~/# cd tectoplot
+  ~/tectoplot/# ./tectoplot -addpath
+  ~/tectoplot/# . ~/.profile
+
+  3. Define the directory where downloaded data will be stored.
+
+  ~/tectoplot/# tectoplot -setdatadir "/full/path to/data/directory/"
+
+  4. Download the online datasets into the data directory (you need to be online!)
+     If the data files exist and are the right size, we don't download them again.
+     If something goes wrong with the download, run the command again.
+
+  ~/tectoplot/# tectoplot -getdata
+
+  5. Scrape and process the ISC/GCMT seismicity and focal mechanism catalogs.
+     Then confirm the date range spanned by the processed datasets.
+
+  ~/tectoplot/# tectoplot -scrapedata
+  ~/tectoplot/# tectoplot -reportdates
+
+  6. Create a new folder for maps, change into it, and create a plot of the
+     Solomon Islands including bathymetry, CMTs, and seismicity:
+
+  ~/tectoplot/# mkdir ~/regionalplots/ && cd ~/regionalplots/
+  ~/regionalplots/# tectoplot -r SB -t -z -c --open
+
+  Default variables are stored in ${TECTOPLOTDIR}tectoplot.defaults
+  File paths are defined in ${TECTOPLOTDIR}tectoplot.paths
+  Data root directory is ${DATAROOT}
 
 EOF
 }
@@ -632,7 +702,6 @@ if [[ 1 -eq 1 ]]; then
   plotplateazdiffsonly=0
   plotplates=0
   plotshiftflag=0
-  plotslab2eq=0
   plotsrcmod=0
   plottopo=0
   psscaleflag=0
@@ -678,20 +747,20 @@ COMMAND="${0} ${@}"
 
 # Exit if no arguments are given
 if [[ $# -eq 0 ]]; then
-  usage
+  print_usage
   exit 1
 fi
 
-# If only one argument is given and it is 'remake', rerun command in file
+# If only one argument is given and it is '-remake', rerun command in file
 # tectoplot.last and exit
-if [[ $# -eq 1 && ${1} =~ "remake" ]]; then
+if [[ $# -eq 1 && ${1} =~ "-remake" ]]; then
   info_msg "Rerunning last tectoplot command executed in this directory"
   cat tectoplot.last
   . tectoplot.last
   exit 1
 fi
 
-if [[ $# -eq 2 && ${1} =~ "remake" ]]; then
+if [[ $# -eq 2 && ${1} =~ "-remake" ]]; then
   if [[ ! -e ${2} ]]; then
     error_msg "Error: no file ${2}"
   fi
@@ -765,6 +834,19 @@ do
     plots+=("countrylabels")
     ;;
 
+  -addpath)   # Add tectoplot source directory to ~/.profile
+      val=$(grep "tectoplot" ~/.profile | awk 'END{print NR}')
+      info_msg "[-addpath]: Backing up ~/.profile file to ${DEFDIR}".profile_old""
+
+      if [[ ! $val -eq 0 ]]; then
+        echo "[-addpath]: Warning: found $val lines containing tectoplot in ~/.profile. Remove manually."
+      fi
+      cp ~/.profile ${DEFDIR}".profile_old"
+      echo >> ~/.profile
+      echo "# tectoplot " >> ~/.profile
+      echo "export PATH=${TECTOPLOTDIR}:\$PATH" >> ~/.profile
+    ;;
+
   -af) # args: string string
     if [[ ${2:0:1} == [-] || -z $2 ]]; then
       info_msg "[-af]: No line width specified. Using $AFLINEWIDTH"
@@ -789,7 +871,7 @@ do
 			SLAB2STR="${2}"
 			shift
 		fi
-    plotslab2eq=1
+    plotslab2=1
 		plots+=("slab2")
     cpts+=("seisdepth")
     echo $SLAB2_SHORT_SOURCESTRING >> $THISDIR/tectoplot.shortsources
@@ -1192,8 +1274,8 @@ do
     shift
     ;;
 
-  -h|--help)
-    usage
+  -h|--help|-help)
+    print_usage
 		exit 1
     ;;
 
@@ -1323,6 +1405,11 @@ do
     fi
     ;;
 
+  -longhelp)
+    longhelp
+    exit 0
+    ;;
+
 	-m|--mag) # args: transparency%
 		plotmag=1
 		if [[ ${2:0:1} == [-] || -z $2 ]]; then
@@ -1338,6 +1425,7 @@ do
 	  ;;
 
   -mob)
+    clipdemflag=1
     PLOT_SECTIONS_PROFILEFLAG=1
     if [[ ${2:0:1} == [-] || -z $2 ]]; then
       if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+$ || $2 =~ ^[-+]?[0-9]+$ ]]; then
@@ -1373,7 +1461,7 @@ do
       PERSPECTIVE_RES="${2}"
       shift
     fi
-    echo "az=$PERSPECTIVE_AZ, inc=$PERSPECTIVE_INC, exag=$PERSPECTIVE_EXAG, res=$PERSPECTIVE_RES"
+    info_msg "[-mob]: az=$PERSPECTIVE_AZ, inc=$PERSPECTIVE_INC, exag=$PERSPECTIVE_EXAG, res=$PERSPECTIVE_RES"
     ;;
     #
     # PERSPECTIVE_AZ=110           # Azimuth of perspective view of profiles, subplot pieces exported in PDFs in temp folder
@@ -1407,6 +1495,16 @@ do
       shift
     fi
     plots+=("mprof")
+    ;;
+
+  -msd)
+    info_msg "[-msd]: Note: using signed distance for DEM generation for profiles to avoid kink artifacts."
+    DO_SIGNED_DISTANCE_DEM=1
+    ;;
+
+  -msl)
+    info_msg "[-msl]: Plotting only left half of DEM on block profile"
+    PERSPECTIVE_TOPO_HALF="+l"
     ;;
 
 	-n|--narrate)
@@ -1464,6 +1562,12 @@ do
       OPENPROGRAM="${2}"
       shift
     fi
+    ;;
+
+  -options)
+    print_help_header
+    print_options
+    exit 1
     ;;
 
   -oto)
@@ -1984,6 +2088,35 @@ do
     echo $SRCMOD_SOURCESTRING >> $THISDIR/tectoplot.sources
 	  ;;
 
+  -setdatadir)
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      echo "[-setdatadir]: No data directory specified. Current dir is:"
+      cat $DEFDIR"tectoplot.dataroot"
+      exit 1
+    else
+      datadirpath=$(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")")
+      shift
+      if [[ -d ${datadirpath} ]]; then
+        echo "[-setdatadir]: Data directory ${datadirpath} exists."
+        echo "${datadirpath}/" > $DEFDIR"tectoplot.dataroot"
+      else
+        echo "[-setdatadir]: Data directory ${datadirpath} does not exist. Creating."
+        mkdir -p "${datadirpath}/"
+        echo "${datadirpath}/" > $DEFDIR"tectoplot.dataroot"
+      fi
+    fi
+    ;;
+
+  -setopenprogram)
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      echo "[-setopenprogram]: PDFs are opened using: ${OPENPROGRAM}"
+    else
+      openapp="${2}"
+      shift
+      echo "${openapp}" > $DEFDIR"tectoplot.pdfviewer"
+    fi
+    ;;
+
   -scale)
     plots+=("mapscale")  # We just use this section to create the SCALECMD
     if [[ ${2:0:1} == [-] || -z $2 ]]; then
@@ -2031,6 +2164,12 @@ do
     fi
     ;;
 
+  -setup)
+    print_help_header
+    print_setup
+    exit 1
+    ;;
+
   -setvars) # args: { VAR1 val1 VAR2 val2 VAR3 val3 }
     if [[ ${2:0:1} != [{] ]]; then
       info_msg "[-setvars]: { VAR1 val1 VAR2 val2 VAR3 val3 }"
@@ -2062,6 +2201,7 @@ do
     shift
     shift
     shift
+    clipdemflag=1
     ;;
 
   -sv|--slipvector) # args: filename
@@ -2350,6 +2490,12 @@ do
     echo $GRAV_SHORT_SOURCESTRING >> $THISDIR/tectoplot.shortsources
     echo $GRAV_SOURCESTRING >> $THISDIR/tectoplot.sources
 	  ;;
+
+  -variables)
+    print_help_header
+    print_variables
+    exit 1
+    ;;
 
   -vars) # argument: filename
     VARFILE=$(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")")
@@ -2708,6 +2854,33 @@ if [[ $GRIDLINESON -eq 1 ]]; then
   GRIDSP_LINE="g${GRIDSP}"
 else
   GRIDSP_LINE=""
+fi
+
+##### Select Slab2 data within region
+
+if [[ $plotslab2 -eq 1 ]]; then
+  numslab2inregion=0
+  for slabcfile in $(ls -1a ${SLAB2CLIPDIR}*.csv); do
+    awk < $slabcfile '{
+      if ($1 > 180) {
+        print $1-360, $2
+      } else {
+        print $1, $2
+      }
+    }' > tmpslabfile.dat
+    numinregion=$(gmt select tmpslabfile.dat -R$MINLON/$MAXLON/$MINLAT/$MAXLAT ${VERBOSE} | wc -l)
+    if [[ $numinregion -ge 1 ]]; then
+      numslab2inregion=$(echo "$numslab2inregion+1" | bc)
+      slab2inregion[$numslab2inregion]=$(basename -s .csv $slabcfile)
+    fi
+  done
+  if [[ $numslab2inregion -eq 0 ]]; then
+    info_msg "[-b]: No slabs within AOI"
+  else
+    for i in $(seq 1 $numslab2inregion); do
+      info_msg "[-b]: Found slab2 slab ${slab2inregion[$i]}"
+    done
+  fi
 fi
 
 ##### TOPOGRAPHY/BATHYMETRY
@@ -3127,29 +3300,36 @@ if [[ $calccmtflag -eq 1 ]]; then
   touch cmt_thrust.txt cmt_normal.txt cmt_strikeslip.txt
   touch t_axes_thrust.txt n_axes_thrust.txt p_axes_thrust.txt t_axes_normal.txt n_axes_normal.txt p_axes_normal.txt t_axes_strikeslip.txt n_axes_strikeslip.txt p_axes_strikeslip.txt
 
+  # November 26, 2020: Add alternative depth to the end of the psmeca format file and see if it works.
+  # This is needed for when we plot alternative positions onto cross sections.
+  # COMEBACK: Added $29 to end. Does it break GMT? The answer seems to be no!
+
   awk < cmt_scale.dat -v fmt=$CMTFORMAT 'function abs(v) { return (v>0)?v:-v} BEGIN {pi=atan2(0,-1)}{
     if (fmt == "GlobalCMT") {
       if (substr($1,2,1) == "T") {
-        print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 > "cmt_thrust.txt"
-        # print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0, 0, $15 > "cmt_thrust.txt"
+        print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $29 > "cmt_thrust.txt"
+        # print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 > "cmt_thrust.txt"
+
       } else if (substr($1,2,1) == "N") {
-        print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 > "cmt_normal.txt"
-      #  print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0, 0, $15 > "cmt_normal.txt"
+        print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $29 > "cmt_normal.txt"
+        # print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 > "cmt_normal.txt"
+
       } else {
-        print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 > "cmt_strikeslip.txt"
-        # print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0, 0, $15 > "cmt_strikeslip.txt"
+        print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $29 > "cmt_strikeslip.txt"
+        # print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 > "cmt_strikeslip.txt"
       }
-      print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 > "cmt.dat"
+      print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $29 > "cmt.dat"
+      # print $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 > "cmt.dat"
+
     } else if (fmt == "MomentTensor") {
         if (substr($1,2,1) == "T") {
-          print $2, $3, $4, $22, $23, $24, $25, $26, $27, $12, $13, $14, $15 > "cmt_thrust.txt"
-
+          print $2, $3, $4, $22, $23, $24, $25, $26, $27, $12, $13, $14, $15, $29 > "cmt_thrust.txt"
         } else if (substr($1,2,1) == "N") {
-          print $2, $3, $4, $22, $23, $24, $25, $26, $27, $12, $13, $14, $15  > "cmt_normal.txt"
+          print $2, $3, $4, $22, $23, $24, $25, $26, $27, $12, $13, $14, $15, $29  > "cmt_normal.txt"
         } else {
-          print $2, $3, $4, $22, $23, $24, $25, $26, $27, $12, $13, $14, $15  > "cmt_strikeslip.txt"
+          print $2, $3, $4, $22, $23, $24, $25, $26, $27, $12, $13, $14, $15, $29  > "cmt_strikeslip.txt"
         }
-        print $2, $3, $4, $22, $23, $24, $25, $26, $27, $12, $13, $14, $15  > "cmt.dat"
+        print $2, $3, $4, $22, $23, $24, $25, $26, $27, $12, $13, $14, $15, $29  > "cmt.dat"
     }
     if (substr($1,2,1) == "T") {
       print $2, $3, $16, $17 > "t_axes_thrust.txt"
@@ -3809,10 +3989,6 @@ if [[ $plotplates -eq 1 ]]; then
   fi #  if [[ $doplateedgesflag -eq 1 ]]; then
 fi # if [[ $plotplates -eq 1 ]]
 
-# # Not sure why we do this here?
-# if [[ ${SLAB2STR} =~ .*c.* ]]; then
-#   gmt spatial ${SLAB2CLIPDIR}slab2clippolys.dat -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C $VERBOSE | awk '($1 == ">") {print $2}' > slab2_ids.txt
-# fi
 
 if [[ $sprofflag -eq 1 ]]; then
   plots+=("mprof")
@@ -3947,7 +4123,7 @@ for cptfile in ${cpts[@]} ; do
       info_msg "Making seismicity vs depth CPT: maximum depth EQs at ${EQMAXDEPTH_COLORSCALE}"
       touch $SEISDEPTH_CPT
       SEISDEPTH_CPT=$(echo "$(cd "$(dirname "$SEISDEPTH_CPT")"; pwd)/$(basename "$SEISDEPTH_CPT")")
-      gmt makecpt -Cseis -Do -T0/"${EQMAXDEPTH_COLORSCALE}"/10 -N $VERBOSE > $SEISDEPTH_CPT
+      gmt makecpt -Cseis -Do -T0/"${EQMAXDEPTH_COLORSCALE}"/10 -Z -N $VERBOSE > $SEISDEPTH_CPT
       cp $SEISDEPTH_CPT $SEISDEPTH_NODEEPEST_CPT
       echo "${EQMAXDEPTH_COLORSCALE}	0/17.937/216.21	6370	0/0/255" >> $SEISDEPTH_CPT
     ;;
@@ -4063,33 +4239,51 @@ for plot in ${plots[@]} ; do
     cmt)
       info_msg "Plotting focal mechanisms"
 
+      # COMEBACK: These need to be xyz with the alternative depth given...
+
       if [[ $connectalternatelocflag -eq 1 ]]; then
         awk < cmt_thrust.txt '{
-          if ($12 != 0 && $13 != 0)  {  # Some events have no alternative position depending on format
-            printf ">\n" >> "./cmt_alt_lines.xy"
-            print $1, $2 >> "./cmt_alt_lines.xy"
-            print $12, $13 >> "./cmt_alt_lines.xy"
-            print $12, $13 >> "./cmt_alt_pts.xy"
+          # If the event has an alternative position
+          if ($12 != 0 && $13 != 0)  {
+            print ">:" $1, $2, $3 ":" $12, $13, $15 >> "./cmt_alt_lines_thrust.xyz"
+            print $12, $13, $15 >> "./cmt_alt_pts_thrust.xyz"
+          } else {
+          # Print the same start and end locations so that we don not mess up the number of lines in the file
+            print ">:" $1, $2, $3 ":" $1, $2, $3  >> "./cmt_alt_lines_thrust.xyz"
+            print $1, $2, $3 >> "./cmt_alt_pts_thrust.xyz"
           }
         }'
-        awk < cmt_thrust.txt '{
+        awk < cmt_normal.txt '{
           if ($12 != 0 && $13 != 0)  {  # Some events have no alternative position depending on format
-            printf ">\n" >> "./cmt_alt_lines.xy"
-            print $1, $2 >> "./cmt_alt_lines.xy"
-            print $12, $13 >> "./cmt_alt_lines.xy"
-            print $12, $13 >> "./cmt_alt_pts.xy"
+            print ">:" $1, $2, $3 ":" $12, $13, $15 >> "./cmt_alt_lines_normal.xyz"
+            print $12, $13, $15 >> "./cmt_alt_pts_normal.xyz"
+          } else {
+          # Print the same start and end locations so that we don not mess up the number of lines in the file
+            print ">:" $1, $2, $3 ":" $1, $2, $3 >> "./cmt_alt_lines_normal.xyz"
+            print $1, $2, $3 >> "./cmt_alt_pts_normal.xyz"
           }
         }'
+
         awk < cmt_strikeslip.txt '{
           if ($12 != 0 && $13 != 0)  {  # Some events have no alternative position depending on format
-            printf ">\n" >> "./cmt_alt_lines.xy"
-            print $1, $2 >> "./cmt_alt_lines.xy"
-            print $12, $13 >> "./cmt_alt_lines.xy"
-            print $12, $13 >> "./cmt_alt_pts.xy"
+            print ">:" $1, $2, $3 ":" $12, $13, $15 >> "./cmt_alt_lines_strikeslip.xyz"
+            print $12, $13, $15 >> "./cmt_alt_pts_strikeslip.xyz"
+          } else {
+          # Print the same start and end locations so that we don not mess up the number of lines in the file
+            print ">:" $1, $2, $3 ":" $1, $2, $3 >> "./cmt_alt_lines_strikeslip.xyz"
+            print $1, $2, $3 >> "./cmt_alt_pts_strikeslip.xyz"
           }
         }'
-        gmt psxy cmt_alt_lines.xy -W0.1p,black $RJOK $VERBOSE >> map.ps
-        gmt psxy cmt_alt_pts.xy -Sc0.03i -Gblack $RJOK $VERBOSE >> map.ps
+
+        # Confirmed that the X,Y plot works with the .xyz format
+        cat cmt_alt_lines_thrust.xyz | tr ':' '\n' | gmt psxy -W0.1p,black $RJOK $VERBOSE >> map.ps
+        cat cmt_alt_lines_normal.xyz | tr ':' '\n' | gmt psxy -W0.1p,black $RJOK $VERBOSE >> map.ps
+        cat cmt_alt_lines_strikeslip.xyz | tr ':' '\n' | gmt psxy -W0.1p,black $RJOK $VERBOSE >> map.ps
+
+        gmt psxy cmt_alt_pts_thrust.xyz -Sc0.03i -Gblack $RJOK $VERBOSE >> map.ps
+        gmt psxy cmt_alt_pts_normal.xyz -Sc0.03i -Gblack $RJOK $VERBOSE >> map.ps
+        gmt psxy cmt_alt_pts_strikeslip.xyz -Sc0.03i -Gblack $RJOK $VERBOSE >> map.ps
+
       fi
 
       if [[ cmtthrustflag -eq 1 ]]; then
@@ -4396,7 +4590,7 @@ for plot in ${plots[@]} ; do
       echo "@ auto auto ${SPROF_MINELEV} ${SPROF_MAXELEV} " > sprof.control
       if [[ -e $BATHY ]]; then
         info_msg "Adding bathy to sprof"
-        echo "^ $BATHY 0.001 1k ${SPROFWIDTH} 1k" >> sprof.control
+        echo "^ dem.nc 0.001 1k ${SPROFWIDTH} 1k" >> sprof.control
       fi
       if [[ -e eqs.txt ]]; then
         info_msg "Adding eqs to sprof"
@@ -4405,6 +4599,15 @@ for plot in ${plots[@]} ; do
       if [[ -e cmt.dat ]]; then
         info_msg "Adding cmt to sprof"
         echo "% cmt.dat ${SPROFWIDTH} -1 -L0.25p,black -Z$SEISDEPTH_CPT" >> sprof.control
+      fi
+      if [[ $plotslab2 -eq 1 ]]; then
+        if [[ ! $numslab2inregion -eq 0 ]]; then
+          for i in $(seq 1 $numslab2inregion); do
+            info_msg "Adding slab grid ${slab2inregion[$i] to sprof}"
+            gridfile=$(echo ${SLAB2GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')
+            echo ": $gridfile -1 5k -W1p+cl -C$SEISDEPTH_CPT" >> sprof.control
+          done
+        fi
       fi
       echo "P P1 black N N ${SPROFLON1} ${SPROFLAT1} ${SPROFLON2} ${SPROFLAT2}" >> sprof.control
     fi
@@ -4936,48 +5139,44 @@ for plot in ${plots[@]} ; do
     #   ;;
 
     slab2)
-      info_msg "Slab 2"
+
       if [[ ${SLAB2STR} =~ .*g.* ]]; then
-        info_msg "Plotting SLAB2 depth grids"
+        info_msg "Plotting SLAB2 grids"
+        SLAB2_CONTOUR_BLACK=1
+        for i in $(seq 1 $numslab2inregion); do
+          gridfile=$(echo ${SLAB2GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')
+          gmt grdmath ${VERBOSE} $gridfile -1 MUL = tmpgrd.grd
+          gmt grdimage tmpgrd.grd -Q -t${SLAB2GRID_TRANS} -C$SEISDEPTH_CPT $RJOK $VERBOSE >> map.ps
+          #COMEBACK
+        done
+      else
+        SLAB2_CONTOUR_BLACK=0
       fi
+      rm -f tmpgrd.grd
+
 			if [[ ${SLAB2STR} =~ .*c.* ]]; then
-        # We used to select slab2 grids to use but can just plot everything and see what sticks.
 				info_msg "Plotting SLAB2 contours"
-				# if ! [[ -f ${SLAB2CLIPDIR}slab2clippolys.dat ]]; then
-				# 	for i in ${SLAB2CLIPDIR}*.csv; do
-				# 		name=$(echo $i | xargs -n 1 basename)
-				# 		echo "> $name" | awk -F_ '{print $1}' >> ${SLAB2CLIPDIR}slab2clippolys.dat
-				# 		cat $i >> ${SLAB2CLIPDIR}slab2clippolys.dat
-				# 	done
-				# else
-				# 	info_msg "Slab2 unified clip polygon file exists... not creating"
-				# fi
-#       Now done above to avoid problems with -R. Should use -R$proj always anyway...
-#				gmt spatial ${SLAB2CLIPDIR}slab2clippolys.dat -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C $VERBOSE | awk '($1 == ">") {print $2}' > slab2_ids.txt
-				# gmt makecpt -Cseis -Do -T-200/0/10 -N $VERBOSE > $CPTDIR"neis2rev.cpt"
 
-        # for i in $(cat slab2_ids.txt); do
-        #   info_msg "processing Slab2 Contour File $i"
-        #   SID=$(ls -1a ${SLAB2CONTOURDIR} | grep ^${i} | grep dep)
-        #
-        #   awk < ${SLAB2CONTOURDIR}${SID} '{
-        #     if ($1 == ">") {
-        #       print $1, "-Z" 0-$2
-        #     } else {
-        #       print $1, $2, 0 - $3
-        #     }}' | gmt psxy -C$SEISDEPTH_CPT -W0.5p+z $RJOK $VERBOSE >> map.ps
-				# done
-        for slabcfile in $(ls -1a ${SLAB2CONTOURDIR} | grep dep); do
-          info_msg "processing Slab2 Contour File $slabcfile"
-
-          awk < ${SLAB2CONTOURDIR}${slabcfile} '{
+        for i in $(seq 1 $numslab2inregion); do
+          clipfile=$(echo ${SLAB2CONTOURDIR}${slab2inregion[$i]}_contours.in | sed 's/clp/dep/')
+          awk < $clipfile '{
             if ($1 == ">") {
               print $1, "-Z" 0-$2
             } else {
               print $1, $2, 0 - $3
-            }}' | gmt psxy -C$SEISDEPTH_CPT -W0.5p+z $RJOK $VERBOSE >> map.ps
+            }
+          }' > contourtmp.dat
+          if [[ SLAB2_CONTOUR_BLACK -eq 0 ]]; then
+            gmt psxy contourtmp.dat -C$SEISDEPTH_CPT -W0.5p+z $RJOK $VERBOSE >> map.ps
+          else
+            gmt psxy contourtmp.dat -W0.5p,black+z $RJOK $VERBOSE >> map.ps
+          fi
         done
+        rm -f contourtmp.dat
 			fi
+
+
+
 			;;
 
     slipvecs)

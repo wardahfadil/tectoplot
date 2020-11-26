@@ -4,7 +4,9 @@
 # Input multiple lines of space separated values
 # For each line, prints the min, quartile 1, median (q2), quartile 3, and max.
 
-awk '{
+# November 25, 2020: Updated to strip NaN values before calculating (counted as 0 before)
+
+cat $1 | sed 's/NaN//g' | awk '{
   q1=-1;
   q2=-1;
   q3=-1
@@ -36,4 +38,4 @@ awk '{
   if (q2 == -1) { q2 = a[1] }
   if (q3 == -1) { q3 = a[1] }
   printf("%g %g %g %g %g\n", a[1], q1, q2, q3, a[n])
-}' < $1
+}'
