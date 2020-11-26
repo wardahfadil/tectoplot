@@ -11,6 +11,11 @@ kbradley@ntu.edu.sg
 
 > tectoplot -n -r g -p MORVEL NNR -pvg -a l -pf 1200 -i 1 -setvars { PLATELINE_COLOR white PLATEVEC_COLOR black PLATEVEC_TRANS 30 PLATEVELRES 0.5d COAST_KM2 1000 } -pe -o MORVEL_Global_Velocities.pdf -RJ { -Rd -JN180/5i } -title "MORVEL NNR velocity"
 
+<img src="pictures/aceh.png" width="600">
+<img src="pictures/aceh_oblique.png" width="600">
+
+>  tectoplot -r 90 100 0 8 -t -b c -c -z -sprof 93 1 98 6 100k -oto -mob -msl --open
+
 
 Note: while I am currently working on this script in my spare time, I have not validated all of its functions and there are certainly some bugs/unforseen effects, especially in lesser-used functions. Not all of the functions are even good ideas in the first place. If you use this script for your research, please sanity check your own results!
 
