@@ -3,6 +3,13 @@
 Kyle Edward Bradley, Asian School of the Environment, Nanyang Technological University, Singapore - November 2020
 kbradley@ntu.edu.sg
 
+![Solomon Islands seismicity](pictures/solomon.png?raw=true "Title")
+tectoplot -r SB -t -gdalt 0.2 0.5 -b c -z -c --open --legend
+
+![MORVEL NNR](pictures/morvel-nnr.png?raw=true "Title")
+tectoplot -n -r g -p MORVEL NNR -pvg -a l -pf 1200 -i 1 -setvars { PLATELINE_COLOR white PLATEVEC_COLOR black PLATEVEC_TRANS 30 PLATEVELRES 0.5d COAST_KM2 1000 } -pe -o MORVEL_Global_Velocities.pdf -RJ { -Rd -JN180/5i } -title "MORVEL NNR velocity"
+
+
 Note: while I am currently working on this script in my spare time, I have not validated all of its functions and there are certainly some bugs/unforseen effects, especially in lesser-used functions. Not all of the functions are even good ideas in the first place. If you use this script for your research, please sanity check your own results!
 
 tectoplot is a bash script and associated helper scripts that makes seismotectonic maps, cross sections, and oblique block diagrams. It tries to simplify the process of visualizing data while also maintaining flexibility by running from the command line in a Unix environment and operating mainly on flat text-format data files. tectoplot started as a basic script to automate making shaded relief maps with GMT, and has snowballed over time to incorporate additional functions like plate motion models, swath profiles of topography or other data, cross sections, perspective block diagrams, etc. It will also plot TDEFNODE model results. 
