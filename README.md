@@ -29,15 +29,18 @@ tectoplot will download and manage various publicly available datasets, like SRT
 
 tectoplot's cross section functionality supports multiple profiles incorporating various kinds of data (swath grids like topography or gravity, along-profile sampled grids like Slab2 depth grids, XYZ data, XYZ seismicity data scaled by magnitude, and focal mechanisms). Profiles can be aligned in the X direction using an XY polyline that crosses the profiles, such as a trench axis, and can be aligned in the Z direction by matching profile values to 0 at this intersection point. This allows stacking of profiles. Profiles can have more than two vertices, and attempts are made to project data intelligently onto such profiles. Notably, a signed distance function is available that will extract topography in a distance-from-track and distance-along-track-of-closest-point-on-track space, which avoids some of the nasty artifacts arising from kinked profiles. 
 
-Credits for external code used: 
+## Credits for external code used: 
 A heavily modified version of ndk2meca.awk by Thorsten Becker (NDK to PSMECA conversion script)
 
-Setup
+## Setup
+
+tectoplot requires GMT6.1, gdal, geod, and a standard UNIX command line environment (awk, bc, cat, curl, date, grep, sed).
+It is verified to run on MacOSX 10.15.4 and Fedora Linux, but no attempts have been made to ensure portability (yet).
 
 Download and extract the ZIP file from Github, or install it using git:
 
-git clone https://github.com/kyleedwardbradley/tectoplot.git tectoplot
+`git clone https://github.com/kyleedwardbradley/tectoplot.git tectoplot`
 
 Installation and setup information can be found by running the script from its source directory:
 
-./tectoplot -setup
+`./tectoplot -setup`
