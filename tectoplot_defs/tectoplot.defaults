@@ -156,7 +156,7 @@ PLATELINE_TRANS=30           # plate edge transparency
 
 PLATEMODEL="MORVEL"          # plate motion model
 PLATEVEC_COLOR="lightblue"       # plate rotation vector, fill
-PLATEVEC_TRANS=30            # plate rotation vector, transparency
+PLATEVEC_TRANS=10            # plate rotation vector, transparency
 LATSTEPS=0.5                 # colatitude increment for small circles
 PLATELABEL_COLOR="black"     # color of plate label
 PLATELABEL_SIZE="6p"         # size of plate label
