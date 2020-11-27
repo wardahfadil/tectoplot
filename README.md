@@ -18,22 +18,19 @@ kbradley@ntu.edu.sg
 
 <div class="row">
   <div class="column">
-    <<img src="pictures/aceh.png" width="100%">
+    <img src="pictures/aceh.png" width="400">
   </div>
   <div class="column">
-    <div class="row">
-      <div class="column">
-        <img src="pictures/aceh_oblique.png" width="100%">
-      </div>
-      <div class="column">
-        >  tectoplot -r 90 100 0 8 -t -b c -c -z -sprof 93 1 98 6 100k -oto -mob -msl --open
-      </div>
-    </div>
+    <img src="pictures/aceh_oblique.png" width="400">
   </div>
 </div>
 
-Note: while I am currently working on this script in my spare time, I have not validated all of its functions and there are certainly some bugs/unforseen effects, especially in lesser-used functions. Not all of the functions are even good ideas in the first place. If you use this script for your research, please sanity check your own results!
+>  tectoplot -r 90 100 0 8 -t -b c -c -z -sprof 93 1 98 6 100k -oto -mob -msl --open
 
+### Note: 
+While I am currently working on this script in my spare time, I have not validated all of its functions and there are certainly some bugs/unforseen effects, especially in lesser-used functions. Not all of the functions are even good ideas in the first place. If you use this script for your research, please sanity check your own results!
+
+## Overview
 tectoplot is a bash script and associated helper scripts that makes seismotectonic maps, cross sections, and oblique block diagrams. It tries to simplify the process of visualizing data while also maintaining flexibility by running from the command line in a Unix environment and operating mainly on flat text-format data files. tectoplot started as a basic script to automate making shaded relief maps with GMT, and has snowballed over time to incorporate additional functions like plate motion models, swath profiles of topography or other data, cross sections, perspective block diagrams, etc. It will also plot TDEFNODE model results. 
 
 tectoplot is intended for small-scale geological studies where maps are 10+km across and data are in geographic coordinates. More detailed areas with projected data are currently beyond the scope of the program.
