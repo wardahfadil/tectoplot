@@ -26,6 +26,9 @@ kbradley@ntu.edu.sg
 
 >  tectoplot -r 155 161 -13 -7 -t -p MORVEL pa -pe -pf 80 -g PA -pss 5 -pgo --legend
 
+<img src="pictures/grav_plates.png" width="600">
+
+tectoplot -r 40 150 -20 40 -a l -v BG 30 -cm 7 10 --legend 3i -title "P-axes of M7+ thrust earthquakes, Bouguer gravity anomaly" -p GBM -pe -pf 400 -setvars { PLATEVEC_COLOR black PLATEVEC_TRANS 10 PLATEVEC_TEXT_COLOR black } -i 0.8 -ca t p
 
 ### Note: 
 While I am currently working on this script in my spare time, I have not validated all of its functions and there are certainly some bugs/unforseen effects, especially in lesser-used functions. Not all of the functions are even good ideas in the first place. If you use this script for your research, please sanity check your own results!
