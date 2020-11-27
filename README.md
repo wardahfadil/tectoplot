@@ -35,6 +35,22 @@ kbradley@ntu.edu.sg
 
 tectoplot -r 40 150 -20 40 -a l -v BG 30 -cm 7 10 --legend 3i -title "P-axes of M7+ thrust earthquakes, Bouguer gravity anomaly" -p GBM -pe -pf 400 -setvars { PLATEVEC_COLOR black PLATEVEC_TRANS 10 PLATEVEC_TEXT_COLOR black } -i 0.8 -ca t p
 
+<p align="center">
+  <img src="pictures/wgm_stacked_profiles.png" width="600">
+</p>
+
+> tectoplot -t -mprof profile.control -title "Bouguer gravity anomaly (mgal)" --legend 
+where profile.control contains:
+`@ auto auto 200 500 /Users/kylebradley/Dropbox/scripts/tectoplot/Guadalcanal.xy null
+
+^ /Users/kylebradley/Dropbox/TectoplotData/WGM2012/WGM2012_Bouguer_ponc_2min.grd 1 1k 150k 1k
+
+P P2 black 0 N 156 -10 160 -5
+
+P P1 red 0 N 158 -11 161.5 -7
+
+P P3 green 0 N 155 -8 157.5 -5`
+
 ### Note: 
 While I am currently working on this script in my spare time, I have not validated all of its functions and there are certainly some bugs/unforseen effects, especially in lesser-used functions. Not all of the functions are even good ideas in the first place. If you use this script for your research, please sanity check your own results!
 
