@@ -3,7 +3,9 @@
 Kyle Edward Bradley, Asian School of the Environment, Nanyang Technological University, Singapore - November 2020
 kbradley@ntu.edu.sg
 
-<img src="pictures/solomon2.png" width="600">
+<p align="center">
+  <img src="pictures/solomon2.png" width="600">
+</p>
 
 > tectoplot -r SB -t -gdalt 0.2 0.5 -b c -z -c --open --legend
 
@@ -14,22 +16,28 @@ kbradley@ntu.edu.sg
 
 > tectoplot -n -r g -p MORVEL NNR -pvg -a l -pf 1200 -i 1 -setvars { PLATELINE_COLOR white PLATEVEC_COLOR black PLATEVEC_TRANS 30 PLATEVELRES 0.5d COAST_KM2 1000 } -pe -o MORVEL_Global_Velocities.pdf -RJ { -Rd -JN180/5i } -title "MORVEL NNR velocity"
 
-<div class="row">
-  <div class="column">
-    <img src="pictures/aceh.png" width="400">
+<p align="center">
+  <div class="row">
+    <div class="column">
+      <img src="pictures/aceh.png" width="400">
+    </div>
+    <div class="column">
+      <img src="pictures/aceh_oblique.png" width="400">
+    </div>
   </div>
-  <div class="column">
-    <img src="pictures/aceh_oblique.png" width="400">
-  </div>
-</div>
+</p>
 
 >  tectoplot -r 90 100 0 8 -t -b c -c -z -sprof 93 1 98 6 100k -oto -mob -msl
 
-<img src="pictures/solomon_gps.png" width="600">
+<p align="center">
+  <img src="pictures/solomon_gps.png" width="600">
+</p>
 
 >  tectoplot -r 155 161 -13 -7 -t -p MORVEL pa -pe -pf 80 -g PA -pss 5 -pgo --legend
 
-<img src="pictures/grav_plates.png" width="600">
+<p align="center">
+  <img src="pictures/grav_plates.png" width="600">
+</p>
 
 tectoplot -r 40 150 -20 40 -a l -v BG 30 -cm 7 10 --legend 3i -title "P-axes of M7+ thrust earthquakes, Bouguer gravity anomaly" -p GBM -pe -pf 400 -setvars { PLATEVEC_COLOR black PLATEVEC_TRANS 10 PLATEVEC_TEXT_COLOR black } -i 0.8 -ca t p
 
