@@ -41,15 +41,13 @@ tectoplot -r 40 150 -20 40 -a l -v BG 30 -cm 7 10 --legend 3i -title "P-axes of 
 
 > tectoplot -t -mprof profile.control -title "Bouguer gravity anomaly (mgal)" --legend 
 where profile.control contains:
-`@ auto auto 200 500 /Users/kylebradley/Dropbox/scripts/tectoplot/Guadalcanal.xy null
+
+@ auto auto 200 500 /Users/kylebradley/Dropbox/scripts/tectoplot/Guadalcanal.xy null
 
 ^ /Users/kylebradley/Dropbox/TectoplotData/WGM2012/WGM2012_Bouguer_ponc_2min.grd 1 1k 150k 1k
-
 P P2 black 0 N 156 -10 160 -5
-
 P P1 red 0 N 158 -11 161.5 -7
-
-P P3 green 0 N 155 -8 157.5 -5`
+P P3 green 0 N 155 -8 157.5 -5
 
 ### Note: 
 While I am currently working on this script in my spare time, I have not validated all of its functions and there are certainly some bugs/unforseen effects, especially in lesser-used functions. Not all of the functions are even good ideas in the first place. If you use this script for your research, please sanity check your own results!
