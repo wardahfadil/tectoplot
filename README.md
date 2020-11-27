@@ -7,7 +7,10 @@ kbradley@ntu.edu.sg
 
 > tectoplot -r SB -t -gdalt 0.2 0.5 -b c -z -c --open --legend
 
-<img src="pictures/morvel-nnr.png" width="600">
+<p align="center">
+  <img src="pictures/morvel-nnr.png" width="600">
+</p>
+
 
 > tectoplot -n -r g -p MORVEL NNR -pvg -a l -pf 1200 -i 1 -setvars { PLATELINE_COLOR white PLATEVEC_COLOR black PLATEVEC_TRANS 30 PLATEVELRES 0.5d COAST_KM2 1000 } -pe -o MORVEL_Global_Velocities.pdf -RJ { -Rd -JN180/5i } -title "MORVEL NNR velocity"
 
