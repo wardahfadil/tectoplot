@@ -27,6 +27,11 @@ kbradley@ntu.edu.sg
 
 >  tectoplot -r 90 100 0 8 -t -b c -c -z -sprof 93 1 98 6 100k -oto -mob -msl --open
 
+<img src="pictures/solomon_gps.png" width="600">
+
+>  tectoplot -r 155 161 -13 -7 -t -p MORVEL pa -pe -pf 80 --open -g PA -pss 5 --legend
+
+
 ### Note: 
 While I am currently working on this script in my spare time, I have not validated all of its functions and there are certainly some bugs/unforseen effects, especially in lesser-used functions. Not all of the functions are even good ideas in the first place. If you use this script for your research, please sanity check your own results!
 
