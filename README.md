@@ -3,19 +3,21 @@
 Kyle Edward Bradley, Asian School of the Environment, Nanyang Technological University, Singapore - November 2020
 kbradley@ntu.edu.sg
 
+### Example: A seismotectonic map with alternative hillshading
 <p align="center">
   <img src="pictures/solomon2.png" width="600">
 </p>
 
 > tectoplot -r SB -t -gdalt 0.2 0.5 -b c -z -c --open --legend
 
+### Example: MORVEL NNR56 plate velocities
 <p align="center">
   <img src="pictures/morvel-nnr.png" width="600">
 </p>
 
-
 > tectoplot -n -r g -p MORVEL NNR -pvg -a l -pf 1200 -i 1 -setvars { PLATELINE_COLOR white PLATEVEC_COLOR black PLATEVEC_TRANS 30 PLATEVELRES 0.5d COAST_KM2 1000 } -pe -o MORVEL_Global_Velocities.pdf -RJ { -Rd -JN180/5i } -title "MORVEL NNR velocity"
 
+### Example: Cross section and oblique perspective diagram
 <p align="center">
       <img src="pictures/aceh.png" width="400">
       <img src="pictures/aceh_oblique.png" width="400">
@@ -23,17 +25,34 @@ kbradley@ntu.edu.sg
 
 >  tectoplot -r 90 100 0 8 -t -b c -c -z -sprof 93 1 98 6 100k -oto -mob -msl
 
+### Example: GPS velocities and plate motions
 <p align="center">
   <img src="pictures/solomon_gps.png" width="600">
 </p>
 
 >  tectoplot -r 155 161 -13 -7 -t -p MORVEL pa -pe -pf 80 -g PA -pss 5 -pgo --legend
 
+### Example: Gravity, plate motions, and P-axes of M7+ thrust earthquakes
 <p align="center">
   <img src="pictures/grav_plates.png" width="600">
 </p>
 
 tectoplot -r 40 150 -20 40 -a l -v BG 30 -cm 7 10 --legend 3i -title "P-axes of M7+ thrust earthquakes, Bouguer gravity anomaly" -p GBM -pe -pf 400 -setvars { PLATEVEC_COLOR black PLATEVEC_TRANS 10 PLATEVEC_TEXT_COLOR black } -i 0.8 -ca t p
+
+### Example: Aligned swath profiles of Bouguer gravity anomaly
+<p align="center">
+  <img src="pictures/wgm_stacked_profiles.png" width="600">
+</p>
+
+> tectoplot -t -mprof profile.control -title "Bouguer gravity anomaly (mgal)" --legend 
+where profile.control contains:
+```text
+@ auto auto 200 500 /Users/kylebradley/Dropbox/scripts/tectoplot/Guadalcanal.xy null
+^ /Users/kylebradley/Dropbox/TectoplotData/WGM2012/WGM2012_Bouguer_ponc_2min.grd 1 1k 150k 1k
+P P2 black 0 N 156 -10 160 -5
+P P1 red 0 N 158 -11 161.5 -7
+P P3 green 0 N 155 -8 157.5 -5
+```
 
 ### Note: 
 While I am currently working on this script in my spare time, I have not validated all of its functions and there are certainly some bugs/unforseen effects, especially in lesser-used functions. Not all of the functions are even good ideas in the first place. If you use this script for your research, please sanity check your own results!
