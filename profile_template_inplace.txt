@@ -8,8 +8,8 @@
 # If ZMATCH contains 'match' then profiles will be shifted in Z so that Z values at X=0 (after alignment in X direction, if done) will be 0.
 #
 ########### Grid, swath profile
-^ dem.tif 0.001 1k 150k 1k
-# ^ GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING
+S dem.tif 0.001 1k 150k 1k
+# S GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING
 #
 # Plots swath profiles of grid data, including envelopes for quantiles q0-q100 (min-max) and q25-q75, and plots q50 as a line.
 #
@@ -19,15 +19,15 @@
 # These arguments should be specified with units of k
 #
 ########### Grid, line segment profile
-: /Users/kylebradley/Dropbox/TectoplotData/SLAB2/Slab2Distribute_Mar2018/sol_slab2_dep_02.23.18.grd -1 5k -W1p+cl -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
-#: /Users/kylebradley/Dropbox/TectoplotData/CRUST1/depthtomoho_surf.nc -1 5k -W1p+cl -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
-# : GRIDFILE ZSCALE SAMPLE_SPACING GMT_arguments
+T /Users/kylebradley/Dropbox/TectoplotData/SLAB2/Slab2Distribute_Mar2018/sol_slab2_dep_02.23.18.grd -1 5k -W1p+cl -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
+#T /Users/kylebradley/Dropbox/TectoplotData/CRUST1/depthtomoho_surf.nc -1 5k -W1p+cl -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
+# T GRIDFILE ZSCALE SAMPLE_SPACING GMT_arguments
 #
 # Plots line segments extracted from grid file, optionally colored using a CPT file.
 #
 ########### XYZ data (should flip swath width and zscale order for consistency)
-# $ /Users/kylebradley/Dropbox/scripts/sumatra_kinematics/nugraha2016.xyz 150k -1 -Ss0.02i -W0.5p,black  -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
-# $ XYZFILE SWATH_WIDTH ZSCALE GMT_arguments
+# X /Users/kylebradley/Dropbox/scripts/sumatra_kinematics/nugraha2016.xyz 150k -1 -Ss0.02i -W0.5p,black  -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
+# X XYZFILE SWATH_WIDTH ZSCALE GMT_arguments
 #
 # SWATH_WIDTH is full width of cross-swath profiles.
 # XYZ data are projected onto closest approach of track.
@@ -38,7 +38,7 @@
 #
 ########### XYZ data, scaled seismic (should flip swath width and zscale order for consistency)
 # file can simply be eqs.txt to plot within the AOI of the map from the ANSS database
-> eqs.txt 150k -1 -W0.2p,black -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
+E eqs.txt 150k -1 -W0.2p,black -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
 # XYZFILE SWATH_WIDTH ZSCALE GMT_arguments
 # SWATH_WIDTH is full width of cross-swath profiles
 # Currently breaks if we don't have a -C option?
@@ -46,7 +46,7 @@
 #
 ############ Focal mechanisms (CMT) (should flip swath width and zscale order for consistency)
 # file can simply by cmt.dat to plot within the AOI of the map from the CMT database
-% cmt.dat 150k -1 -L0.25p,black -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
+C cmt.dat 150k -1 -L0.25p,black -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt
 # % CMTFILE WIDTH ZSCALE GMT_arguments
 # WIDTH is full distance of the cross-profile track
 # CMT data are projected orthogonally onto the profile line segments using gmt pscoupe. A GMT_argument of -Z{CPTFILE} will color

@@ -105,7 +105,28 @@ function project_xyz_pts_onto_track() {
       printf "%s %s %s\n", $6, ($3)*zscale+zoff, (($3)*zscale+zoff)/(zscale)
     }
   }' > ${project_xyz_pts_onto_track_outputfile}
+}
 
+# Return a sane interval and subinterval from a given value range and desired
+# number of major tickmarks
+INTERVALS_STRING="0.00001 0.0001 0.001 0.01 0.02 0.05 0.1 0.2 0.5 1 2 5 10 100 200 500 1000 2000 5000 10000 20000 50000 100000 200000 500000"
+
+function interval_and_subinterval_from_minmax_and_number () {
+  local vmin=$1
+  local vmax=$2
+  local numint=$3
+  local diffval=$(echo "($vmax - $vmin) / $numint")
+  echo $INTERVALS_STRING | awk -v seek=$diffval '{
+    n=split($0, var, " ");
+    mindiff=var[n];
+    for(i=0;i<n;i++) {
+      diff=var[i]-seek;
+      if (diff < mindiff) {
+        mindiff=diff
+      }
+    }
+    print diff
+  }'
 }
 
 echo "#!/bin/bash" > ./make_oblique_plots.sh
@@ -235,11 +256,13 @@ for i in $(seq 1 $k); do
     echo ">" >> line_buffer.txt
     head -n ${i} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 >> line_buffer.txt
   fi
-  if [[ ${FIRSTWORD:0:1} == "^" ]]; then
+  if [[ ${FIRSTWORD:0:1} == "S" || ${FIRSTWORD:0:1} == "G" ]]; then
     head -n ${i} $TRACKFILE  | tail -n 1 | awk '{ print $5 }' >> widthlist.txt
-  elif [[ ${FIRSTWORD:0:1} == "$" ]]; then
+  elif [[ ${FIRSTWORD:0:1} == "X" ]]; then
     head -n ${i} $TRACKFILE  | tail -n 1 | awk '{ print $3 }' >> widthlist.txt
-  elif [[ ${FIRSTWORD:0:1} == "%" ]]; then
+  elif [[ ${FIRSTWORD:0:1} == "E" ]]; then
+    head -n ${i} $TRACKFILE  | tail -n 1 | awk '{ print $3 }' >> widthlist.txt
+  elif [[ ${FIRSTWORD:0:1} == "C" ]]; then
     head -n ${i} $TRACKFILE  | tail -n 1 | awk '{ print $3 }' >> widthlist.txt
   fi
 done
@@ -261,6 +284,14 @@ WIDTH_DEG_DATA=$(awk < widthlist.txt 'BEGIN {maxw=0; } {
     }
   }
   END {print maxw/110/2}')
+
+MAXWIDTH_KM=$(awk < widthlist.txt 'BEGIN {maxw=0; } {
+    val=($1+0);
+    if (val > maxw) {
+      maxw = val
+    }
+  }
+  END {print maxw}')
 
 WIDTH_DEG=$(echo $WIDTH_DEG_DATA | awk '{ print ($1<10/110/2) ? 10/110/2 : $1}')
 
@@ -323,10 +354,37 @@ buf_min_z=$(grep "^[^>]" buf_poly.txt | sort -n -k 2 | head -n 1 | awk '{printf 
 xyzfilelist=()
 xyzcommandlist=()
 
+# Change command characters to capital letters instead of ^ etc
+# S = swath grid (^)
+# T = track grid (:)
+# G = oblique view top grid
+# X = XYZ file ($ || >)
+# E = seismicity file (>)
+# C = CMT file (%)
+# P = profile
+
+# Default units are X=Y=Z=km. Use L command to update labels.
+x_axis_label="Distance (km)"
+y_axis_label="Distance (km)"
+z_axis_label="Distance (km)"
+
 # Search for, parse, and pre-process datasets to be plotted
 for i in $(seq 1 $k); do
   FIRSTWORD=$(head -n ${i} $TRACKFILE | tail -n 1 | awk '{print $1}')
-  if [[ ${FIRSTWORD:0:1} == "^" ]]; then           # Found a gridded dataset; cut to AOI and store as a nc file
+
+
+  if [[ ${FIRSTWORD:0:1} == "L" ]]; then
+    # Remove leading and trailing whitespaces from the axis labels
+    x_axis_label=$(head -n ${i} $TRACKFILE | tail -n 1 | awk -F'|' '{gsub(/^[ \t]+/,"",$2);gsub(/[ \t]+$/,"",$2);print $2}')
+    y_axis_label=$(head -n ${i} $TRACKFILE | tail -n 1 | awk -F'|' '{gsub(/^[ \t]+/,"",$3);gsub(/[ \t]+$/,"",$2);print $3}')
+    z_axis_label=$(head -n ${i} $TRACKFILE | tail -n 1 | awk -F'|' '{gsub(/^[ \t]+/,"",$4);gsub(/[ \t]+$/,"",$2);print $4}')
+
+    # S defines grids that we calculate swath profiles from.
+    # G defines a grid that will be displayed above oblique profiles.
+  elif [[ ${FIRSTWORD:0:1} == "V" ]]; then
+    myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | awk '{ print }'))
+    PERSPECTIVE_EXAG="${myarr[1]}"
+  elif [[ ${FIRSTWORD:0:1} == "S" || ${FIRSTWORD:0:1} == "G" ]]; then           # Found a gridded dataset; cut to AOI and store as a nc file
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | awk '{ print }'))
 
     # GRIDFILE 0.001 .1k 40k 0.1k
@@ -338,11 +396,23 @@ for i in $(seq 1 $k); do
     gridwidthlist[$i]="${myarr[4]}"
     gridsamplewidthlist[$i]="${myarr[5]}"
 
-    info_msg "Loading swath profile grid: ${gridfilesellist[$i]}: Zscale ${gridzscalelist[$i]}, Spacing: ${gridspacinglist[$i]}, Width: ${gridwidthlist[$i]}, SampWidth: ${gridsamplewidthlist[$i]}"
+    # If this is a top tile grid, we can specify its cpt here.
+    if [[ ${FIRSTWORD:0:1} == "G" ]]; then
+      istopgrid[$i]=1
+      if [[ -z "${myarr[6]}" ]]; then
+        echo "No CPT specified."
+      else
+        gridcptlist[$i]=$(echo "$(cd "$(dirname "${myarr[6]}")"; pwd)/$(basename "${myarr[6]}")")
+      fi
+      info_msg "Loading top grid: ${gridfilesellist[$i]}: Zscale ${gridzscalelist[$i]}, Spacing: ${gridspacinglist[$i]}, Width: ${gridwidthlist[$i]}, SampWidth: ${gridsamplewidthlist[$i]}"
+    else
+      info_msg "Loading swath grid: ${gridfilesellist[$i]}: Zscale ${gridzscalelist[$i]}, Spacing: ${gridspacinglist[$i]}, Width: ${gridwidthlist[$i]}, SampWidth: ${gridsamplewidthlist[$i]}"
+    fi
+
     # Cut the grid to the AOI and multiply by its ZSCALE
     gmt grdcut ${gridfilelist[$i]} -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -Gtmp.nc --GMT_HISTORY=false
     gmt grdmath tmp.nc ${gridzscalelist[$i]} MUL = ${gridfilesellist[$i]}
-  elif [[ ${FIRSTWORD:0:1} == ":" ]]; then
+  elif [[ ${FIRSTWORD:0:1} == "T" ]]; then
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | awk '{ print }'))
 
     # GRIDFILE 0.001 .1k 40k 0.1k
@@ -358,7 +428,7 @@ for i in $(seq 1 $k); do
     gmt grdcut ${ptgridfilelist[$i]} -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -Gtmp.nc --GMT_HISTORY=false
     gmt grdmath tmp.nc ${ptgridzscalelist[$i]} MUL = ${ptgridfilesellist[$i]}
 
-  elif [[ ${FIRSTWORD:0:1} == "$" || ${FIRSTWORD:0:1} == ">" ]]; then        # Found an XYZ dataset
+  elif [[ ${FIRSTWORD:0:1} == "X" || ${FIRSTWORD:0:1} == "E" ]]; then        # Found an XYZ dataset
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | awk '{ print }'))
     # This is where we would load datasets to be displayed
     FILE_P=$(echo "$(cd "$(dirname "${myarr[1]}")"; pwd)/$(basename "${myarr[1]}")")
@@ -377,13 +447,13 @@ for i in $(seq 1 $k); do
     xyzcommandlist[$i]=$(echo "${myarr[@]:4}")
 
     # We mark the seismic data that are subject to rescaling (or any data with a scalable fourth column...)
-    [[ ${FIRSTWORD:0:1} == ">" ]] && xyzscaleeqsflag[$i]=1
+    [[ ${FIRSTWORD:0:1} == "E" ]] && xyzscaleeqsflag[$i]=1
 
     # echo "Found a dataset to load: ${xyzfilelist[$i]}"
     # echo "Scale factor for Z units is ${xyzunitlist[$i]}"
     # echo "Commands are ${xyzcommandlist[$i]}"
     # echo "Scale flag is ${xyzscaleeqsflag[$i]}"
-  elif [[ ${FIRSTWORD:0:1} == "%" ]]; then         # Found a CMT dataset; currently, we only do one
+  elif [[ ${FIRSTWORD:0:1} == "C" ]]; then         # Found a CMT dataset; currently, we only do one
     cmtfileflag=1
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | awk '{ print }'))
     # This is where we would load datasets to be displayed
@@ -451,6 +521,11 @@ for i in $(seq 1 $k); do
     # Calculate the incremental length along profile between points
     gmt mapproject ${LINEID}_trackfile.txt -G+uk+i | awk '{print $3}' > ${LINEID}_dist_km.txt
 
+    # Calculate the total along-track length of the profile
+    PROFILE_LEN_KM=$(awk < ${LINEID}_dist_km.txt 'BEGIN{val=0}{val=val+$1}END{print val}')
+    PROFILE_XMIN=0
+    PROFILE_XMAX=$PROFILE_LEN_KM
+
     # Create swath width indicator for this track using the widest buffer
   	sed 1d < ${LINEID}_trackfile.txt > shift1_${LINEID}_trackfile.txt
   	paste ${LINEID}_trackfile.txt shift1_${LINEID}_trackfile.txt | grep -v "\s>" > geodin_${LINEID}_trackfile.txt
@@ -502,6 +577,8 @@ for i in $(seq 1 $k); do
       if [[ $INTNUM -eq 2 ]]; then
         XOFFSET_NUM=$(gmt mapproject -Vn -G+uk+i intersect.txt | tail -n 1 | awk '{print 0-$3}')
         xoffsetflag=1
+        PROFILE_XMIN=$(echo "$PROFILE_XMIN + $XOFFSET_NUM" | bc -l)
+        PROFILE_XMAX=$(echo "$PROFILE_XMAX + $XOFFSET_NUM" | bc -l)
         info_msg "Updated line $LINEID by shifting $XOFFSET_NUM km to match $ZEROFILE"
         tail -n 1 intersect.txt >> all_intersect.txt
       fi
@@ -537,6 +614,7 @@ for i in $(seq 1 $k); do
     done
 
     # This section processes grid datasets (usually DEM, gravity, etc) by calculating swath profiles
+    # this section and the topgrid section are very similar and if this is modified, please check the topgrid section!
 
     for i in ${!gridfilelist[@]}; do
       gridfileflag=1
@@ -563,18 +641,19 @@ for i in $(seq 1 $k); do
         } else {
           printf("%s ", $5)
         }
-      }' < ${LINEID}_${grididnum[$i]]}_profiletable.txt | sed '1d' > ${LINEID}_${grididnum[$i]}_profiledata.txt
+      }' < ${LINEID}_${grididnum[$i]}_profiletable.txt | sed '1d' > ${LINEID}_${grididnum[$i]}_profiledata.txt
 
-      # First find the maximum value of X. We want X to be negative or zero for the block plot. Not sure what happens otherwise...
-      MAX_X_VAL=$(awk < P1_grid2_profiletable.txt 'BEGIN{maxx=-999999} { if ($1 != ">" && $1 > maxx) {maxx = $1 } } END{print maxx}')
-
-      if [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]]; then
+      # If we are doing an oblique section and the current grid is a top grid
+      if [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 && ${istopgrid[$i]} -eq 1 ]]; then
 
         # Export the along-profile DEM, resampled to a certain resolution.
         # Then estimate the coordinate extents and the z data range, to allow vertical exaggeration
 
-        if [[ DO_SIGNED_DISTANCE_DEM -eq 0 ]]; then
+        if [[ $DO_SIGNED_DISTANCE_DEM -eq 0 ]]; then
           # Just export the profile data to a CSV without worrying about profile kink problems. Faster.
+
+          # First find the maximum value of X. We want X to be negative or zero for the block plot. Not sure what happens otherwise...
+          MAX_X_VAL=$(awk < ${LINEID}_${grididnum[$i]}_profiletable.txt 'BEGIN{maxx=-999999} { if ($1 != ">" && $1 > maxx) {maxx = $1 } } END{print maxx}')
 
           awk -v xoff="${XOFFSET_NUM}" -v dinc="${gridspacinglist[$i]}" -v maxx=$MAX_X_VAL '
             BEGIN{offset=0;minX=99999999;maxX=-99999999; minY=99999999; maxY=-99999999; minZ=99999999; maxZ=-99999999}
@@ -671,7 +750,6 @@ for i in $(seq 1 $k); do
                 } ' | sed '1d' > ${LINEID}_${grididnum[$i]}_data.csv
         fi
 
-
         mv ./profilerange.txt ${LINEID}_${grididnum[$i]}_profilerange.txt
 
 cat << EOF > ${LINEID}_${grididnum[$i]}_data.vrt
@@ -691,21 +769,21 @@ EOF
         dem_maxy=$(awk < ${LINEID}_${grididnum[$i]}_profilerange.txt '{print $4}')
         dem_minz=$(awk < ${LINEID}_${grididnum[$i]}_profilerange.txt '{print $5}')
         dem_maxz=$(awk < ${LINEID}_${grididnum[$i]}_profilerange.txt '{print $6}')
-        echo dem_minx $dem_minx dem_maxx $dem_maxx dem_miny $dem_miny dem_maxy $dem_maxy dem_minz $dem_minz dem_maxz $dem_maxz
+        # echo dem_minx $dem_minx dem_maxx $dem_maxx dem_miny $dem_miny dem_maxy $dem_maxy dem_minz $dem_minz dem_maxz $dem_maxz
 
         dem_xtoyratio=$(echo "($dem_maxx - $dem_minx)/($dem_maxy - $dem_miny)" | bc -l)
-        dem_ztoyratio=$(echo "($dem_maxz - $dem_minz)/($dem_maxy - $dem_miny)" | bc -l)
+        dem_ztoxratio=$(echo "($dem_maxz - $dem_minz)/($dem_maxx - $dem_minx)" | bc -l)
 
-        # Calculate zsize from ysize
-        ysize=$(echo $PROFILE_HEIGHT_IN | awk '{print $1+0}')
-        zsize=$(echo "$ysize * $dem_ztoyratio" | bc -l)
+        # Calculate zsize from xsize
+        xsize=$(echo $PROFILE_WIDTH_IN | awk '{print $1+0}')
+        zsize=$(echo "$xsize * $dem_ztoxratio" | bc -l)
 
         numx=$(echo "($dem_maxx - $dem_minx)/$PERSPECTIVE_RES" | bc)
         numy=$(echo "($dem_maxy - $dem_miny)/$PERSPECTIVE_RES" | bc)
-        echo $numx $numy
+        # echo $numx $numy
         # echo numx $numx numy $numy
 
-        gdal_grid -of "netCDF" -txe $dem_minx $dem_maxx -tye $dem_miny $dem_maxy -outsize $numx $numy -zfield field_3 -a nearest -l ${LINEID}_${grididnum[$i]}_data ${LINEID}_${grididnum[$i]}_data.vrt ${LINEID}_${grididnum[$i]}_newgrid.nc
+        gdal_grid -q -of "netCDF" -txe $dem_minx $dem_maxx -tye $dem_miny $dem_maxy -outsize $numx $numy -zfield field_3 -a nearest -l ${LINEID}_${grididnum[$i]}_data ${LINEID}_${grididnum[$i]}_data.vrt ${LINEID}_${grididnum[$i]}_newgrid.nc
 
         # From here on, only the zsize and dem_miny, dem_maxy variables are needed for plotting
 
@@ -713,7 +791,7 @@ EOF
         # echo "PERSPECTIVE_AZ=\${1}" >> ${LINEID}_makeboxplot.sh
         # echo "PERSPECTIVE_INC=\${2}" >> ${LINEID}_makeboxplot.sh
 
-        # If we are plotting topo using the gdaldem method, do so here as well.
+        # If we are shading the dem using the gdaldem method, do so here for the top tile as well.
         # This code is copied over, could be turned into a function? Ah well. That's not the way I roll I guess.
 
         # Notably, any TIFF can be plotted using gridview, so this approach can be generalized...
@@ -725,27 +803,28 @@ EOF
             # the color from land not bleed to the hinge elevation.
             CPTHINGE=0
 
-            # Need to rescale the Z values by 1/1000 due to being in units of km
+            # Need to rescale the Z values by multiplying by ${gridzscalelist[$i]}
+            # This is because CPTS are given in source data units and not scaled units.
 
-            awk < $TOPO_CPT -v hinge=$CPTHINGE '{
+            awk < $TOPO_CPT -v hinge=$CPTHINGE -v scale=${gridzscalelist[$i]} '{
               if ($1 != "B" && $1 != "F" && $1 != "N" ) {
                 if (count==1) {
-                  print ($1+0.01)/1000, $2
+                  print ($1+0.01)*scale, $2
                   count=2
                 } else {
-                  print $1/1000, $2
+                  print $1*scale, $2
                 }
 
                 if ($3 == hinge) {
                   if (count==0) {
-                    print ($3-0.0001)/1000, $4
+                    print ($3-0.0001)*scale, $4
                     count=1
                   }
                 }
               }
             }' | tr '/' ' ' > topocolor_km.dat
           else
-            awk < $TOPO_CPT '{ print $1/1000, $2 }' | tr '/' ' ' > topocolor_km.dat
+            awk < $TOPO_CPT '{ print $1*scale, $2 }' | tr '/' ' ' > topocolor_km.dat
           fi
 
           # Calculate the color stretch
@@ -786,108 +865,118 @@ EOF
 
 ###     The following script fragment will require the following variables to be defined in the script:
 ###     PERSPECTIVE_AZ, PERSPECTIVE_INC, line_min_x, line_max_x, line_min_z, line_max_z, PROFILE_HEIGHT_IN, PROFILE_WIDTH_IN, yshift
-        echo "VEXAG=\${3}" > ${LINEID}_toposcript.sh
-        echo "ZSIZE_PRE=${zsize}" >> ${LINEID}_toposcript.sh
-        echo "ZSIZE=\$(echo \"\$VEXAG * \$ZSIZE_PRE\" | bc -l)" >> ${LINEID}_toposcript.sh
-        echo "dem_miny=${dem_miny}" >> ${LINEID}_toposcript.sh
-        echo "dem_maxy=${dem_maxy}" >> ${LINEID}_toposcript.sh
-        echo "dem_minz=${dem_minz}" >> ${LINEID}_toposcript.sh
-        echo "dem_maxz=${dem_maxz}" >> ${LINEID}_toposcript.sh
-        echo "PROFILE_DEPTH_RATIO=\$(echo \"(\$dem_maxy - \$dem_miny) / (\$line_max_z - \$line_min_z)\" | bc -l)"  >> ${LINEID}_toposcript.sh
-        echo "PROFILE_DEPTH_IN=\$(echo \$PROFILE_DEPTH_RATIO \$PROFILE_HEIGHT_IN | awk '{print (\$1*(\$2+0))}' )i"  >> ${LINEID}_toposcript.sh
+        echo "VEXAG=\${3}" > ${LINEID}_topscript.sh
+        echo "ZSIZE_PRE=${zsize}" >> ${LINEID}_topscript.sh
+        echo "ZSIZE=\$(echo \"\$VEXAG * \$ZSIZE_PRE\" | bc -l)" >> ${LINEID}_topscript.sh
+        echo "dem_miny=${dem_miny}" >> ${LINEID}_topscript.sh
+        echo "dem_maxy=${dem_maxy}" >> ${LINEID}_topscript.sh
+        echo "dem_minz=${dem_minz}" >> ${LINEID}_topscript.sh
+        echo "dem_maxz=${dem_maxz}" >> ${LINEID}_topscript.sh
+        echo "PROFILE_DEPTH_RATIO=\$(echo \"(\$dem_maxy - \$dem_miny) / (\$line_max_x - \$line_min_x)\" | bc -l)"  >> ${LINEID}_topscript.sh
+        echo "PROFILE_DEPTH_IN=\$(echo \$PROFILE_DEPTH_RATIO \$PROFILE_WIDTH_IN | awk '{print (\$1*(\$2+0))}' )i"  >> ${LINEID}_topscript.sh
 
-        echo "yshift=\$(awk -v height=\${PROFILE_HEIGHT_IN} -v inc=\$PERSPECTIVE_INC 'BEGIN{print cos(inc*3.1415926/180)*(height+0)}')" >> ${LINEID}_toposcript.sh
-        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/0 -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Bya100f50 --MAP_FRAME_PEN=thinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_toposcript.sh
+        echo "yshift=\$(awk -v height=\${PROFILE_HEIGHT_IN} -v inc=\$PERSPECTIVE_INC 'BEGIN{print cos(inc*3.1415926/180)*(height+0)}')" >> ${LINEID}_topscript.sh
+        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" --MAP_FRAME_PEN=thinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
         # Draw the box at the end of the profile. For other view angles, should draw the other box?
 
-        echo "echo \"\$line_max_x \$dem_maxy \$line_max_z\" > ${LINEID}_rightbox.xyz" >> ${LINEID}_toposcript.sh
-        echo "echo \"\$line_max_x \$dem_maxy \$line_min_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_toposcript.sh
-        echo "echo \"\$line_max_x \$dem_miny \$line_min_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_toposcript.sh
-        echo "gmt psxyz ${LINEID}_rightbox.xyz -p -R -J -JZ -Wthinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_toposcript.sh
+        echo "echo \"\$line_max_x \$dem_maxy \$line_max_z\" > ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_max_x \$dem_maxy \$line_min_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_max_x \$dem_miny \$line_min_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
+        echo "gmt psxyz ${LINEID}_rightbox.xyz -p -R -J -JZ -Wthinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${dem_minz} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -JZ\${ZSIZE}i -J -Bzaf -Bxaf --MAP_FRAME_PEN=thinner,black -K -O -Y\${yshift}i >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
-        awk < topo.cpt '{ if ($1 ~ /^[-+]?[0-9]*.*[0-9]+$/) { print $1/1000 "\t" $2 "\t" $3/1000 "\t" $4} else {print}}' > ${LINEID}_topokm.cpt
+        # I think this could be done with gmt makecpt -C+Uk but technical questions exist
+        # This assumes topo is in m and needs to be in km... not applicable for other grids
+
+
+        awk < ${gridcptlist[$i]} -v sc=${gridzscalelist[$i]} '{ if ($1 ~ /^[-+]?[0-9]*.*[0-9]+$/) { print $1*sc "\t" $2 "\t" $3*sc "\t" $4} else {print}}' > ${LINEID}_topokm.cpt
 
         if [[ $gdemtopoplotflag -eq 1 ]]; then
-          echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc -G${LINEID}_${grididnum[$i]}_colored_hillshade.tif -Qi300 -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -J -JZ\${ZSIZE}i -O -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_min_z} -Y\${yshift}i >> ${LINEID}_profile.ps" >> ${LINEID}_toposcript.sh
+          echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc -G${LINEID}_${grididnum[$i]}_colored_hillshade.tif -Qi300 -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -J -JZ\${ZSIZE}i -O -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_min_z} -Y\${yshift}i >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
         else
-          echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc -Qi300 -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -J -JZ\${ZSIZE}i -I+d -C${LINEID}_topokm.cpt -O -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_min_z} -Y\${yshift}i >> ${LINEID}_profile.ps" >> ${LINEID}_toposcript.sh
+          echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc -Qi300 -R -J -JZ -I+d -C${LINEID}_topokm.cpt -O -p  >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
         fi
 ###
       fi
 
-      # profiledata.txt contains space delimited rows of data.
+      # For grids that are not top grids, they are swath grids. So calculate and plot the swaths.
+      if [[ ! ${istopgrid[$i]} -eq 1 ]]; then
 
-      # This function calculates the 0, 25, 50, 75, and 100 quartiles of the data. First strip out the NaN values which are in the data.
-      cat ${LINEID}_${grididnum[$i]}_profiledata.txt | sed 's/NaN//g' |  awk '{
-        q1=-1;
-        q2=-1;
-        q3=-1
-        split( $0 , a, " " );
+        # profiledata.txt contains space delimited rows of data.
 
-        asort( a );
-        n=length(a);
+        # This function calculates the 0, 25, 50, 75, and 100 quartiles of the data. First strip out the NaN values which are in the data.
+        cat ${LINEID}_${grididnum[$i]}_profiledata.txt | sed 's/NaN//g' |  awk '{
+          q1=-1;
+          q2=-1;
+          q3=-1
+          split( $0 , a, " " );
 
-        p[1] = 0;
-        for (i = 2; i<=n; i++) {
-          p[i] = (i-1)/(n-1);
-          if (p[i] >= .25 && q1 == -1) {
-            f = (p[i]-.25)/(p[i]-p[i-1]);
-            q1 = a[i-1]*(f)+a[i]*(1-f);
+          asort( a );
+          n=length(a);
+
+          p[1] = 0;
+          for (i = 2; i<=n; i++) {
+            p[i] = (i-1)/(n-1);
+            if (p[i] >= .25 && q1 == -1) {
+              f = (p[i]-.25)/(p[i]-p[i-1]);
+              q1 = a[i-1]*(f)+a[i]*(1-f);
+            }
+            if (p[i] >= .5 && q2 == -1) {
+              f = (p[i]-.5)/(p[i]-p[i-1]);
+              q2 = a[i-1]*(f)+a[i]*(1-f);
+            }
+            if (p[i] >= .75 && q3 == -1) {
+              f = (p[i]-.75)/(p[i]-p[i-1]);
+              q3 = a[i-1]*(f)+a[i]*(1-f);
+            }
           }
-          if (p[i] >= .5 && q2 == -1) {
-            f = (p[i]-.5)/(p[i]-p[i-1]);
-            q2 = a[i-1]*(f)+a[i]*(1-f);
-          }
-          if (p[i] >= .75 && q3 == -1) {
-            f = (p[i]-.75)/(p[i]-p[i-1]);
-            q3 = a[i-1]*(f)+a[i]*(1-f);
-          }
-        }
-        printf("%g %g %g %g %g\n", a[1], q1, q2, q3, a[n])
-      }' > ${LINEID}_${grididnum[$i]}_profilesummary_pre.txt
+          printf("%g %g %g %g %g\n", a[1], q1, q2, q3, a[n])
+        }' > ${LINEID}_${grididnum[$i]}_profilesummary_pre.txt
 
-      # Find the value of Z at X=0 and subtract it from the entire dataset
-      if [[ $ZOFFSETflag -eq 1 && $dozflag -eq 1 ]]; then
-        # echo ZOFFSETflag is set
-        XZEROINDEX=$(awk < profilekm.txt '{if ($1 > 0) { exit } } END {print NR}')
-        ZOFFSET_NUM=$(head -n $XZEROINDEX ${LINEID}_${grididnum[$i]}_profilesummary_pre.txt | tail -n 1 | awk '{print 0-$3}')
+        # Find the value of Z at X=0 and subtract it from the entire dataset
+        if [[ $ZOFFSETflag -eq 1 && $dozflag -eq 1 ]]; then
+          # echo ZOFFSETflag is set
+          XZEROINDEX=$(awk < profilekm.txt '{if ($1 > 0) { exit } } END {print NR}')
+          ZOFFSET_NUM=$(head -n $XZEROINDEX ${LINEID}_${grididnum[$i]}_profilesummary_pre.txt | tail -n 1 | awk '{print 0-$3}')
+        fi
+
+        cat ${LINEID}_${grididnum[$i]}_profilesummary_pre.txt | awk -v zoff="${ZOFFSET_NUM}" '{print $1+zoff, $2+zoff, $3+zoff, $4+zoff, $5+zoff}' > ${LINEID}_${grididnum[$i]}_profilesummary.txt
+
+        # profilesummary.txt is min q1 q2 q3 max
+        #           1  2   3  4  5   6
+        # gmt wants X q2 min q1 q3 max
+
+        paste ${LINEID}_${grididnum[$i]}_profilekm.txt ${LINEID}_${grididnum[$i]}_profilesummary.txt | tr '\t' ' ' | awk '{print $1, $4, $2, $3, $5, $6}' > ${LINEID}_${grididnum[$i]}_profiledatabox.txt
+
+        awk '{print $1, $2}' < ${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${LINEID}_${grididnum[$i]}_profiledatamedian.txt
+        awk '{print $1, $3}' < ${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${LINEID}_${grididnum[$i]}_profiledatamin.txt
+        awk '{print $1, $6}' < ${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${LINEID}_${grididnum[$i]}_profiledatamax.txt
+
+        # Makes an envelope plottable by GMT
+        awk '{print $1, $4}' < ${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${LINEID}_${grididnum[$i]}_profiledataq13min.txt
+        awk '{print $1, $5}' < ${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${LINEID}_${grididnum[$i]}_profiledataq13max.txt
+
+        cat ${LINEID}_${grididnum[$i]}_profiledatamax.txt > ${LINEID}_${grididnum[$i]}_profileenvelope.txt
+        tac ${LINEID}_${grididnum[$i]}_profiledatamin.txt >> ${LINEID}_${grididnum[$i]}_profileenvelope.txt
+
+        cat ${LINEID}_${grididnum[$i]}_profiledataq13min.txt > ${LINEID}_${grididnum[$i]}_profileq13envelope.txt
+        tac ${LINEID}_${grididnum[$i]}_profiledataq13max.txt >> ${LINEID}_${grididnum[$i]}_profileq13envelope.txt
+
+        echo "gmt psxy -Vn ${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> "${PSFILE}"" >> plot.sh
+        echo "gmt psxy -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> "${PSFILE}"" >> plot.sh
+        echo "gmt psxy -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> "${PSFILE}"" >> plot.sh
+
+        # Plot the swath data onto the oblique profile line
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn ${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+
+        ## Output data files to THIS_DIR
+        echo "km_along_profile q0 q25 q25 q75 q100" > $THIS_DIR${LINEID}_${grididnum[$i]}_data.txt
+        paste ${LINEID}_${grididnum[$i]}_profilekm.txt ${LINEID}_${grididnum[$i]}_profilesummary.txt >> $THIS_DIR${LINEID}_${grididnum[$i]}_data.txt
+        paste ${LINEID}_${grididnum[$i]}_profilekm.txt ${LINEID}_${grididnum[$i]}_profilesummary.txt >> ${LINEID}_all_data.txt
       fi
-
-      cat ${LINEID}_${grididnum[$i]}_profilesummary_pre.txt | awk -v zoff="${ZOFFSET_NUM}" '{print $1+zoff, $2+zoff, $3+zoff, $4+zoff, $5+zoff}' > ${LINEID}_${grididnum[$i]}_profilesummary.txt
-
-      # profilesummary.txt is min q1 q2 q3 max
-      #           1  2   3  4  5   6
-      # gmt wants X q2 min q1 q3 max
-
-      paste ${LINEID}_${grididnum[$i]}_profilekm.txt ${LINEID}_${grididnum[$i]}_profilesummary.txt | tr '\t' ' ' | awk '{print $1, $4, $2, $3, $5, $6}' > ${LINEID}_${grididnum[$i]}_profiledatabox.txt
-
-      awk '{print $1, $2}' < ${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${LINEID}_${grididnum[$i]}_profiledatamedian.txt
-      awk '{print $1, $3}' < ${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${LINEID}_${grididnum[$i]}_profiledatamin.txt
-      awk '{print $1, $6}' < ${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${LINEID}_${grididnum[$i]}_profiledatamax.txt
-
-      # Makes an envelope plottable by GMT
-      awk '{print $1, $4}' < ${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${LINEID}_${grididnum[$i]}_profiledataq13min.txt
-      awk '{print $1, $5}' < ${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${LINEID}_${grididnum[$i]}_profiledataq13max.txt
-
-      cat ${LINEID}_${grididnum[$i]}_profiledatamax.txt > ${LINEID}_${grididnum[$i]}_profileenvelope.txt
-      tac ${LINEID}_${grididnum[$i]}_profiledatamin.txt >> ${LINEID}_${grididnum[$i]}_profileenvelope.txt
-
-      cat ${LINEID}_${grididnum[$i]}_profiledataq13min.txt > ${LINEID}_${grididnum[$i]}_profileq13envelope.txt
-      tac ${LINEID}_${grididnum[$i]}_profiledataq13max.txt >> ${LINEID}_${grididnum[$i]}_profileq13envelope.txt
-
-      echo "gmt psxy -Vn ${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> "${PSFILE}"" >> plot.sh
-      echo "gmt psxy -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> "${PSFILE}"" >> plot.sh
-      echo "gmt psxy -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> "${PSFILE}"" >> plot.sh
-
-      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn ${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-
-      ## Output data files to THIS_DIR
-      echo "km_along_profile q0 q25 q25 q75 q100" > $THIS_DIR${LINEID}_${grididnum[$i]}_data.txt
-      paste ${LINEID}_${grididnum[$i]}_profilekm.txt ${LINEID}_${grididnum[$i]}_profilesummary.txt >> $THIS_DIR${LINEID}_${grididnum[$i]}_data.txt
-      paste ${LINEID}_${grididnum[$i]}_profilekm.txt ${LINEID}_${grididnum[$i]}_profilesummary.txt >> ${LINEID}_all_data.txt
     done  # for each grid
 
     echo -n "@;${COLOR};${LINEID}@;; " >> IDfile.txt
@@ -901,7 +990,6 @@ EOF
       printf "@:8: (%+.02g km (Z)) @::" $ZOFFSET_NUM >> IDfile.txt
       echo -n " " >> IDfile.txt
     fi
-
 
     # Now treat the XYZ data. Make sure to append data to ${LINEID}_all_data.txt in the form km_along_profile val val val val val
     # gmt sample1d  ${LINEID}_trackfile.txt -T10e -Ar >  ${LINEID}_track_distance_pts.txt
@@ -1402,21 +1490,47 @@ EOF
       echo "#!/bin/bash" > ${LINEID}_plot_start.sh
       echo "PERSPECTIVE_AZ=\${1}" >> ${LINEID}_plot_start.sh
       echo "PERSPECTIVE_INC=\${2}" >> ${LINEID}_plot_start.sh
-      echo "line_min_x=${line_min_x}" >> ${LINEID}_plot_start.sh
-      echo "line_max_x=${line_max_x}" >> ${LINEID}_plot_start.sh
-      echo "lin_min_z=${line_min_z}"
+      echo "line_min_x=${PROFILE_XMIN}" >> ${LINEID}_plot_start.sh
+      echo "line_max_x=${PROFILE_XMAX}" >> ${LINEID}_plot_start.sh
       echo "line_min_z=${line_min_z}" >> ${LINEID}_plot_start.sh
       echo "line_max_z=${line_max_z}" >> ${LINEID}_plot_start.sh
       echo "PROFILE_HEIGHT_IN=${PROFILE_HEIGHT_IN}" >> ${LINEID}_plot_start.sh
       echo "PROFILE_WIDTH_IN=${PROFILE_WIDTH_IN}" >> ${LINEID}_plot_start.sh
 
-      echo "gmt psbasemap -py\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Ba100f50/a50f10SEW -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z --MAP_FRAME_PEN=thinner,black -K > ${LINEID}_profile.ps" >> ${LINEID}_plot_start.sh
+      echo "gmt psbasemap -py\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bxaf+l\"${x_axis_label}\" -Byaf+l\"${z_axis_label}\" -BSEW -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z --MAP_FRAME_PEN=thinner,black -K > ${LINEID}_profile.ps" >> ${LINEID}_plot_start.sh
 
       # Concatenate the cross section plotting commands onto the script
       cat ${LINEID}_plot.sh >> ${LINEID}_plot_start.sh
 
-      # Concatenate the terrain plotting commands onto the script
-      cat ${LINEID}_toposcript.sh >> ${LINEID}_plot_start.sh
+      # Concatenate the terrain plotting commands onto the script.
+      # If there is no top tile, we need to create some commands to allow a plot to be made correctly.
+
+      if [[ -e ${LINEID}_topscript.sh ]]; then
+        cat ${LINEID}_topscript.sh >> ${LINEID}_plot_start.sh
+      else
+        # COMEBACK
+        echo "VEXAG=\${3}" > ${LINEID}_topscript.sh
+        echo "dem_miny=-${MAXWIDTH_KM}" >> ${LINEID}_topscript.sh
+        echo "dem_maxy=${MAXWIDTH_KM}" >> ${LINEID}_topscript.sh
+        echo "dem_minz=10" >> ${LINEID}_topscript.sh
+        echo "dem_maxz=-10" >> ${LINEID}_topscript.sh
+        echo "PROFILE_DEPTH_RATIO=1" >> ${LINEID}_topscript.sh
+        echo "PROFILE_DEPTH_IN=\$(echo \$PROFILE_DEPTH_RATIO \$PROFILE_HEIGHT_IN | awk '{print (\$1*(\$2+0))}' )i"  >> ${LINEID}_topscript.sh
+
+        echo "yshift=\$(awk -v height=\${PROFILE_HEIGHT_IN} -v inc=\$PERSPECTIVE_INC 'BEGIN{print cos(inc*3.1415926/180)*(height+0)}')" >> ${LINEID}_topscript.sh
+        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" --MAP_FRAME_PEN=thinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+
+        # Draw the box at the end of the profile. For other view angles, should draw the other box?
+
+        echo "echo \"\$line_max_x \$dem_maxy \$line_max_z\" > ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_max_x \$dem_maxy \$line_min_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_max_x \$dem_miny \$line_min_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
+        # NO -K
+        echo "gmt psxyz ${LINEID}_rightbox.xyz -p -R -J -JZ -Wthinner,black -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+#        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${dem_minz} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -JZ\${ZSIZE}i -J -Bzaf -Bxaf --MAP_FRAME_PEN=thinner,black -K -O -Y\${yshift}i >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+
+        cat ${LINEID}_topscript.sh >> ${LINEID}_plot_start.sh
+      fi
 
       echo "gmt psconvert ${LINEID}_profile.ps -A+m1i -Tf -F${LINEID}_profile" >> ${LINEID}_plot_start.sh
 
@@ -1428,6 +1542,9 @@ EOF
 
     fi # Finalize individual profile plots
 
+    echo "$PROFILE_XMIN NaN NaN NaN NaN NaN" >> ${LINEID}_all_data.txt
+    echo "$PROFILE_XMAX NaN NaN NaN NaN Nan" >> ${LINEID}_all_data.txt
+
     PROFILE_INUM=$(echo "$PROFILE_INUM + 1" | bc)
   fi
 done < $TRACKFILE
@@ -1436,9 +1553,9 @@ done < $TRACKFILE
 cat *_all_data.txt > all_data.txt
 
 awk < all_data.txt '{
-    km[++c]=$1;
-    val[++d]=$2;
-    val[++d]=$6;
+    if ($1 != "NaN") { km[++c]=$1; }
+    if ($2 != "NaN") { val[++d]=$2; }
+    if ($6 != "NaN") { val[++d]=$6; }
   } END {
     asort(km);
     asort(val);

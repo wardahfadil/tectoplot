@@ -9,6 +9,7 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 
 # CHANGELOG
 
+# November 28, 2020: Updated 3d perspective diagram to plot Z axes of exaggerated top tile
 # November 26, 2020: Cleaned up usage, help messages and added installation/setup info
 # November 26, 2020: Fixed a bug whereby CMTs were selected for profiles from too large of an AOI
 # November 26, 2020: Added code to plot -cc alternative locations on profiles and oblique views
@@ -268,7 +269,8 @@ function print_help_header() {
   kbradley@ntu.edu.sg
 
   This script uses GMT, gdal, and geod to make seismotectonic maps, cross
-  sections, and oblique block diagrams.
+  sections, and oblique block diagrams. It is basically a collection of tools
+  and methods I have personally used to make maps/figures.
 
   Developed for OSX Catalina, minimal testing indicates works with Fedora linux
 
@@ -589,10 +591,6 @@ function defaultsmessage() {
 
 # This function will check for and attempt to download data.
 
-# function check_and_update_data() {
-#
-
-
 DELETEZIPFLAG=0
 
 function check_and_download_dataset() {
@@ -667,6 +665,31 @@ function check_and_download_dataset() {
       echo "${DOWNLOADNAME}" >> tectoplot.failed
     fi
   fi
+}
+
+function interval_and_subinterval_from_minmax_and_number () {
+  local vmin=$1
+  local vmax=$2
+  local numint=$3
+  local subval=$4
+  local diffval=$(echo "($vmax - $vmin) / $numint" | bc -l)
+  #
+  #
+  # echo $INTERVALS_STRING | awk -v s=$diffval -v md=$subval 'function abs(a) { return (a<0)?-a:a }{
+  #   n=split($0, var, " ");
+  #   mindiff=var[n];
+  #   for(i=0;i<n;i++) {
+  #     # print i
+  #     diff=var[i]-s;
+  #     # print "a", diff
+  #     if (abs(diff) < mindiff) {
+  #       mindiff=abs(diff)
+  #       intval=var[i];
+  #     }
+  #   }
+  #   print intval, intval/md
+  # }'
+  echo 100 50
 }
 
 # DEFINE FLAGS (only those set to not equal zero are actually important to define)
@@ -953,13 +976,10 @@ do
           echo $GCMT_SOURCESTRING >> $THISDIR/tectoplot.sources
         ;;
         *)
-          info_msg "[-c]: Unknown CMT source. Using ISC and GCMT, origin"
-          CMTFILE=$ISC_GCMT_CENTROID
-          CMTTYPE="GCMT_ISC_CENTROID"
-          echo $ISC_SHORT_SOURCESTRING >> $THISDIR/tectoplot.shortsources
-          echo $ISC_SOURCESTRING >> $THISDIR/tectoplot.sources
-          echo $GCMT_SHORT_SOURCESTRING >> $THISDIR/tectoplot.shortsources
-          echo $GCMT_SOURCESTRING >> $THISDIR/tectoplot.sources
+          info_msg "[-c]: Custom CMT file defined."
+          customcmtflag=1
+          CMTFILE=$(echo "$(cd "$(dirname "$CMTTYPE")"; pwd)/$(basename "$CMTTYPE")")
+          CMTTYPE="CUSTOM_CMT"
         ;;
       esac
       if [[ ${2:0:1} == [-] || -z $2 ]]; then
@@ -2266,10 +2286,15 @@ do
         plots+=("topo")
         ;;
       *)
+        plottopo=1
         plotcustomtopo=1
-        info_msg "Making custom grid"
-        CUSTOMGRIDFILE=$(echo "$(cd "$(dirname "$1")"; pwd)/$(basename "$1")")  # We already shifted
-        plots+=("customtopo")
+        info_msg "Using custom grid"
+        BATHYMETRY="custom"
+        GRIDDIR=$(echo "$(cd "$(dirname "$1")"; pwd)/")
+        GRIDFILE=$(echo "$(cd "$(dirname "$1")"; pwd)/$(basename "$1")")  # We already shifted
+        echo $GRIDDIR
+        echo $GRIDFILE
+        plots+=("topo")
         ;;
     esac
 
@@ -2975,55 +3000,55 @@ if [[ $plottopo -eq 1 ]]; then
       NEGBATHYGRID=$name
     fi
   fi
+
   if [[ ! $BATHYMETRY =~ "GMRT" && $bestexistsflag -eq 0 ]]; then
 
-    info_msg "Using grid $GRIDFILE"
+    if [[ $plotcustomtopo -eq 1 ]]; then
+      name="dem.nc"
+      gmt grdcut ${GRIDFILE} -G${name} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
+      BATHY=$name
+    else
+      info_msg "Using grid $GRIDFILE"
 
-    # Output is a NetCDF format grid
-  	name=$GRIDDIR"${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}.nc"
-  	# hs=$GRIDDIR"${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_hs.tif"
-  	# hist=$GRIDDIR"${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_hist.tif"
-  	# int=$GRIDDIR"${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_int.tif"
-  	# map=$GRIDDIR"${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_map.ps"
-  	# mappdf=$GRIDDIR"${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_map.pdf"
+      # Output is a NetCDF format grid
+    	name=$GRIDDIR"${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}.nc"
+    	# hs=$GRIDDIR"${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_hs.tif"
+    	# hist=$GRIDDIR"${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_hist.tif"
+    	# int=$GRIDDIR"${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_int.tif"
+    	# map=$GRIDDIR"${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_map.ps"
+    	# mappdf=$GRIDDIR"${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_map.pdf"
 
-  	if [[ -e $name ]]; then
-  		info_msg "DEM file $name already exists"
-  	else
-      case $BATHYMETRY in
-        SRTM30|GEBCO20|GEBCO1|01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
-          # echo gmt grdcut $GRIDFILE -G${name} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
-          gmt grdcut $GRIDFILE -G${name} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
-          demiscutflag=1
-        ;;
-      esac
-  	fi
-  	BATHY=$name
+    	if [[ -e $name ]]; then
+    		info_msg "DEM file $name already exists"
+    	else
+        case $BATHYMETRY in
+          SRTM30|GEBCO20|GEBCO1|01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
+            # echo gmt grdcut $GRIDFILE -G${name} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
+            gmt grdcut $GRIDFILE -G${name} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
+            demiscutflag=1
+          ;;
+        esac
+    	fi
+    	BATHY=$name
+    fi
   fi
 fi
 
 ##### CUSTOM TOPOGRAPHY FILE
-if [[ $plotcustomtopo -eq 1 ]]; then
-	info_msg "Making custom basemap $BATHYMETRY"
-
-	name="custom_dem.nc"
-	hs="custom_hs.nc"
-	hist="custom_hist.nc"
-	int="custom_int.nc"
-
-  info_msg "Cutting ${CUSTOMGRIDFILE}"
-
-  gmt grdcut $CUSTOMGRIDFILE -G${name} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
-
-	gmt grdgradient $name -G$hs -A320 -Ne0.6 $VERBOSE
-	gmt grdhisteq $hs -G$hist -N $VERBOSE
-	gmt grdmath $VERBOSE $hist 5.5 DIV = $int    # 5.5 is just a common value
-	rm -f $hs
-	rm -f $hist
-
-	CUSTOMBATHY=$name
-	CUSTOMINTN=$int
-fi
+# 	info_msg "Making custom basemap $BATHYMETRY"
+#
+# 	name="custom_dem.nc"
+# 	hs="custom_hs.nc"
+# 	hist="custom_hist.nc"
+# 	int="custom_int.nc"
+#
+#   info_msg "Cutting ${CUSTOMGRIDFILE}"
+#
+#
+#
+# 	CUSTOMBATHY=$name
+# 	CUSTOMINTN=$int
+# fi
 
 
 # At this point, if best topo flag is set, combine POSBATHYGRID and BATHY into one grid and make it the new BATHY grid
@@ -3175,7 +3200,6 @@ fi # if [[ $plotseis -eq 1 ]]
 ##### FOCAL MECHANISMS
 if [[ $calccmtflag -eq 1 ]]; then
   [[ $CMTFILE == "DefaultNOCMT" ]] && CMTFILE=$ISC_GCMT_ORIGIN && CMTTYPE="GCMT_ISC_ORIGIN"
-
   [[ $CMTFORMAT =~ "GlobalCMT" ]] && CMTLETTER="c"
   [[ $CMTFORMAT =~ "MomentTensor" ]] && CMTLETTER="m"
   [[ $CMTFORMAT =~ "PrincipalAxes" ]] && CMTLETTER="y"
@@ -4588,24 +4612,28 @@ for plot in ${plots[@]} ; do
       MPROFFILE="sprof.control"
 
       echo "@ auto auto ${SPROF_MINELEV} ${SPROF_MAXELEV} " > sprof.control
-      if [[ -e $BATHY ]]; then
-        info_msg "Adding bathy to sprof"
-        echo "^ dem.nc 0.001 1k ${SPROFWIDTH} 1k" >> sprof.control
+      if [[ $plotcustomtopo -eq 1 ]]; then
+        info_msg "Adding custom topo grid to sprof"
+        echo "S $CUSTOMGRIDFILE 0.001 1k ${SPROFWIDTH} 1k" >> sprof.control
+      elif [[ -e $BATHY ]]; then
+        info_msg "Adding topography/bathymetry from map to sprof as swath and top tile"
+        echo "S dem.nc 0.001 1k ${SPROFWIDTH} 1k" >> sprof.control
+        echo "G dem.nc 0.001 1k ${SPROFWIDTH} 1k topo.cpt" >> sprof.control
       fi
       if [[ -e eqs.txt ]]; then
         info_msg "Adding eqs to sprof"
-        echo "> eqs.txt ${SPROFWIDTH} -1 -W0.2p,black -C$SEISDEPTH_CPT" >> sprof.control
+        echo "E eqs.txt ${SPROFWIDTH} -1 -W0.2p,black -C$SEISDEPTH_CPT" >> sprof.control
       fi
       if [[ -e cmt.dat ]]; then
         info_msg "Adding cmt to sprof"
-        echo "% cmt.dat ${SPROFWIDTH} -1 -L0.25p,black -Z$SEISDEPTH_CPT" >> sprof.control
+        echo "C cmt.dat ${SPROFWIDTH} -1 -L0.25p,black -Z$SEISDEPTH_CPT" >> sprof.control
       fi
       if [[ $plotslab2 -eq 1 ]]; then
         if [[ ! $numslab2inregion -eq 0 ]]; then
           for i in $(seq 1 $numslab2inregion); do
             info_msg "Adding slab grid ${slab2inregion[$i] to sprof}"
             gridfile=$(echo ${SLAB2GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')
-            echo ": $gridfile -1 5k -W1p+cl -C$SEISDEPTH_CPT" >> sprof.control
+            echo "T $gridfile -1 5k -W1p+cl -C$SEISDEPTH_CPT" >> sprof.control
           done
         fi
       fi

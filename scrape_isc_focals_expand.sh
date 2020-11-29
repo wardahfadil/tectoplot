@@ -1,6 +1,8 @@
 #!/bin/bash
 # Kyle Bradley, NTU, kbradley@ntu.edu.sg, 2020
 
+# ASIES (Taiwan) is reporting an ungodly number of focal mechanisms... exclude
+
 # Download the ISC focal mechanism catalog for the entire globe, using a month-by-month query
 # Sanitize the data to be included with GCMT focal mechanisms. This means removing events
 # that have a GCMT entry in the ISC database, removing events without Mw or S/D/R data.
@@ -100,8 +102,8 @@ if [[ $DODOWNLOAD -eq 1 ]]; then
 
   rm -f isc_focals_allyears_orig.cat
   for foc_file in isc_focals_*.dat; do
-    echo "Concatenating file $foc_file to joined catalog."
-    cat $foc_file | sed -n '/N_AZM/,/^STOP/p' | sed '1d;$d' | sed '$d' >> isc_focals_allyears_orig.cat
+    echo "Concatenating file $foc_file to joined catalog and removing ASIES mechanisms."
+    cat $foc_file | sed -n '/N_AZM/,/^STOP/p' | sed '1d;$d' | sed '$d' | grep -v "ASIES" >> isc_focals_allyears_orig.cat
   done
 
   echo "Removing events without MW reported; and converting from MW to M0 (coeff) (exponent)."
