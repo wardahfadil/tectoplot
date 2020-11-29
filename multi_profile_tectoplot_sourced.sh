@@ -60,6 +60,8 @@
 # project_xyz_pts_onto_track $trackfile $xyzfile $outputfile $xoffset $zoffset $zscale
 # $1=$trackfile
 
+# profile_all.pdf needs to have each individual profile plotted on the combined axes
+
 function project_xyz_pts_onto_track() {
   project_xyz_pts_onto_track_trackfile=$1
   project_xyz_pts_onto_track_xyzfile=$2
@@ -481,6 +483,10 @@ for i in $(seq 1 $k); do
     XOFFSET=$(head -n ${i} $TRACKFILE | tail -n 1 | awk '{print $4}')
     ZOFFSET=$(head -n ${i} $TRACKFILE | tail -n 1 | awk '{print $5}')
 
+    # Initialize the profile plot script
+    echo "#!/bin/bash" > ${LINEID}_profile_plot.sh
+
+
   # if [[ ${FIRSTWORD:0:1} != "#" && ${FIRSTWORD:0:1} != "$" && ${FIRSTWORD:0:1} != "%"  && ${FIRSTWORD:0:1} != "^" && ${FIRSTWORD:0:1} != "@" && ${FIRSTWORD:0:1} != ":" && ${FIRSTWORD:0:1} != ">" ]]; then
   #   LINEID=$(head -n ${i} $TRACKFILE | tail -n 1 | awk '{print $1}')
   #   COLOR=$(head -n ${i} $TRACKFILE | tail -n 1 | awk '{print $2}')
@@ -607,7 +613,14 @@ for i in $(seq 1 $k); do
       paste  ${LINEID}_${ptgrididnum[$i]}_trackdist.txt ${LINEID}_${ptgrididnum[$i]}_sample.txt > dat.txt
       sed 1d < dat.txt > dat1.txt
     	paste  dat.txt dat1.txt | awk -v zscale=${ptgridzscalelist[$i]} '{ if ($7 && $6 != "NaN" && $12 != "NaN") { print "> -Z"($6+$12)/2*zscale*-1; print $3, $6*zscale; print $9, $12*zscale } }' > ${LINEID}_${ptgrididnum[$i]}_data.txt
+
+      # PLOT ON THE MAP PS
       echo "gmt psxy -Vn -R -J -O -K -L ${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> "${PSFILE}"" >> plot.sh
+
+      # PLOT ON THE FLAT PROFILE PS
+      echo "gmt psxy -Vn -R -J -O -K -L ${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+
+      # PLOT ON THE OBLIQUE PROFILE PS
       [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -L ${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
 
       grep "^[-*0-9]" ${LINEID}_${ptgrididnum[$i]}_data.txt >> ${LINEID}_all_data.txt
@@ -963,11 +976,17 @@ EOF
         cat ${LINEID}_${grididnum[$i]}_profiledataq13min.txt > ${LINEID}_${grididnum[$i]}_profileq13envelope.txt
         tac ${LINEID}_${grididnum[$i]}_profiledataq13max.txt >> ${LINEID}_${grididnum[$i]}_profileq13envelope.txt
 
+        # PLOT ON THE MAP PS
         echo "gmt psxy -Vn ${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> "${PSFILE}"" >> plot.sh
         echo "gmt psxy -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> "${PSFILE}"" >> plot.sh
         echo "gmt psxy -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> "${PSFILE}"" >> plot.sh
 
-        # Plot the swath data onto the oblique profile line
+        # PLOT ON THE FLAT PROFILE PS
+        echo "gmt psxy -Vn ${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "gmt psxy -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "gmt psxy -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+
+        # PLOT ON THE OBLIQUE PROFILE PS
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn ${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
@@ -1133,19 +1152,33 @@ EOF
           mv tmp.dat finaldist_${FNAME}
         fi
 
+        # PLOT ON THE MAP PS
         awk < finaldist_${FNAME} -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1))}' > stretch_finaldist_${FNAME}
         echo "OLD_PROJ_LENGTH_UNIT=\$(gmt gmtget PROJ_LENGTH_UNIT -Vn)" >> plot.sh
         echo "gmt gmtset PROJ_LENGTH_UNIT p" >> plot.sh
         echo "gmt psxy stretch_finaldist_${FNAME} -G$COLOR -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} ${xyzcommandlist[i]} $RJOK ${VERBOSE} >> ${PSFILE}" >> plot.sh
         echo "gmt gmtset PROJ_LENGTH_UNIT \$OLD_PROJ_LENGTH_UNIT" >> plot.sh
 
+        # PLOT ON THE FLAT PROFILE PS
+        echo "OLD_PROJ_LENGTH_UNIT=\$(gmt gmtget PROJ_LENGTH_UNIT -Vn)" >> ${LINEID}_temp_plot.sh
+        echo "gmt gmtset PROJ_LENGTH_UNIT p"  >> ${LINEID}_temp_plot.sh
+        echo "gmt psxy stretch_finaldist_${FNAME} -G$COLOR -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} ${xyzcommandlist[i]} $RJOK ${VERBOSE}  >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "gmt gmtset PROJ_LENGTH_UNIT \$OLD_PROJ_LENGTH_UNIT" >> ${LINEID}_temp_plot.sh
+
+        # PLOT ON THE OBLIQUE SECTION PS
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "OLD_PROJ_LENGTH_UNIT=\$(gmt gmtget PROJ_LENGTH_UNIT -Vn)" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt gmtset PROJ_LENGTH_UNIT p" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy stretch_finaldist_${FNAME} -p -G$COLOR -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} ${xyzcommandlist[i]} $RJOK ${VERBOSE} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt gmtset PROJ_LENGTH_UNIT \$OLD_PROJ_LENGTH_UNIT" >> ${LINEID}_plot.sh
 
       else
+        # PLOT ON THE MAP PS
         echo "gmt psxy finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> "${PSFILE}"" >> plot.sh
+
+        # PLOT ON THE FLAT SECTION PS
+        echo "gmt psxy finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+
+        # PLOT ON THE OBLIQUE SECTION PS
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy finaldist_${FNAME} -p -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
 
@@ -1393,50 +1426,79 @@ EOF
       # Generate the plotting commands for the shell script
 
       if [[ cmtthrustflag -eq 1 ]]; then
+        # PLOT ONTO THE MAP DOCUMENT
         [[ -e ${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
         [[ -e ${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
         echo "sort < ${LINEID}_cmt_thrust_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_THRUSTCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
+
+        # PLOT ONTO THE FLAT PROFILE PS
+        [[ -e ${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        [[ -e ${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "sort < ${LINEID}_cmt_thrust_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_THRUSTCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+
+        # PLOT ONTO THE OBLIQUE PROFILE PS
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${LINEID}_cmt_thrust_profile_data.txt -n -k 11 | gmt psmeca -p -E${CMT_THRUSTCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -G$COLOR $CMTCOMMANDS $RJOK ${VERBOSE} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
       if [[ cmtnormalflag -eq 1 ]]; then
+        # PLOT ONTO THE MAP DOCUMENT
         [[ -e ${LINEID}_cmt_alt_pts_normal_sel_proj.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_pts_normal_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
         [[ -e ${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_lines_normal_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
         echo "sort < ${LINEID}_cmt_normal_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_NORMALCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
+
+        # PLOT ONTO THE FLAT PROFILE PS
+        [[ -e ${LINEID}_cmt_alt_pts_normal_sel_proj.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_pts_normal_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        [[ -e ${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_lines_normal_proj_final.xyz -W0.1p,black $RJOK $VERBOSE >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "sort < ${LINEID}_cmt_normal_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_NORMALCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+
+        # PLOT ONTO THE OBLIQUE PROFILE PS
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${LINEID}_cmt_alt_pts_normal_sel_proj.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_pts_normal_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_lines_normal_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${LINEID}_cmt_normal_profile_data.txt -n -k 11 | gmt psmeca -p -E${CMT_NORMALCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -G$COLOR $CMTCOMMANDS $RJOK ${VERBOSE} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-
       fi
       if [[ cmtssflag -eq 1 ]]; then
+        # PLOT ONTO THE MAP DOCUMENT
         [[ -e ${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
         [[ -e ${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
         echo "sort < ${LINEID}_cmt_strikeslip_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_SSCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
+
+        # PLOT ONTO THE FLAT PROFILE PS
+        [[ -e ${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        [[ -e ${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "sort < ${LINEID}_cmt_strikeslip_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_SSCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+
+        # PLOT ONTO THE OBLIQUE PROFILE PS
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${LINEID}_cmt_strikeslip_profile_data.txt -n -k 11 | gmt psmeca -p -E${CMT_SSCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -G$COLOR $CMTCOMMANDS $RJOK ${VERBOSE} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-
       fi
     fi
 
     # Plot the locations of profile points above the profile, adjusting for XOFFSET and summing the incremental distance if necessary.
+    # ON THE MAP
     echo "awk < xpts_${LINEID}_dist_km.txt '(NR==1) { print \$1 + $XOFFSET_NUM, \$2}' | gmt psxy -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} -G${COLOR} >> ${PSFILE}" >> plot.sh
     echo "awk < xpts_${LINEID}_dist_km.txt 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+$XOFFSET_NUM, \$2; runtotal=\$1+runtotal; }' | gmt psxy -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} >> ${PSFILE}" >> plot.sh
 
+    # ON THE FLAT PROFILES
+    echo "awk < xpts_${LINEID}_dist_km.txt '(NR==1) { print \$1 + $XOFFSET_NUM, \$2}' | gmt psxy -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} -G${COLOR} >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+    echo "awk < xpts_${LINEID}_dist_km.txt 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+$XOFFSET_NUM, \$2; runtotal=\$1+runtotal; }' | gmt psxy -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR}>> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+
+    # ON THE OBLIQUE PLOTS
     [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "awk < xpts_${LINEID}_dist_km.txt '(NR==1) { print \$1 + $XOFFSET_NUM, \$2}' | gmt psxy -p -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} -G${COLOR} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
     [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "awk < xpts_${LINEID}_dist_km.txt 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+$XOFFSET_NUM, \$2; runtotal=\$1+runtotal; }' | gmt psxy -p -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
 
     if [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]]; then
-
+      # COMEBACK
       awk < ${LINEID}_all_data.txt '{
-          km[++c]=$1;
-          val[++d]=$2;
-          val[++d]=$6;
+          if ($1 ~ /^[-+]?[0-9]*.*[0-9]+$/) { km[++c]=$1; }
+          if ($2 ~ /^[-+]?[0-9]*.*[0-9]+$/) { val[++d]=$2; }
+          if ($6 ~ /^[-+]?[0-9]*.*[0-9]+$/) { val[++d]=$6; }
         } END {
           asort(km);
           asort(val);
-          print km[1]-(km[length(km)]-km[1])*0.01,km[length(km)]+(km[length(km)]-km[1])*0.01,val[1]-(val[length(val)]-val[1])*0.1,val[length(val)]+(val[length(val)]-val[1])*0.1
+          print km[1], km[length(km)], val[1], val[length(val)]
+        #  print km[1]-(km[length(km)]-km[1])*0.01,km[length(km)]+(km[length(km)]-km[1])*0.01,val[1]-(val[length(val)]-val[1])*0.1,val[length(val)]+(val[length(val)]-val[1])*0.1
       }' > ${LINEID}_limits.txt
 
       if [[ $xminflag -eq 1 ]]; then
@@ -1468,7 +1530,30 @@ EOF
         line_diffz=$(echo "$line_hwratio * $line_diffx" | bc -l)
         line_min_z=$(echo "$line_max_z - $line_diffz" | bc -l)
         info_msg "Profile ${LINEID} new min_z is $line_min_z"
+
+        # Buffer with equal width based on Z range
+        if [[ $BUFFER_PROFILES -eq 1 ]]; then
+          zrange_buf=$(echo "($line_max_z - $line_min_z) * ($BUFFER_WIDTH_FACTOR)" | bc -l)
+          line_max_x=$(echo "$line_max_x + $zrange_buf" | bc -l)
+          line_min_x=$(echo "$line_min_x - $zrange_buf" | bc -l)
+          line_max_z=$(echo "$line_max_z + $zrange_buf" | bc -l)
+          line_min_z=$(echo "$line_min_z - $zrange_buf" | bc -l)
+        fi
+        info_msg "After buffering, range is $line_min_x $line_max_x $line_min_z $line_max_z"
+      else
+        # Buffer X and Z ranges separately
+        if [[ $BUFFER_PROFILES -eq 1 ]]; then
+          xrange_buf=$(echo "($line_max_x - $line_min_x) * ($BUFFER_WIDTH_FACTOR)" | bc -l)
+          line_max_x=$(echo "$line_max_x + $xrange_buf" | bc -l)
+          line_min_x=$(echo "$line_min_x - $xrange_buf" | bc -l)
+          zrange_buf=$(echo "($line_max_z - $line_min_z) * ($BUFFER_WIDTH_FACTOR)" | bc -l)
+          line_max_z=$(echo "$line_max_z + $zrange_buf" | bc -l)
+          line_min_z=$(echo "$line_min_z - $zrange_buf" | bc -l)
+        fi
       fi
+
+
+
 
       # Create the data files that will be used to plot the profile vertex points above the profile
 
@@ -1542,9 +1627,28 @@ EOF
 
     fi # Finalize individual profile plots
 
-    echo "$PROFILE_XMIN NaN NaN NaN NaN NaN" >> ${LINEID}_all_data.txt
-    echo "$PROFILE_XMAX NaN NaN NaN NaN Nan" >> ${LINEID}_all_data.txt
+    ### End of processing this profile.
 
+    # Add profile X limits to all_data in case plotted data does not span profile.
+    echo "$PROFILE_XMIN NaN NaN NaN NaN NaN" >> ${LINEID}_all_data.txt
+    echo "$PROFILE_XMAX NaN NaN NaN NaN NaN" >> ${LINEID}_all_data.txt
+
+    # Create the profile postscript plot
+    # Profiles will be plotted by a master script that feeds in the appropriate parameters based on all profiles.
+    echo "line_min_z=\$1" >> ${LINEID}_profile_plot.sh
+    echo "line_max_z=\$2" >> ${LINEID}_profile_plot.sh
+    echo "PROFILE_HEIGHT_IN=${PROFILE_HEIGHT_IN}" >> ${LINEID}_profile_plot.sh
+    echo "PROFILE_WIDTH_IN=${PROFILE_WIDTH_IN}" >>${LINEID}_profile_plot.sh
+
+    # Center the frame on the new PS document
+    echo "gmt psbasemap -Vn -JX${PROFILE_WIDTH_IN}/${PROFILE_HEIGHT_IN} -Bltrb -R${PROFILE_XMIN}/${PROFILE_XMAX}/\${line_min_z}/\${line_max_z} --MAP_FRAME_PEN=thinner,black -K -Xc -Yc >> ${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
+    cat ${LINEID}_temp_plot.sh >> ${LINEID}_profile_plot.sh
+    echo "gmt psbasemap -Vn -BtESW+t\"${LINEID}\" -Baf -Bx+l\"Distance (km)\" --FONT_TITLE=\"10p,Helvetica,black\" --MAP_FRAME_PEN=thinner,black -R -J -O >> ${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
+    echo "gmt psconvert -Tf -A+m0.5i ${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
+    echo "./${LINEID}_profile_plot.sh \$zmin \$zmax" >> ./make_flat_profiles.sh
+    chmod a+x ./${LINEID}_profile_plot.sh
+
+    # Increment the profile number
     PROFILE_INUM=$(echo "$PROFILE_INUM + 1" | bc)
   fi
 done < $TRACKFILE
@@ -1553,16 +1657,21 @@ done < $TRACKFILE
 cat *_all_data.txt > all_data.txt
 
 awk < all_data.txt '{
-    if ($1 != "NaN") { km[++c]=$1; }
-    if ($2 != "NaN") { val[++d]=$2; }
-    if ($6 != "NaN") { val[++d]=$6; }
+    if ($1 ~ /^[-+]?[0-9]*.*[0-9]+$/) { km[++c]=$1; }
+    if ($2 ~ /^[-+]?[0-9]*.*[0-9]+$/) { val[++d]=$2; }
+    if ($6 ~ /^[-+]?[0-9]*.*[0-9]+$/) { val[++d]=$6; }
   } END {
     asort(km);
     asort(val);
-    print km[1]-(km[length(km)]-km[1])*0.01,km[length(km)]+(km[length(km)]-km[1])*0.01,val[1]-(val[length(val)]-val[1])*0.1,val[length(val)]+(val[length(val)]-val[1])*0.1
+    print km[1], km[length(km)], val[1], val[length(val)]
+  #  print km[1]-(km[length(km)]-km[1])*0.01,km[length(km)]+(km[length(km)]-km[1])*0.01,val[1]-(val[length(val)]-val[1])*0.1,val[length(val)]+(val[length(val)]-val[1])*0.1
 }' > limits.txt
 
+# These are hard data limits.
+
 # If we haven't manually specified a limit, set it using the buffered data limit
+# But for deep data sets, this will add a buffer to max_z that once one-to-one is applied
+# will cause the section to be way too low. So we need to do the buffer after the one-to-one.
 
 if [[ $xminflag -eq 1 ]]; then
   min_x=$(awk < limits.txt '{print $1}')
@@ -1577,7 +1686,7 @@ if [[ $zmaxflag -eq 1 ]]; then
   max_z=$(awk < limits.txt '{print $4}')
 fi
 
-# Set minz to ensure that H=W
+# Set minz/maxz to ensure that H=W
 if [[ $profileonetooneflag -eq 1 ]]; then
   info_msg "Setting vertical aspect ratio to H=W"
   diffx=$(echo "$max_x - $min_x" | bc -l)
@@ -1586,6 +1695,8 @@ if [[ $profileonetooneflag -eq 1 ]]; then
   min_z=$(echo "$max_z - $diffz" | bc -l)
   info_msg "new min_z is $min_z"
 fi
+
+# Add a buffer around the data if we haven't asked for hard limits.
 
 # Create the data files that will be used to plot the profile vertex points above the profile
 
@@ -1603,6 +1714,7 @@ echo "echo \"0 $maxzval\" | gmt psxy -J -R -K -O -St0.1i -Ya${PROFHEIGHT_OFFSET}
 LINETEXT=$(cat IDfile.txt)
 # echo LINETEXT is "${LINETEXT}"
 
+# FOR THE MAP
 # Plot the frame. This sets -R and -J for the actual plotting script commands in plot.sh
 
 echo "gmt psbasemap -Vn -JX${PROFILE_WIDTH_IN}/${PROFILE_HEIGHT_IN} -X${PROFILE_X} -Y${PROFILE_Y} -Bltrb -R$min_x/$max_x/$min_z/$max_z --MAP_FRAME_PEN=thinner,black -K -O >> ${PSFILE}" > newplot.sh
@@ -1613,7 +1725,20 @@ echo "gmt psbasemap -Vn -BtESW+t\"${LINETEXT}\" -Baf -Bx+l\"Distance (km)\" --FO
 chmod a+x ./newplot.sh
 ./newplot.sh
 
-[[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && chmod a+x ./make_oblique_plots.sh && ./make_oblique_plots.sh ${PERSPECTIVE_AZ} ${PERSPECTIVE_INC} ${PERSPECTIVE_EXAG}
+# FOR THE FLAT PROFILES
+mv ./make_flat_profiles.sh ./tmp.sh
+echo "#!/bin/bash" > ./make_flat_profiles.sh
+echo "zmin=\$1" >> ./make_flat_profiles.sh
+echo "zmax=\$2" >> ./make_flat_profiles.sh
+cat ./tmp.sh >> ./make_flat_profiles.sh
+chmod a+x ./make_flat_profiles.sh
+./make_flat_profiles.sh $min_z $max_z
+
+# FOR THE OBLIQUE SECTIONS
+if [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]]; then
+   chmod a+x ./make_oblique_plots.sh
+   ./make_oblique_plots.sh ${PERSPECTIVE_AZ} ${PERSPECTIVE_INC} ${PERSPECTIVE_EXAG}
+fi
 
 # Pass intersection points, profile data back to tectoplot
 #

@@ -35,6 +35,8 @@ PERSPECTIVE_INC=15           # Inclination matching to above
 PERSPECTIVE_RES=1         # resolution of swath topo profile grid, in km
 PERSPECTIVE_EXAG=2           # vertical exaggeration of topo, plot space only
 PERSPECTIVE_TOPO_HALF=""     # Set to "+l" (-msl) (or less obviously "+r") to restrict profiling to one side or the other (grdtrack)
+BUFFER_PROFILES=1            # Set to 1 to buffer profiles for plotting
+BUFFER_WIDTH_FACTOR=0.01     # Percent extra
 
 SWATHTRANS=50                # Percent transparency for swath profile envelopes
 SWATHLINE_WIDTH=0.25p        # Width of q50 (median) swath line
