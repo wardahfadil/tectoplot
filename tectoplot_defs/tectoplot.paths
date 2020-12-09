@@ -1,43 +1,64 @@
-################################################################################
-# DATA AND SCRUPT PATHS DEFINITION FILE
-# Assumes $TECTOPLOTDIR (root directory of tectoplot script) and $DEFDIR (tectoplot definitions directory) are already set
+##### tectoplot data paths and script paths
+# Kyle Bradley, Nanyang Technological University (kbradley@ntu.edu.sg)
+#
+# This file will be sourced by tectoplot. All assignments should be bash format.
+# (REQUIRES: $TECTOPLOTDIR, $DEFDIR).
 
-###### DATAROOT is the root directory that contains the downloaded data directories.
+##### DATAROOT is the directory that contains all downloaded data directories.
 
 DATAROOT=$(head -n 1 $DEFDIR"tectoplot.dataroot")
 
-###### OPENPROGRAM is the program to call from the command line to view PDF file
+TECTOPLOT_FORMATS=$DEFDIR"tectoplot.formats"
+
+##### OPENPROGRAM is the program to call from the command line to view PDF file
 OPENPROGRAM=$(head -n 1 $DEFDIR"tectoplot.pdfviewer")
 
-#####
+##### Directory holding tectoplot default CPTs
 CPTDIR=$TECTOPLOTDIR"CPT/"
 
-###### Scraper scripts
-SCRAPE_GCMT=$TECTOPLOTDIR"scrape_gcmt.sh"
-SCRAPE_ISCFOC=$TECTOPLOTDIR"scrape_isc_focals_expand.sh"
-SCRAPE_ANSS=$TECTOPLOTDIR"scrape_anss_data.sh"
+##### Location of CMT import / calculations script
+CMTTOOLS=$TECTOPLOTDIR"cmt_tools.sh"
 
-###### Country ID codes
+##### Scraper scripts
+SCRAPE_GFZ=$TECTOPLOTDIR"scrape_gfz.sh"
+SCRAPE_GCMT=$TECTOPLOTDIR"scrape_gcmt.sh"
+SCRAPE_ISCFOC=$TECTOPLOTDIR"scrape_isc_focals.sh"
+SCRAPE_ANSS=$TECTOPLOTDIR"scrape_anss_data.sh"
+MERGECATS=$TECTOPLOTDIR"merge_and_cull_catalogs.sh"
+
+##### CMT import script
+CMTSLURP=$TECTOPLOTDIR"cmt_tools.sh"
+
+##### Script to diagonalize a moment tensor to get eigenvalues/eigenvectors
+
+DIAGSCRIPT=$TECTOPLOTDIR"diagonalize_6comp.pl"
+DIAGDIR=$TECTOPLOTDIR
+
+##### Country ID codes
 COUNTRY_CODES=$DEFDIR"tectoplot.countrycentroids"
 
-###### Coastline data
+##### Coastline data
 COASTS_SHORT_SOURCESTRING="GHSSG"
 COASTS_SOURCESTRING="Coastline data: Global Self-consistent, Hierarchical, High-resolution Geography Database, doi:10.1029/96JB00104"
 
-###### Path to various scripts in the tectoplot main folder
+##### Path to various scripts in the tectoplot main folder
 
-NDK2MECA_AWK=$TECTOPLOTDIR"ndk2meca_keb_14.awk"
+##### ndk2meca has now been replaced by cmt_tools.sh
+# NDK2MECA_AWK=$TECTOPLOTDIR"ndk2meca_keb_14.awk"
+
+##### Location of Euler Pole / vector calculation scripts
 EULERVEC_AWK=$TECTOPLOTDIR"eulervec_2pole_cart.awk"
 EULERVECLIST_AWK=$TECTOPLOTDIR"eulervec_2pole_cart_list.awk"
-MPROFILE_SH_SRC=$TECTOPLOTDIR"multi_profile_tectoplot_sourced.sh"
 EULERADD_AWK=$TECTOPLOTDIR"euleradd.awk"
 
-####
-#### Downloaded data sets
-#### Set DATAROOT above and then run tectoplot -getdata to validate and download these to your hard disk
-####
+##### Location of the multiple profile / oblique view tool script
+MPROFILE_SH_SRC=$TECTOPLOTDIR"multi_profile_tectoplot_sourced.sh"
 
-###### World City Data; Format: Lon,Lat,Name,Population
+################################################################################
+#### Data sets that we download and manage ourselves
+#### Set DATAROOT above and then run tectoplot -getdata to validate and download these to your hard disk
+
+##### World City Data; Format: Lon,Lat,Name,Population
 
 CITIES_SOURCESTRING="City data from geonames (CC-BY)"
 CITIES_SHORT_SOURCESTRING="geonames"
@@ -48,7 +69,7 @@ CITIES_SOURCEURL="http://download.geonames.org/export/dump/cities500.zip"
 CITIES_ZIP_BYTES="10353983"
 CITIES500_BYTES="31818630"
 
-###### DEMs used for bathymetry/topography
+##### DEMs used for bathymetry/topography
 
 # Downloaded SRTM DEM
 
@@ -78,7 +99,22 @@ GEBCO1_SOURCEURL="https://www.bodc.ac.uk/data/open_download/gebco/GEBCO_1MIN/zip
 GEBCO1_BYTES="466885748"
 GEBCO1_ZIP_BYTES="287717935"
 
-###### Oceanic crustal age data (Seton et al. 2020)
+##### LITHO1.0 (Pasyanos et al. 2014)
+LITHO1DIR=$DATAROOT"LITHO1_x/"
+LITHO1DIR_2=$LITHO1DIR"LITHO1.0/litho_model"   # Can't end in a forward slash
+LITHO1MODELDIR=$LITHO1DIR"LITHO1.0/litho_model/"
+LITHO1PROGDIR=$LITHO1DIR"LITHO1.0/progs/"
+LITHO1FILE=$LITHO1DIR"LITHO1.0/litho_model/node9999.model"
+LITHO1_SOURCEURL="http://igppweb.ucsd.edu/~gabi/litho1/litho1.0.tar.gz"
+LITHO1_BYTES=12868
+LITHO1_ZIP_BYTES=12419118
+
+# Options for compiling the access_litho CPP program. Place the executable in the tectoplot dir which should have a path entry
+ACCESS_LITHO_BIN=$TECTOPLOTDIR
+ACCESS_LITHO_CPP="gcc"
+LITHO1_PROG=$TECTOPLOTDIR"access_litho"
+
+##### Oceanic crustal age data (Seton et al. 2020)
 OC_AGE_DIR=$DATAROOT"OC_AGE/"
 OC_AGE=$OC_AGE_DIR"age.2020.1.GTS2012.1m.nc"
 OC_AGE_URL="https://www.earthbyte.org/webdav/ftp/earthbyte/agegrid/2020/Grids/age.2020.1.GTS2012.1m.nc"
@@ -88,7 +124,10 @@ OC_AGE_CPT=$OC_AGE_DIR"age_2020.cpt"
 OC_AGE_CPT_URL="https://www.earthbyte.org/webdav/ftp/earthbyte/agegrid/2020/Grids/cpt/age_2020.cpt"
 OC_AGE_CPT_BYTES="1062"
 
-###### Crustal magnetization data
+OC_AGE_SOURCESTRING="Oceanic crustal age from Seton et al., 2020, https://www.earthbyte.org/webdav/ftp/earthbyte/agegrid/2020/Grids/age.2020.1.GTS2012.1m.nc"
+OC_AGE_SHORT_SOURCESTRING="Seton2020"
+
+##### Crustal magnetization data
 
 MAG_SOURCESTRING="Magnetic data from EMAG2_V2 (USGW), https://catalog.data.gov/dataset/emag2-earth-magnetic-anomaly-grid-2-arc-minute-resolution"
 MAG_SHORT_SOURCESTRING="EMAG2_V2"
@@ -99,7 +138,7 @@ EMAG_V2_CPT=$EMAG_V2_DIR"EMAG2_V2.cpt"
 EMAG_V2_SOURCEURL="http://geomag.colorado.edu/images/EMAG2/EMAG2_V2.tif"
 EMAG_V2_BYTES="233388712"
 
-###### Gravity data
+##### Gravity data
 
 GRAV_SOURCESTRING="World Gravity Model 2012: http://bgi.omp.obs-mip.fr/data-products/Grids-and-models/wgm2012"
 GRAV_SHORT_SOURCESTRING="WGM2012"
@@ -130,7 +169,7 @@ WGMFREEAIR_CPT=$WGMDIR"PALET_WGM_Freeair_Global.cpt"
 WGMFREEAIR_CPT_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/PALET_WGM_Freeair_Global.cpt"
 WGMFREEAIR_CPT_BYTES="538"
 
-###### Global Curie Depth Map
+##### Global Curie Depth Map
 GCDMDIR=$DATAROOT"GCDM/"
 GCDMDATA=$GCDMDIR"GCDM.nc"
 GCDMDATA_ORIG=$GCDMDIR"gcdm.txt"
@@ -153,9 +192,6 @@ SLAB2CONTOURDIR=$SLAB2DIR"Slab2_CONTOURS/"
 SLAB2GRIDDIR=$SLAB2DIR
 
 ### Additional directories where we store cached DEM data or custom DEMs
-###
-###
-
 # We will store 1°x1° tiles of GMRT and manage their re-download as needed
 
 GMRTDIR=$DATAROOT"GMRT/"
@@ -164,24 +200,34 @@ CUSTOMEXTDIR=$DATAROOT"customDEM/"
 EARTHRELIEFDIR=$DATAROOT"EARTHRELIEF/"
 EARTHRELIEFPREFIX="@earth_relief_"
 
-###### GCMT focal mechanism data
+##### Focal mechanism data
+
+FOCALDIR=$DATAROOT"CombinedFocals/"
+FOCALCATALOG=$FOCALDIR"focals.cat"
+
+GFZDIR=$DATAROOT"GFZ/"
+GFZCATALOG=$GFZDIR"gfz_extract.cat"
+
+GCMTDIR=$DATAROOT"GCMT/"
+GCMTCATALOG=$GCMTDIR"gcmt_extract.cat"
+
+# Change this to switch the server that we scrape data from
+#ISC_MIRROR="http://www.isc.ac.uk"
+ISC_MIRROR="http://isc-mirror.iris.washington.edu"
+
+ISCDIR=$DATAROOT"ISC/"
+ISCCATALOG=$ISCDIR"isc_extract.cat"
+CLEANISC=$ISCDIR"isc_extract_nogcmt.cat"
 
 GCMT_SOURCESTRING="Focal mechanisms from GCMT, Ekström et al. 2012, doi:10.1016/j.pepi.2012.04.002"
 GCMT_SHORT_SOURCESTRING="GCMT"
-
 ISC_SOURCESTRING="Focal mechanisms from ISC catalog, http://www.isc.ac.uk/iscbulletin/search/fmechanisms/"
 ISC_SHORT_SOURCESTRING="ISC"
 
-GCMTORIGIN=$DATAROOT"GCMT/gcmt_origin.txt"
-GCMTCENTROID=$DATAROOT"GCMT/gcmt_centroid.txt"
+#ISC_ORIGIN=$DATAROOT"ISC/isc_nogcmt_origin.txt"
+#ISC_CENTROID=$DATAROOT"ISC/isc_nogcmt_centroid.txt"
 
-ISC_ORIGIN=$DATAROOT"ISC/isc_nogcmt_origin.txt"
-ISC_CENTROID=$DATAROOT"ISC/isc_nogcmt_centroid.txt"
-
-ISC_GCMT_ORIGIN=$DATAROOT"GCMT/gcmt_isc_origin.txt"
-ISC_GCMT_CENTROID=$DATAROOT"GCMT/gcmt_isc_centroid.txt"
-
-###### GPS velocities
+##### GPS velocities
 
 GPS_SOURCESTRING="GPS velocities from Kreemer et al. 2014 doi:10.1002/2014GC005407"
 GPS_SHORT_SOURCESTRING="GPS-GSRM"
@@ -191,7 +237,7 @@ GPS=$DATAROOT"Kreemer/KreemerGPS"
 # GPS will only plot if the REFPLATE exists in the Kreemer dataset with the same ID code...
 GPS_FILE=`echo $GPS"/GPS_ITRF08.gmt"`
 
-###### Smithsonian Pleistocene volcanoes database
+##### Smithsonian Pleistocene volcanoes database
 
 GVP_PLEISTOCENE_SOURCEURL="https://volcano.si.edu/database/list_volcano_pleistocene_excel.cfm"
 GVP_HOLOCENE_SOURCEURL="https://volcano.si.edu/database/list_volcano_holocene_excel.cfm"
@@ -207,20 +253,18 @@ SMITHVOLC=$DATAROOT"Smithsonian/GVP_4.8.8_lat_lon_elev.txt"
 WHELLEYVOLC=$DATAROOT"Smithsonian/Whelley_2015_volcanoes.txt"
 JAPANVOLC=$DATAROOT"Smithsonian/japan_volcanoes.lonlatname"
 
-###### Seismicity
-# Column format must be:
-# LON LAT DEPTH MAG yyyy-mm-ddThh:mm:ss
-# 156.1432 -9.2973 10 4.5 2020-08-03T01:49:47
+##### Seismicity
 
 EQ_SOURCESTRING="Earthquakes: USGS/ANSS, https://earthquake.usgs.gov/earthquakes/search/"
 EQ_SHORT_SOURCESTRING="ANSS"
 
-EQUSGS=$DATAROOT"ANSS/"
-EQ_DATABASE=${EQUSGS}"all_anss_events_data_lonlatdepthmagdateid.txt"
+ANSSDIR=$DATAROOT"ANSS/"
+
+EQCATALOG=${ANSSDIR}"anss.cat"
 
 EQSLAB2=$DATAROOT"SLAB2/"
 
-###### GEM Faults
+##### GEM Faults
 
 FAULTS_SOURCESTRING="GEM Active Faults https://github.com/GEMScienceTools/gem-global-active-faults"
 FAULTS_SHORT_SOURCESTRING="GEM"
@@ -228,14 +272,14 @@ FAULTS_SHORT_SOURCESTRING="GEM"
 GEMFAULTS=$DATAROOT"GEMActiveFaults/gem-global-active-faults/gmt/gem_active_faults_harmonized.gmt"
 GEMFAULTS_SOURCEURL="https://raw.githubusercontent.com/cossatot/gem-global-active-faults/master/gmt/gem_active_faults_harmonized.gmt"
 
-###### SRCMOD slip distribution folder
+##### SRCMOD slip distribution folder
 SRCMOD_SOURCESTRING="SRCMOD, http://equake-rc.info/srcmod/"
 SRCMOD_SHORT_SOURCESTRING="SRCMOD"
 
 SRCMODFSPFOLDER=$DATAROOT"SRCMOD/srcmod2020-03-23FSP/"
 SRCMODFSPLOCATIONS=$DATAROOT"SRCMOD/srcmod2020-03-23FSP/FSPlocations.txt"
 
-###### Plate models
+##### Plate models
 
 # MORVEL56-NNR (Argus et al., 2011)
 MORVEL_SOURCESTRING="MORVEL56 NNR plate motions, Argus et al., 2011 doi:10.1111/j.1365-246X.2009.04491.x"

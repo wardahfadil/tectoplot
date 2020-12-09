@@ -13,7 +13,8 @@
 # PROFILE_HEIGHT_IN
 # PROFILE_X
 # PROFILE_Z
-# PLOT_SECTIONS_PROFILEFLAG   {=1 means plot section PDFs in perpective, =0 means don't}
+# PLOT_SECTIONS_PROFILEFLAG   {=1 means plot section PDFs in perpective, =0 means do not}
+# litho1profileflag   (=1 means extract and plot litho1 cross section, =0 means do not)
 #
 # FILES EXPECTED:
 # cmt_normal.txt, cmt_strikeslip.txt, cmt_thrust.txt (for focal mechanisms)
@@ -486,7 +487,6 @@ for i in $(seq 1 $k); do
     # Initialize the profile plot script
     echo "#!/bin/bash" > ${LINEID}_profile_plot.sh
 
-
   # if [[ ${FIRSTWORD:0:1} != "#" && ${FIRSTWORD:0:1} != "$" && ${FIRSTWORD:0:1} != "%"  && ${FIRSTWORD:0:1} != "^" && ${FIRSTWORD:0:1} != "@" && ${FIRSTWORD:0:1} != ":" && ${FIRSTWORD:0:1} != ">" ]]; then
   #   LINEID=$(head -n ${i} $TRACKFILE | tail -n 1 | awk '{print $1}')
   #   COLOR=$(head -n ${i} $TRACKFILE | tail -n 1 | awk '{print $2}')
@@ -557,7 +557,7 @@ for i in $(seq 1 $k); do
     paste ${LINEID}_trackfile.txt az_${LINEID}_trackfile.txt > jointrack_${LINEID}.txt
 
     LINETOTAL=$(wc -l < jointrack_${LINEID}.txt)
-    cat jointrack_${LINEID}.txt | awk -v width="${WIDTH_DEG_DATA}" -v color="${COLOR}" -v lineval="${LINETOTAL}" -v lineid=${LINEID} '
+    cat jointrack_${LINEID}.txt | awk -v width="${MAXWIDTH_KM}" -v color="${COLOR}" -v lineval="${LINETOTAL}" -v lineid=${LINEID} '
       (NR==1) {
         print $1, $2, $5, width, color, lineid >> "start_points.txt"
         lastval=$5
@@ -570,6 +570,8 @@ for i in $(seq 1 $k); do
         lastval=$5
       }
       END {
+        filename=sprintf("./%s_end.txt",lineid)
+        print $1, $2, lastval, width, color, lineid >> filename
         print $1, $2, lastval, width, color, lineid >> "end_points.txt"
       }
       '
@@ -590,7 +592,186 @@ for i in $(seq 1 $k); do
       fi
     fi
 
-    # This section processes the grid data that we are sampling along the profile line itself
+
+    ##########################################################################
+    # Extract LITHO1.0 data to plot on profile.
+    # 1. depth(m)
+    # 2. density(kg/m3)  [1000-3300]
+    # 3. Vp(m/s)         [2500-8500]
+    # 4. Vs(m/s)         [1000-5000]
+    # 5. Qkappa          0?
+    # 6. Qmu             [0 1000]
+    # 7. Vp2(m/s)
+    # 8. Vs2(m/s)
+    # 9. eta
+
+    # Find the cross profile locations
+
+    p=($(head -n 1 ${LINEID}_end.txt))
+    # Determine profile of the oblique block end
+    ANTIAZ=$(echo "${p[2]} - 180" | bc -l)
+    FOREAZ=$(echo "${p[2]} - 90" | bc -l)
+    SUBWIDTH=$(echo "${p[3]} * 0.1" | bc -l)
+
+    # echo "86 34 270 150" | awk '
+    # function getpi()       { return atan2(0,-1)             }
+    # function abs(v)        { return v < 0 ? -v : v          }
+    # function tan(x)        { return sin(x)/cos(x)           }
+    # function atan(x)       { return atan2(x,1)              }
+    # function asin(x)       { return atan2(x, sqrt(1-x*x))   }
+    # function acos(x)       { return atan2(sqrt(1-x*x), x)   }
+    # function rad2deg(rad)  { return (180 / getpi()) * rad   }
+    # function deg2rad(deg)  { return (getpi() / 180) * deg   }
+    # function hypot(x,y)    { return sqrt(x*x+y*y)           }
+    # function d_atan2d(y,x) { return (x == 0.0 && y == 0.0) ? 0.0 : rad2deg(atan2(y,x)) }
+    # {
+    #   lon=deg2rad($1)
+    #   lat=deg2rad($2)
+    #   azimuth=deg2rad($3)
+    #   distance=$4
+    #   R=6378.1
+    #
+    #   newlat = asin(sin(lat)* cos(distance / R) cos(lat) * sin(distance / R) * cos(azimuth));
+    #   newlon = lon + atan2(sin(azimuth) * sin(distance / R) * cos(lat), cos(distance / R) - sin(lat) * sin(lat));
+    #   print rad2deg(newlon), rad2deg(newlat)
+    # }'
+
+    if [[ $PERSPECTIVE_TOPO_HALF == "+l" ]]; then
+      # If we are doing the half profile, go from the profile and don't correct
+      XOFFSET_CROSS=0
+      # echo "${p[0]} ${p[1]}" > ${LINEID}_endprof.txt
+      # echo "${p[0]} ${p[1]}" | gmt vector -Tt${p[2]}/${p[3]}k >> ${LINEID}_endprof.txt
+      echo "${p[0]} ${p[1]}" > ${LINEID}_endprof.txt
+      gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${p[3]}k -L0/${p[3]} | awk '{print $1, $2}' >> ${LINEID}_endprof.txt
+    else
+      # echo "full"
+      # If we are doing the full profile, we have to go from endpoint to endpoint
+      # echo "${p[0]} ${p[1]}" | gmt vector -Tt${ANTIAZ}/${p[3]}k > ${LINEID}_endprof.txt
+      # echo "${p[0]} ${p[1]}" | gmt vector -Tt${p[2]}/${p[3]}k >> ${LINEID}_endprof.txt
+      gmt project -C${p[0]}/${p[1]} -A${ANTIAZ} -Q -G${p[3]}k -L0/${p[3]} | awk '{print $1, $2}' > ${LINEID}_endprof.txt
+      gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${p[3]}k -L0/${p[3]} | awk '{print $1, $2}' >> ${LINEID}_endprof.txt
+
+      # Get the distance between the points, in km
+    fi
+    # TMPDIST=$(gmt mapproject ${LINEID}_endprof.txt -G+uk+i | tail -n 1 | awk '{print $3}')
+    # echo a TMPDIST is $TMPDIST
+    TMPDIST=$(gmt mapproject ${LINEID}_endprof.txt -G+uk+i | tail -n 1 | awk '{print $3}')
+    # echo b TMPDIST is $TMPDIST
+    XOFFSET_CROSS=$(echo "0 - ($TMPDIST / 2)" | bc -l)
+    # echo XOFFSET_CROSS is $XOFFSET_CROSS
+
+    if [[ $litho1profileflag -eq 1 ]]; then
+      info_msg "Extracting LITHO1.0 data for profile ${LINEID}"
+
+      # First, do the main profile, honoring the XOFFSET_NUM shift
+
+      gmt sample1d ${LINEID}_trackfile.txt -Af -fg -I${LITHO_INC}k  > ./${LINEID}_litho1_track.txt
+      rm -f lab.xy
+      ptcount=0
+      while read p; do
+        lon=$(echo $p | awk '{print $1}')
+        lat=$(echo $p | awk '{print $2}')
+        access_litho -p $lat $lon -l ${LITHO_LEVEL} 2>/dev/null | awk -v extfield=$LITHO1_FIELDNUM -v xoff=${XOFFSET_NUM} -v ptcnt=$ptcount -v dinc=${LITHO_INC} '
+          BEGIN {
+            getline;
+            lastz=-$1/1000
+            lastval=$(extfield)
+            dist=ptcnt*dinc+xoff
+            print "> -Z" lastval
+            print dist-dinc*1.05/2, -6000000/1000
+            print dist+dinc*1.05/2, -6000000/1000
+            print dist+dinc*1.05/2, lastz
+            print dist-dinc*1.05/2, lastz
+            print dist-dinc*1.05/2, -6000000/1000
+          }
+          {
+            # print $10>>"/dev/stderr"
+            dist=ptcnt*dinc+xoff
+            if (lastz==-$1/1000 || $(extfield)<=1030) {
+              # do not print empty boxes or water velocity boxes
+            } else {
+              print "> -Z" $(extfield)
+              print dist-dinc*1.05/2, lastz
+              print dist+dinc*1.05/2, lastz
+              print dist+dinc*1.05/2, -$1/1000
+              print dist-dinc*1.05/2, -$1/1000
+              print dist-dinc*1.05/2, lastz
+            }
+            if ($10 == "LID-BOTTOM") {
+              print dist-dinc*1/2, -$1/1000 >> "./lab.xy"
+              print dist+dinc*1/2, -$1/1000 >> "./lab.xy"
+            }
+            lastz=-$1/1000
+            lastval=$(extfield)
+          }' >> ${LINEID}_litho1_poly.dat
+        ptcount=$(echo "$ptcount + 1" | bc)
+      done < ./${LINEID}_litho1_track.txt
+      mv ./lab.xy ${LINEID}_lab.xy
+
+      # Then, do the cross-profile to go on the end of the block diagram.
+
+      if [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]]; then
+        gmt sample1d ${LINEID}_endprof.txt -Af -fg -I${LITHO_INC}k  > ./${LINEID}_litho1_cross_track.txt
+        rm -f lab.xy
+        ptcount=0
+        while read p; do
+          lon=$(echo $p | awk '{print $1}')
+          lat=$(echo $p | awk '{print $2}')
+          access_litho -p $lat $lon -l ${LITHO_LEVEL} 2>/dev/null | awk -v extfield=$LITHO1_FIELDNUM -v xoff=${XOFFSET_CROSS} -v ptcnt=$ptcount -v dinc=${LITHO_INC} '
+            BEGIN {
+              getline;
+              lastz=-$1/1000
+              lastval=$(extfield)
+              dist=ptcnt*dinc+xoff
+              print "> -Z" lastval
+              print dist-dinc*1.05/2, -6000000/1000
+              print dist+dinc*1.05/2, -6000000/1000
+              print dist+dinc*1.05/2, lastz
+              print dist-dinc*1.05/2, lastz
+              print dist-dinc*1.05/2, -6000000/1000
+            }
+            {
+              # print $10>>"/dev/stderr"
+              dist=ptcnt*dinc+xoff
+              if (lastz==-$1/1000 || $(extfield)<=1030) {
+                # do not print empty boxes or water velocity boxes
+              } else {
+                print "> -Z" $(extfield)
+                print dist-dinc*1.05/2, lastz
+                print dist+dinc*1.05/2, lastz
+                print dist+dinc*1.05/2, -$1/1000
+                print dist-dinc*1.05/2, -$1/1000
+                print dist-dinc*1.05/2, lastz
+              }
+              if ($10 == "LID-BOTTOM") {
+                print dist-dinc*1/2, -$1/1000 >> "./lab.xy"
+                print dist+dinc*1/2, -$1/1000 >> "./lab.xy"
+              }
+              lastz=-$1/1000
+              lastval=$(extfield)
+            }' >> ${LINEID}_litho1_cross_poly.dat
+          ptcount=$(echo "$ptcount + 1" | bc)
+        done < ./${LINEID}_litho1_cross_track.txt
+        mv ./lab.xy ${LINEID}_cross_lab.xy
+      fi
+
+      # PLOT ON THE MAP PS
+      echo "gmt psxy -L ${LINEID}_litho1_poly.dat -G+z -C$LITHO1_CPT -Vn -R -J -O -K >> ${PSFILE}" >> plot.sh
+      echo "gmt psxy ${LINEID}_lab.xy -W0.5p,black -Vn -R -J -O -K >> ${PSFILE}" >> plot.sh
+
+      # PLOT ON THE MAP PS
+      echo "gmt psxy -L ${LINEID}_litho1_poly.dat -G+z -C$LITHO1_CPT -Vn -R -J -O -K >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+      echo "gmt psxy ${LINEID}_lab.xy -W0.5p,black -Vn -R -J -O -K >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+
+      # PLOT ON THE OBLIQUE PROFILE PS
+      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -L -p ${LINEID}_litho1_poly.dat -G+z -C$LITHO1_CPT -Vn -R -J -O -K >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p ${LINEID}_lab.xy -W0.5p,black -Vn -R -J -O -K >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+
+    fi
+
+    ############################################################################
+    # This section processes the grid data that we are sampling along the
+    # profile line itself
 
     for i in ${!ptgridfilelist[@]}; do
       gridfileflag=1
@@ -626,8 +807,10 @@ for i in $(seq 1 $k); do
       grep "^[-*0-9]" ${LINEID}_${ptgrididnum[$i]}_data.txt >> ${LINEID}_all_data.txt
     done
 
-    # This section processes grid datasets (usually DEM, gravity, etc) by calculating swath profiles
-    # this section and the topgrid section are very similar and if this is modified, please check the topgrid section!
+    ############################################################################
+    # This section processes grid datasets (usually DEM, gravity, etc) by
+    # calculating swath profiles. This section and the topgrid section are very
+    # similar and if this is modified, please check the topgrid section!
 
     for i in ${!gridfilelist[@]}; do
       gridfileflag=1
@@ -893,25 +1076,49 @@ EOF
 
         # Draw the box at the end of the profile. For other view angles, should draw the other box?
 
+
+        if [[ $litho1profileflag -eq 1 ]]; then
+
+cat<<-EOF >> ${LINEID}_topscript.sh
+awk < ${LINEID}_litho1_cross_poly.dat -v xval=\$line_max_x -v zval=\$line_min_z '{
+if (\$1 == ">") {
+print
+} else {
+  if (\$2 < zval) {
+    print xval, \$1, zval
+  } else {
+    print xval, \$1, \$2
+  }
+}
+}' > ${LINEID}_litho1_cross_poly_xyz.dat
+EOF
+          echo "gmt psxyz -p  ${LINEID}_litho1_cross_poly_xyz.dat -L -G+z -C$LITHO1_CPT -Vn -R -J -JZ -O -K >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        fi
+
         echo "echo \"\$line_max_x \$dem_maxy \$line_max_z\" > ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
         echo "echo \"\$line_max_x \$dem_maxy \$line_min_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
         echo "echo \"\$line_max_x \$dem_miny \$line_min_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_max_x \$dem_miny \$line_max_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
+
         echo "gmt psxyz ${LINEID}_rightbox.xyz -p -R -J -JZ -Wthinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+
         echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${dem_minz} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -JZ\${ZSIZE}i -J -Bzaf -Bxaf --MAP_FRAME_PEN=thinner,black -K -O -Y\${yshift}i >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
         # I think this could be done with gmt makecpt -C+Uk but technical questions exist
         # This assumes topo is in m and needs to be in km... not applicable for other grids
 
 
-        awk < ${gridcptlist[$i]} -v sc=${gridzscalelist[$i]} '{ if ($1 ~ /^[-+]?[0-9]*.*[0-9]+$/) { print $1*sc "\t" $2 "\t" $3*sc "\t" $4} else {print}}' > ${LINEID}_topokm.cpt
+        awk < ${gridcptlist[$i]} -v sc=${gridzscalelist[$i]} '{ if ($1 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { print $1*sc "\t" $2 "\t" $3*sc "\t" $4} else {print}}' > ${LINEID}_topokm.cpt
 
         if [[ $gdemtopoplotflag -eq 1 ]]; then
-          echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc -G${LINEID}_${grididnum[$i]}_colored_hillshade.tif -Qi300 -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -J -JZ\${ZSIZE}i -O -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_min_z} -Y\${yshift}i >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+          echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc  -G${LINEID}_${grididnum[$i]}_colored_hillshade.tif -p -Qi300 -R -J -JZ -O  >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+          # echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc -G${LINEID}_${grididnum[$i]}_colored_hillshade.tif -Qi300 -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -J -JZ\${ZSIZE}i -O -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_min_z} -Y\${yshift}i >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
         else
-          echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc -Qi300 -R -J -JZ -I+d -C${LINEID}_topokm.cpt -O -p  >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+          echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc -p -Qi300 -R -J -JZ -I+d -C${LINEID}_topokm.cpt -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
         fi
 ###
       fi
+
 
       # For grids that are not top grids, they are swath grids. So calculate and plot the swaths.
       if [[ ! ${istopgrid[$i]} -eq 1 ]]; then
@@ -1010,7 +1217,10 @@ EOF
       echo -n " " >> IDfile.txt
     fi
 
-    # Now treat the XYZ data. Make sure to append data to ${LINEID}_all_data.txt in the form km_along_profile val val val val val
+    ############################################################################
+    # Now treat the XYZ data. Make sure to append data to ${LINEID}_all_data.txt
+    # in the form km_along_profile val val val val val
+    #
     # gmt sample1d  ${LINEID}_trackfile.txt -T10e -Ar >  ${LINEID}_track_distance_pts.txt
 
     # currently breaks for files without exactly 3 data columns.
@@ -1031,7 +1241,6 @@ EOF
       # Calculate distance from data points to the track, using only first two columns
       awk < ${xyzfilelist[i]} '{print $1, $2}' | gmt mapproject -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -L${LINEID}_trackfile.txt -fg -Vn | awk '{print $3, $4, $5}' > tmp.txt
       awk < ${xyzfilelist[i]} '{print $1, $2}' | gmt mapproject -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -Lline_buffer.txt+p -fg -Vn | awk '{print $4}'> tmpbuf.txt
-
       # Paste result onto input lines and select the points that are closest to current track out of all tracks
       paste tmpbuf.txt ${xyzfilelist[i]} tmp.txt  > joinbuf.txt
 #      head joinbuf.txt
@@ -1133,6 +1342,9 @@ EOF
 
       awk < finaldist_${FNAME} '{print $1, $2, $2, $2, $2, $2 }' >> ${LINEID}_all_data.txt
 
+      ##########################################################################
+      # Plot earthquake data scaled by magnitude
+
       if [[ ${xyzscaleeqsflag[i]} -eq 1 ]]; then
 
         if  [[ $REMOVE_DEFAULTDEPTHS -eq 1 ]]; then
@@ -1184,6 +1396,9 @@ EOF
 
       rm -f presort_${FNAME}
     done # XYZ data
+
+    ############################################################################
+    # Plot CMT data scaled by magnitude using pscoupe
 
     if [[ $cmtfileflag -eq 1 ]]; then
 
@@ -1317,34 +1532,33 @@ EOF
       #####
       #####
 
+
       # project_xyz_pts_onto_track $trackfile $xyzfile $outputfile $xoffset $zoffset $zscale
-      #
-      if [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]]; then
 
-        [[ -e ${LINEID}_cmt_alt_pts_strikeslip_sel.xyz ]] && project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_pts_strikeslip_sel.xyz ${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
-        [[ -e ${LINEID}_cmt_alt_pts_thrust_sel.xyz ]] && project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_pts_thrust_sel.xyz ${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
-        [[ -e ${LINEID}_cmt_alt_pts_normal_sel.xyz ]] && project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_pts_normal_sel.xyz ${LINEID}_cmt_alt_pts_normal_sel_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
 
-        if [[ -e ${LINEID}_cmt_alt_lines_thrust_sel_P1.xyz ]]; then
-          project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_lines_thrust_sel_P1.xyz ${LINEID}_cmt_alt_lines_thrust_sel_P1_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
-          project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_lines_thrust_sel_P2.xyz ${LINEID}_cmt_alt_lines_thrust_sel_P2_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
-          awk < ${LINEID}_cmt_alt_lines_thrust_sel_P1_proj.xyz '{ print ">:" $0 ":" }' > tmp1.txt
-          paste -d '\0' tmp1.txt ${LINEID}_cmt_alt_lines_thrust_sel_P2_proj.xyz | tr ':' '\n' > ${LINEID}_cmt_alt_lines_thrust_proj_final.xyz
-        fi
+      [[ -e ${LINEID}_cmt_alt_pts_strikeslip_sel.xyz ]] && project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_pts_strikeslip_sel.xyz ${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
+      [[ -e ${LINEID}_cmt_alt_pts_thrust_sel.xyz ]] && project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_pts_thrust_sel.xyz ${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
+      [[ -e ${LINEID}_cmt_alt_pts_normal_sel.xyz ]] && project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_pts_normal_sel.xyz ${LINEID}_cmt_alt_pts_normal_sel_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
 
-        if [[ -e ${LINEID}_cmt_alt_lines_normal_sel_P1.xyz ]]; then
-          project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_lines_normal_sel_P1.xyz ${LINEID}_cmt_alt_lines_normal_sel_P1_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
-          project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_lines_normal_sel_P2.xyz ${LINEID}_cmt_alt_lines_normal_sel_P2_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
-          awk < ${LINEID}_cmt_alt_lines_normal_sel_P1_proj.xyz '{ print ">:" $0 ":" }' > tmp1.txt
-          paste -d '\0' tmp1.txt ${LINEID}_cmt_alt_lines_normal_sel_P2_proj.xyz | tr ':' '\n' > ${LINEID}_cmt_alt_lines_normal_proj_final.xyz
-        fi
+      if [[ -e ${LINEID}_cmt_alt_lines_thrust_sel_P1.xyz ]]; then
+        project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_lines_thrust_sel_P1.xyz ${LINEID}_cmt_alt_lines_thrust_sel_P1_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
+        project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_lines_thrust_sel_P2.xyz ${LINEID}_cmt_alt_lines_thrust_sel_P2_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
+        awk < ${LINEID}_cmt_alt_lines_thrust_sel_P1_proj.xyz '{ print ">:" $0 ":" }' > tmp1.txt
+        paste -d '\0' tmp1.txt ${LINEID}_cmt_alt_lines_thrust_sel_P2_proj.xyz | tr ':' '\n' > ${LINEID}_cmt_alt_lines_thrust_proj_final.xyz
+      fi
 
-        if [[ -e ${LINEID}_cmt_alt_lines_strikeslip_sel_P1.xyz ]]; then
-          project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_lines_strikeslip_sel_P1.xyz ${LINEID}_cmt_alt_lines_strikeslip_sel_P1_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
-          project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_lines_strikeslip_sel_P2.xyz ${LINEID}_cmt_alt_lines_strikeslip_sel_P2_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
-          awk < ${LINEID}_cmt_alt_lines_strikeslip_sel_P1_proj.xyz '{ print ">:" $0 ":" }' > tmp1.txt
-          paste -d '\0' tmp1.txt ${LINEID}_cmt_alt_lines_strikeslip_sel_P2_proj.xyz | tr ':' '\n' > ${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz
-        fi
+      if [[ -e ${LINEID}_cmt_alt_lines_normal_sel_P1.xyz ]]; then
+        project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_lines_normal_sel_P1.xyz ${LINEID}_cmt_alt_lines_normal_sel_P1_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
+        project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_lines_normal_sel_P2.xyz ${LINEID}_cmt_alt_lines_normal_sel_P2_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
+        awk < ${LINEID}_cmt_alt_lines_normal_sel_P1_proj.xyz '{ print ">:" $0 ":" }' > tmp1.txt
+        paste -d '\0' tmp1.txt ${LINEID}_cmt_alt_lines_normal_sel_P2_proj.xyz | tr ':' '\n' > ${LINEID}_cmt_alt_lines_normal_proj_final.xyz
+      fi
+
+      if [[ -e ${LINEID}_cmt_alt_lines_strikeslip_sel_P1.xyz ]]; then
+        project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_lines_strikeslip_sel_P1.xyz ${LINEID}_cmt_alt_lines_strikeslip_sel_P1_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
+        project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_lines_strikeslip_sel_P2.xyz ${LINEID}_cmt_alt_lines_strikeslip_sel_P2_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
+        awk < ${LINEID}_cmt_alt_lines_strikeslip_sel_P1_proj.xyz '{ print ">:" $0 ":" }' > tmp1.txt
+        paste -d '\0' tmp1.txt ${LINEID}_cmt_alt_lines_strikeslip_sel_P2_proj.xyz | tr ':' '\n' > ${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz
       fi
 
       # For each line segment in the potentially multipoint profile, we need to
@@ -1491,9 +1705,9 @@ EOF
     if [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]]; then
       # COMEBACK
       awk < ${LINEID}_all_data.txt '{
-          if ($1 ~ /^[-+]?[0-9]*.*[0-9]+$/) { km[++c]=$1; }
-          if ($2 ~ /^[-+]?[0-9]*.*[0-9]+$/) { val[++d]=$2; }
-          if ($6 ~ /^[-+]?[0-9]*.*[0-9]+$/) { val[++d]=$6; }
+          if ($1 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { km[++c]=$1; }
+          if ($2 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { val[++d]=$2; }
+          if ($6 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { val[++d]=$6; }
         } END {
           asort(km);
           asort(val);
@@ -1554,7 +1768,6 @@ EOF
 
 
 
-
       # Create the data files that will be used to plot the profile vertex points above the profile
 
       # for distfile in *_dist_km.txt; do
@@ -1607,15 +1820,39 @@ EOF
 
         # Draw the box at the end of the profile. For other view angles, should draw the other box?
 
-        echo "echo \"\$line_max_x \$dem_maxy \$line_max_z\" > ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
-        echo "echo \"\$line_max_x \$dem_maxy \$line_min_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
-        echo "echo \"\$line_max_x \$dem_miny \$line_min_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
-        # NO -K
-        echo "gmt psxyz ${LINEID}_rightbox.xyz -p -R -J -JZ -Wthinner,black -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 #        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${dem_minz} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -JZ\${ZSIZE}i -J -Bzaf -Bxaf --MAP_FRAME_PEN=thinner,black -K -O -Y\${yshift}i >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+
+      if [[ $litho1profileflag -eq 1 ]]; then
+
+# Change limits based on profile limits, in the script itself.
+
+cat<<-EOF >> ${LINEID}_topscript.sh
+awk < ${LINEID}_litho1_cross_poly.dat -v xval=\$line_max_x -v zval=\$line_min_z '{
+if (\$1 == ">") {
+print
+} else {
+  if (\$2 < zval) {
+    print xval, \$1, zval
+  } else {
+    print xval, \$1, \$2
+  }
+}
+}' > ${LINEID}_litho1_cross_poly_xyz.dat
+EOF
+        echo "gmt psxyz -p  ${LINEID}_litho1_cross_poly_xyz.dat -L -G+z -C$LITHO1_CPT -Vn -R -J -JZ -O -K >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+      fi
 
         cat ${LINEID}_topscript.sh >> ${LINEID}_plot_start.sh
       fi
+
+      echo "echo \"\$line_max_x \$dem_maxy \$line_max_z\" > ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
+      echo "echo \"\$line_max_x \$dem_maxy \$line_min_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
+      echo "echo \"\$line_max_x \$dem_miny \$line_min_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
+      echo "echo \"\$line_max_x \$dem_miny \$line_max_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
+
+      # NO -K
+      echo "gmt psxyz ${LINEID}_rightbox.xyz -p -R -J -JZ -Wthinner,black -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+
 
       echo "gmt psconvert ${LINEID}_profile.ps -A+m1i -Tf -F${LINEID}_profile" >> ${LINEID}_plot_start.sh
 
@@ -1657,9 +1894,9 @@ done < $TRACKFILE
 cat *_all_data.txt > all_data.txt
 
 awk < all_data.txt '{
-    if ($1 ~ /^[-+]?[0-9]*.*[0-9]+$/) { km[++c]=$1; }
-    if ($2 ~ /^[-+]?[0-9]*.*[0-9]+$/) { val[++d]=$2; }
-    if ($6 ~ /^[-+]?[0-9]*.*[0-9]+$/) { val[++d]=$6; }
+    if ($1 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { km[++c]=$1; }
+    if ($2 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { val[++d]=$2; }
+    if ($6 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { val[++d]=$6; }
   } END {
     asort(km);
     asort(val);

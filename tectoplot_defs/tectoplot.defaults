@@ -1,5 +1,8 @@
-##### TECTOPLOT
-##### Initialize default variable values. Use bash formatting.
+##### tectoplot default parameters
+# Kyle Bradley, Nanyang Technological University (kbradley@ntu.edu.sg)
+#
+# This file will be sourced by the main tectoplot script to load various default values.
+# Assignments should be in bash format
 
 # The allowable intervals to be selected for plot axes
 INTERVALS_STRING="0.00001 0.0001 0.001 0.01 0.02 0.05 0.1 0.2 0.5 1 2 5 10 100 200 500 1000 2000 5000 10000 20000 50000 100000 200000 500000"
@@ -46,7 +49,7 @@ SWATH_USE_SIGNED_D_FOR_MULTIPOINT_PROFILES=0
 
 SPROF_MAXELEV=5              # Maximum elevation of SPROF profile data. Set to a number in km (5) or to auto
 SPROF_MINELEV=-50            # Maximum elevation of SPROF profile data. Set to a number in km (5) or to auto
-
+SPROF_RES="1k"
 
 
 ##### General options
@@ -221,7 +224,8 @@ SEISSTRETCH_REFMAG=6         # earthquakes of this size will not be scaled by si
 CMTFORMAT="GlobalCMT"        # Choose from GlobalCMT / MomentTensor/ PrincipalAxes
 #CMTFORMAT="MomentTensor"    # Choose from GlobalCMT / MomentTensor/ PrincipalAxes
 #CMTFORMAT="PrincipalAxes"   # Choose from GlobalCMT / MomentTensor/ PrincipalAxes
-CMTFILE="DefaultNOCMT"       # set to no CMT file by default
+CMTFILE="DefaultNOCMT"
+#CMTFILE=$FOCALCATALOG        # Default CMT database
 CMTSCALE=0.07                # focal mechanism scale (inches)
 PLOTORIGIN=1                 # plot origin locations (=0: plot centroids)
 CMT_MAXDEPTH=1000            # deepest GCMT earthquake considered
@@ -237,6 +241,30 @@ CMTAXESSCALE=0.75            # Focal mechanism principal axes, general scale fac
 T0PEN="0.1p,black"           # Focal mechanism, nodal planes and bubble pen
 FMLPEN="0p,black"            # Focal mechanism line pen, main
 
+EQ_LABEL_FONTSIZE=10p
+EQ_LABEL_FONT=Helvetica
+EQ_LABEL_FONTCOLOR=black
+EQ_LABEL_JUST="LB"          # Justification of event label (LB, LR, etc)
+EQ_LABEL_DISTX="0.1i"
+EQ_LABEL_DISTY="0.2i"        # Distance of label corner from event center
+EQ_LABELFORMAT="idmag"       # Possible formats: idmag datemag iddate id date mag
+
+EQ_REGION_WIDTH=5            # Width/height of buffer around an EQ used to define the region
+
+##### LITHO1 cross sections options
+
+LITHO1_TYPE="density"        # Currently only density is supported.
+LITHO_INC=10                 # Spacing interval, units of km.
+LITHO_LEVEL=7                # Tesselation level to sample (7 is highest available)
+
+LITHO1_DEPTH=100              # Depth of depth slice for LITHO1, in km
+
+##### Globe inset
+INSET_SIZE="1i"
+INSET_AOI_LINECOLOR="red"
+INSET_AOI_LINEWIDTH="1p"
+INSET_XOFF="0i"
+INSET_YOFF="0i"
 
 ##### GCMT kinematics
 KINSCALE=0.1                 # scale of kinematic elements
@@ -314,3 +342,9 @@ GRIDCONTOURWIDTH=0.1p
 GRIDCONTOURCOLOUR="black"
 GRIDCONTOURSMOOTH=100
 GRIDCONTOURLABELS="on"
+
+
+### CMT default catalog
+CENTROIDFLAG=1
+ORIGINFLAG=1
+CMTTYPE="CENTROID"

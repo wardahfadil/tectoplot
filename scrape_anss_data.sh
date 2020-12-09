@@ -6,7 +6,7 @@
 # All data files are downloaded into the current folder. The total download size is currently ~650 Mb (2020) and takes some time.
 
 # Call: scrape_anss_data.sh [YYYY-MM-DD]
-# Output files: ${ANSS_DIR}all_anss_events_data_lonlatdepthmagdateid.txt
+# Output files: ${ANSSDIR}all_anss_events_data_lonlatdepthmagdateid.txt
 
 # Most of the download time is the pull request, but making larger chunks leads to some failures due to number of events.
 # The script can be run multiple times and will not re-download files that already exist.
@@ -15,17 +15,16 @@
 # Example curl command:
 # curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-${day}&endtime=${year}-${month}-${day}&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180"
 
-# Currently, updating t
 
-ANSS_DIR="/Users/kylebradley/Dropbox/TectoplotData/ANSS/"
+# Expects EQ_DATABASE, ANSSDIR
 
 # ANSS_FIXDATE is the date of the stable catalog that will be saved and not updated
 
-ANSS_FIXDATE=$(cat "${ANSSDIR}anss.fixdate")
+# ANSS_FIXDATE=$(cat "${ANSSDIR}anss.fixdate")
 
-[[ ! -d $ANSS_DIR ]] && mkdir -p $ANSS_DIR
+[[ ! -d $ANSSDIR ]] && mkdir -p $ANSSDIR
 
-cd $ANSS_DIR
+cd $ANSSDIR
 
 earliest_year=1951
 
@@ -48,9 +47,10 @@ for year in $(seq $earliest_year $this_year); do
       [[ ! -e anss_events_${year}_${month}_2.dat ]] && echo "Dowloading seismicity for ${year}-${month}-11to20" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-11&endtime=${year}-${month}-20&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_2.dat && echo "anss_events_${year}_${month}_2.dat" >> newdata.dat
       [[ ! -e anss_events_${year}_${month}_3.dat ]] && echo "Dowloading seismicity for ${year}-${month}-21to31" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-21&endtime=${year}-${month}-31&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_3.dat && echo "anss_events_${year}_${month}_3.dat" >> newdata.dat
     elif [[ $month -le "10#$this_month" ]]; then
-      [[ ! -e anss_events_${year}_${month}_1.dat ]] && echo "Dowloading seismicity for current ${year}-${month}-01to10" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-01&endtime=${year}-${month}-10&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_1.dat && echo "anss_events_${year}_${month}_1.dat" >> newdata.dat
-      [[ ! -e anss_events_${year}_${month}_2.dat ]] && echo "Dowloading seismicity for current ${year}-${month}-11to20" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-11&endtime=${year}-${month}-20&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_2.dat && echo "anss_events_${year}_${month}_2.dat" >> newdata.dat
-      [[ ! -e anss_events_${year}_${month}_3.dat ]] && echo "Dowloading seismicity for current ${year}-${month}-21to31" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-21&endtime=${year}-${month}-31&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_3.dat && echo "anss_events_${year}_${month}_3.dat" >> newdata.dat
+      # Download these data to ensure up-to-date seismicity
+      echo "Dowloading seismicity for current ${year}-${month}-01to10" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-01&endtime=${year}-${month}-10&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_1.dat && echo "anss_events_${year}_${month}_1.dat" >> newdata.dat
+      echo "Dowloading seismicity for current ${year}-${month}-11to20" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-11&endtime=${year}-${month}-20&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_2.dat && echo "anss_events_${year}_${month}_2.dat" >> newdata.dat
+      echo "Dowloading seismicity for current ${year}-${month}-21to31" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-21&endtime=${year}-${month}-31&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_3.dat && echo "anss_events_${year}_${month}_3.dat" >> newdata.dat
     fi
     # Currently the file size for no events is 160 bytes
     if [[ -e anss_events_${year}_${month}_1.dat && $fsize -eq 160 ]]; then
@@ -86,15 +86,29 @@ echo "Done looking for download errors."
 
 # $1 in 1950-12-29T11:56:08.000Z format to 1950-12-29T11:56:08 tectoplot event ID format: just take first 19 characters
 
-# This command is what really takes a lot of time. We need to
 
-cat anss_events_* | awk -F, '{ if ($4 && $5 && $1 != "time") { print $3, $2, $4, $5, substr($1, 1, 19), $12 } }' >  all_anss_events_data_lonlatdepthmagdateid.txt
+cat anss_events_* | awk -F, '{
+  if ($4 && $5 && $1 != "time") {
+    timecode=substr($1, 1, 19)
+    split(timecode, a, "-")
+    year=a[1]
+    month=a[2]
+    split(a[3],b,"T")
+    day=b[1]
+    split(b[2],c,":")
+    hour=c[1]
+    minute=c[2]
+    second=c[3]
+    the_time=sprintf("%i %i %i %i %i %i",year,month,day,hour,minute,int(second+0.5));
+    epoch=mktime(the_time);
+    print $3, $2, $4, $5, timecode, $12, epoch
+  }
+}' > $EQCATALOG
 
 echo "uniq should only report a single value of 6"
 awk < all_anss_events_data_lonlatdepthmagdateid.txt '{print NF}' | uniq
 echo "If it didn't you have bad data points in the catalog!"
-DATABASEFILE=$(echo "$(cd "$(dirname "all_anss_events_data_lonlatdepthmagdateid.txt")"; pwd)/$(basename "all_anss_events_data_lonlatdepthmagdateid.txt")")
-echo "Database file path: $DATABASEFILE"
+
 
 # Archive the downloaded data
 #mkdir -p anss_archive
