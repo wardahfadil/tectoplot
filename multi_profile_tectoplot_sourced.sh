@@ -132,6 +132,9 @@ function interval_and_subinterval_from_minmax_and_number () {
   }'
 }
 
+######## Start of script #######################################################
+
+
 echo "#!/bin/bash" > ./make_oblique_plots.sh
 echo "PERSPECTIVE_AZ=\${1}" >> ./make_oblique_plots.sh
 echo "PERSPECTIVE_INC=\${2}" >> ./make_oblique_plots.sh
@@ -412,8 +415,10 @@ for i in $(seq 1 $k); do
       info_msg "Loading swath grid: ${gridfilesellist[$i]}: Zscale ${gridzscalelist[$i]}, Spacing: ${gridspacinglist[$i]}, Width: ${gridwidthlist[$i]}, SampWidth: ${gridsamplewidthlist[$i]}"
     fi
 
-    # Cut the grid to the AOI and multiply by its ZSCALE
-    gmt grdcut ${gridfilelist[$i]} -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -Gtmp.nc --GMT_HISTORY=false
+    # # Cut the grid to the AOI and multiply by its ZSCALE
+    # If the grid doesn't fall within the buffer AOI, there will be no result but it won't be a problem, so pipe error to /dev/null
+    rm -f tmp.nc
+    gmt grdcut ${gridfilelist[$i]} -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -Gtmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
     gmt grdmath tmp.nc ${gridzscalelist[$i]} MUL = ${gridfilesellist[$i]}
   elif [[ ${FIRSTWORD:0:1} == "T" ]]; then
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | awk '{ print }'))
@@ -427,9 +432,13 @@ for i in $(seq 1 $k); do
     ptgridcommandlist[$i]=$(echo "${myarr[@]:4}")
 
     info_msg "Loading single track sample grid: ${ptgridfilelist[$i]}: Zscale: ${ptgridzscalelist[$i]} Spacing: ${ptgridspacinglist[$i]}"
+
     # Cut the grid to the AOI and multiply by its ZSCALE
-    gmt grdcut ${ptgridfilelist[$i]} -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -Gtmp.nc --GMT_HISTORY=false
-    gmt grdmath tmp.nc ${ptgridzscalelist[$i]} MUL = ${ptgridfilesellist[$i]}
+    # If the grid doesn't fall within the buffer AOI, there will be no result but it won't be a problem, so pipe error to /dev/null
+
+    rm -f tmp.nc
+    gmt grdcut ${ptgridfilelist[$i]} -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -Gtmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
+    [[ -e tmp.nc ]] && gmt grdmath tmp.nc ${ptgridzscalelist[$i]} MUL = ${ptgridfilesellist[$i]}
 
   elif [[ ${FIRSTWORD:0:1} == "X" || ${FIRSTWORD:0:1} == "E" ]]; then        # Found an XYZ dataset
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | awk '{ print }'))
@@ -776,35 +785,39 @@ for i in $(seq 1 $k); do
     for i in ${!ptgridfilelist[@]}; do
       gridfileflag=1
 
-      # Resample the track at the specified X increment.
-      gmt sample1d ${LINEID}_trackfile.txt -Af -fg -I${ptgridspacinglist[$i]} > ${LINEID}_${ptgrididnum[$i]}_trackinterp.txt
+      if [[ -e ${ptgridfilesellist[$i]} ]]; then
 
-      # Calculate the X coordinate of the resampled track, accounting for any X offset due to profile alignment
-      gmt mapproject -G+uk+a ${LINEID}_${ptgrididnum[$i]}_trackinterp.txt | awk -v xoff="${XOFFSET_NUM}" '{ print $1, $2, $3 + xoff }' > ${LINEID}_${ptgrididnum[$i]}_trackdist.txt
+        # Resample the track at the specified X increment.
+        gmt sample1d ${LINEID}_trackfile.txt -Af -fg -I${ptgridspacinglist[$i]} > ${LINEID}_${ptgrididnum[$i]}_trackinterp.txt
 
-      # Sample the grid at the points
-      gmt grdtrack -Vn -G${ptgridfilesellist[$i]} ${LINEID}_${ptgrididnum[$i]}_trackinterp.txt > ${LINEID}_${ptgrididnum[$i]}_sample.txt
+        # Calculate the X coordinate of the resampled track, accounting for any X offset due to profile alignment
+        gmt mapproject -G+uk+a ${LINEID}_${ptgrididnum[$i]}_trackinterp.txt | awk -v xoff="${XOFFSET_NUM}" '{ print $1, $2, $3 + xoff }' > ${LINEID}_${ptgrididnum[$i]}_trackdist.txt
 
-      # *_sample.txt is a file containing lon,lat,val
-      # We want to reformat to a multisegment polyline that can be plotted using psxy -Ccpt
-      # > -Zval1
-      # Lon1 lat1
-      # lon2 lat2
-      # > -Zval2
-      paste  ${LINEID}_${ptgrididnum[$i]}_trackdist.txt ${LINEID}_${ptgrididnum[$i]}_sample.txt > dat.txt
-      sed 1d < dat.txt > dat1.txt
-    	paste  dat.txt dat1.txt | awk -v zscale=${ptgridzscalelist[$i]} '{ if ($7 && $6 != "NaN" && $12 != "NaN") { print "> -Z"($6+$12)/2*zscale*-1; print $3, $6*zscale; print $9, $12*zscale } }' > ${LINEID}_${ptgrididnum[$i]}_data.txt
+        # Sample the grid at the points.  Note that -N is needed to avoid paste problems.
 
-      # PLOT ON THE MAP PS
-      echo "gmt psxy -Vn -R -J -O -K -L ${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> "${PSFILE}"" >> plot.sh
+        gmt grdtrack -N -Vn -G${ptgridfilesellist[$i]} ${LINEID}_${ptgrididnum[$i]}_trackinterp.txt > ${LINEID}_${ptgrididnum[$i]}_sample.txt
 
-      # PLOT ON THE FLAT PROFILE PS
-      echo "gmt psxy -Vn -R -J -O -K -L ${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        # *_sample.txt is a file containing lon,lat,val
+        # We want to reformat to a multisegment polyline that can be plotted using psxy -Ccpt
+        # > -Zval1
+        # Lon1 lat1
+        # lon2 lat2
+        # > -Zval2
+        paste  ${LINEID}_${ptgrididnum[$i]}_trackdist.txt ${LINEID}_${ptgrididnum[$i]}_sample.txt > dat.txt
+        sed 1d < dat.txt > dat1.txt
+      	paste  dat.txt dat1.txt | awk -v zscale=${ptgridzscalelist[$i]} '{ if ($7 && $6 != "NaN" && $12 != "NaN") { print "> -Z"($6+$12)/2*zscale*-1; print $3, $6*zscale; print $9, $12*zscale } }' > ${LINEID}_${ptgrididnum[$i]}_data.txt
 
-      # PLOT ON THE OBLIQUE PROFILE PS
-      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -L ${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        # PLOT ON THE MAP PS
+        echo "gmt psxy -Vn -R -J -O -K -L ${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> "${PSFILE}"" >> plot.sh
 
-      grep "^[-*0-9]" ${LINEID}_${ptgrididnum[$i]}_data.txt >> ${LINEID}_all_data.txt
+        # PLOT ON THE FLAT PROFILE PS
+        echo "gmt psxy -Vn -R -J -O -K -L ${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+
+        # PLOT ON THE OBLIQUE PROFILE PS
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -L ${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+
+        grep "^[-*0-9]" ${LINEID}_${ptgrididnum[$i]}_data.txt >> ${LINEID}_all_data.txt
+      fi
     done
 
     ############################################################################
@@ -817,8 +830,7 @@ for i in $(seq 1 $k); do
 
       # Sample the input grid along space cross-profiles
 
-      # echo "gmt grdtrack -G${gridfilesellist[$i]} ${LINEID}_trackfile.txt -C${gridwidthlist[$i]}/${gridsamplewidthlist[$i]}/${gridspacinglist[$i]}+lr -Ar > ${LINEID}_${grididnum[$i]}_profiletable.txt"
-      gmt grdtrack -Vn -G${gridfilesellist[$i]} ${LINEID}_trackfile.txt -C${gridwidthlist[$i]}/${gridsamplewidthlist[$i]}/${gridspacinglist[$i]}${PERSPECTIVE_TOPO_HALF} -Af > ${LINEID}_${grididnum[$i]}_profiletable.txt
+      gmt grdtrack -N -Vn -G${gridfilesellist[$i]} ${LINEID}_trackfile.txt -C${gridwidthlist[$i]}/${gridsamplewidthlist[$i]}/${gridspacinglist[$i]}${PERSPECTIVE_TOPO_HALF} -Af > ${LINEID}_${grididnum[$i]}_profiletable.txt
 
       # ${LINEID}_${grididnum[$i]}_profiletable.txt: FORMAT is grdtrack (> profile data), columns are lon, lat, distance_from_profile, back_azimuth, value
 

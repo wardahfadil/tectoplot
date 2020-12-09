@@ -326,8 +326,9 @@ cat <<-EOF
   Profiles and oblique block diagrams:
     -mprof           [control_file] [[A B X Y]]          plot multiple swath profile
                      A=width (7i) B=height (2i) X,Y=offset relative to current origin (0i -3i)
-    -sprof           [lon1] [lat1] [lon2] [lat2] [width]    plot an automatic profile using data on map
+    -sprof           [lon1] [lat1] [lon2] [lat2] [width] [res]   plot an automatic profile using data on map
                      width has units in format, e.g. 100k and is full width of profile
+                     res is the resolution at which we resample grids to make top tile grid (e.g. 1k)
     -oto             adjust vertical scale (after all other options) to set V:H ratio at 1 (no exaggeration)
     -psel            [PID1] [[PID2...]]                  only plot profiles with specified PID from control file
     -mob             [[Azimuth(deg)]] [[Inclination(deg)]] [[VExagg(factor)]] [[Resolution(m)]]
@@ -1609,6 +1610,7 @@ do
       shift
     fi
     plots+=("mprof")
+    clipdemflag=1
     ;;
 
   -msd)
