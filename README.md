@@ -3,6 +3,11 @@
 Kyle Edward Bradley, Asian School of the Environment, Nanyang Technological University, Singapore - November 2020
 kbradley@ntu.edu.sg
 
+
+NOTE: This script is being actively developed during my spare time to support my own research projects, and large changes can occur that can accidentally break functionality. Eventually the code will be reworked to be more robust and will be more thoroughly tested and documented. In the mean time, a general changelog can be found at the top of the main tectoplot script. I am commiting updates fairly often as of December 2020.
+
+If you use this script, please keep an eye on your data and validate any plots and outputs before you use them!
+
 ### Example: A seismotectonic map with alternative hillshading
 <p align="center">
   <img src="pictures/solomon2.png" width="600">
