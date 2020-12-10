@@ -254,8 +254,8 @@ EQ_REGION_WIDTH=5            # Width/height of buffer around an EQ used to defin
 ##### LITHO1 cross sections options
 
 LITHO1_TYPE="density"        # Currently only density is supported.
-LITHO_INC=10                 # Spacing interval, units of km.
-LITHO_LEVEL=7                # Tesselation level to sample (7 is highest available)
+LITHO1_INC=10                 # Spacing interval, units of km.
+LITHO1_LEVEL=7                # Tesselation level to sample (7 is highest available)
 
 LITHO1_DEPTH=100              # Depth of depth slice for LITHO1, in km
 

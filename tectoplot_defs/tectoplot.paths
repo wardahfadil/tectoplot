@@ -170,26 +170,29 @@ WGMFREEAIR_CPT_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/PALET_WGM_Fre
 WGMFREEAIR_CPT_BYTES="538"
 
 ##### Global Curie Depth Map
+GCDM_SOURCESTRING="Global Curie Depth Map, Li et al., 2017, doi:10.1038/srep45129"
+GCDM_SHORT_SOURCESTRING="GCDM"
+
 GCDMDIR=$DATAROOT"GCDM/"
 GCDMDATA=$GCDMDIR"GCDM.nc"
 GCDMDATA_ORIG=$GCDMDIR"gcdm.txt"
 GCDM_SOURCEURL="https://static-content.springer.com/esm/art%3A10.1038%2Fsrep45129/MediaObjects/41598_2017_BFsrep45129_MOESM71_ESM.txt"
 GCDM_BYTES="123810173"
 
+##### SLAB2.0
 SLAB2_SOURCESTRING="Slab geometries from Slab 2.0, Hayes et al. 2018, doi:10.1126/science.aat4723"
 SLAB2_SHORT_SOURCESTRING="SLAB2"
 
-SLAB2DATADIR=$DATAROOT"SLAB2/"
+SLAB2_DATADIR=$DATAROOT"SLAB2/"
 SLAB2_SOURCEURL="https://www.sciencebase.gov/catalog/file/get/5aa1b00ee4b0b1c392e86467"
-
-SLAB2CHECKFILE=$SLAB2DATADIR"Slab2Distribute_Mar2018.tar.gz"
+SLAB2_CHECKFILE=$SLAB2_DATADIR"Slab2Distribute_Mar2018.tar.gz"
 SLAB2_CHECK_BYTES="140213438"
 SLAB2_ZIP_BYTES="93730583"
 
-SLAB2DIR=$SLAB2DATADIR"Slab2Distribute_Mar2018/"
-SLAB2CLIPDIR=$SLAB2DIR"Slab2Clips/"
-SLAB2CONTOURDIR=$SLAB2DIR"Slab2_CONTOURS/"
-SLAB2GRIDDIR=$SLAB2DIR
+SLAB2DIR=$SLAB2_DATADIR"Slab2Distribute_Mar2018/"
+SLAB2_CLIPDIR=$SLAB2DIR"Slab2Clips/"
+SLAB2_CONTOURDIR=$SLAB2DIR"Slab2_CONTOURS/"
+SLAB2_GRIDDIR=$SLAB2DIR
 
 ### Additional directories where we store cached DEM data or custom DEMs
 # We will store 1°x1° tiles of GMRT and manage their re-download as needed

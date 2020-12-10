@@ -20,8 +20,6 @@
 # cmt_normal.txt, cmt_strikeslip.txt, cmt_thrust.txt (for focal mechanisms)
 # cmt_alt_lines.xyz, cmt_alt_pts.xyz (if -cc flag is used)
 #
-# Script called by tectoplot to plot swath profiles of gridded data and (X,Y,Z) point data
-#
 # Number of arguments = 6
 # 1                  2         3   4   5   6
 # control_file.txt   psfile.ps A   B   X   Z
@@ -30,9 +28,8 @@
 # B = width of profile (e.g. 5i)
 # X,Y are the page shift applied before plotting the profile (to define its location)
 #
-
 # Currently overplots data in a profile-by-profile order and not a dataset-by-dataset order
-# Should sort the plot.sh file appropriately to fix this
+# You can modify the plot.sh file to adjust as you like.
 
 # These are the characters that determine the type of plots
 
@@ -437,9 +434,15 @@ for i in $(seq 1 $k); do
     # If the grid doesn't fall within the buffer AOI, there will be no result but it won't be a problem, so pipe error to /dev/null
 
     rm -f tmp.nc
-    gmt grdcut ${ptgridfilelist[$i]} -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -Gtmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
-    [[ -e tmp.nc ]] && gmt grdmath tmp.nc ${ptgridzscalelist[$i]} MUL = ${ptgridfilesellist[$i]}
+    echo     gmt grdcut ${ptgridfilelist[$i]} -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -Gtmp.nc --GMT_HISTORY=false "-Vn 2>/dev/null"
 
+    gmt grdcut ${ptgridfilelist[$i]} -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -Gtmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
+    if [[ -e tmp.nc ]]; then
+      echo tmp.nc exists
+      gmt grdmath tmp.nc ${ptgridzscalelist[$i]} MUL = ${ptgridfilesellist[$i]}
+    else
+      echo tmp.c does not exist...
+    fi
   elif [[ ${FIRSTWORD:0:1} == "X" || ${FIRSTWORD:0:1} == "E" ]]; then        # Found an XYZ dataset
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | awk '{ print }'))
     # This is where we would load datasets to be displayed
@@ -601,7 +604,6 @@ for i in $(seq 1 $k); do
       fi
     fi
 
-
     ##########################################################################
     # Extract LITHO1.0 data to plot on profile.
     # 1. depth(m)
@@ -621,29 +623,6 @@ for i in $(seq 1 $k); do
     ANTIAZ=$(echo "${p[2]} - 180" | bc -l)
     FOREAZ=$(echo "${p[2]} - 90" | bc -l)
     SUBWIDTH=$(echo "${p[3]} * 0.1" | bc -l)
-
-    # echo "86 34 270 150" | awk '
-    # function getpi()       { return atan2(0,-1)             }
-    # function abs(v)        { return v < 0 ? -v : v          }
-    # function tan(x)        { return sin(x)/cos(x)           }
-    # function atan(x)       { return atan2(x,1)              }
-    # function asin(x)       { return atan2(x, sqrt(1-x*x))   }
-    # function acos(x)       { return atan2(sqrt(1-x*x), x)   }
-    # function rad2deg(rad)  { return (180 / getpi()) * rad   }
-    # function deg2rad(deg)  { return (getpi() / 180) * deg   }
-    # function hypot(x,y)    { return sqrt(x*x+y*y)           }
-    # function d_atan2d(y,x) { return (x == 0.0 && y == 0.0) ? 0.0 : rad2deg(atan2(y,x)) }
-    # {
-    #   lon=deg2rad($1)
-    #   lat=deg2rad($2)
-    #   azimuth=deg2rad($3)
-    #   distance=$4
-    #   R=6378.1
-    #
-    #   newlat = asin(sin(lat)* cos(distance / R) cos(lat) * sin(distance / R) * cos(azimuth));
-    #   newlon = lon + atan2(sin(azimuth) * sin(distance / R) * cos(lat), cos(distance / R) - sin(lat) * sin(lat));
-    #   print rad2deg(newlon), rad2deg(newlat)
-    # }'
 
     if [[ $PERSPECTIVE_TOPO_HALF == "+l" ]]; then
       # If we are doing the half profile, go from the profile and don't correct
@@ -674,13 +653,13 @@ for i in $(seq 1 $k); do
 
       # First, do the main profile, honoring the XOFFSET_NUM shift
 
-      gmt sample1d ${LINEID}_trackfile.txt -Af -fg -I${LITHO_INC}k  > ./${LINEID}_litho1_track.txt
+      gmt sample1d ${LINEID}_trackfile.txt -Af -fg -I${LITHO1_INC}k  > ./${LINEID}_litho1_track.txt
       rm -f lab.xy
       ptcount=0
       while read p; do
         lon=$(echo $p | awk '{print $1}')
         lat=$(echo $p | awk '{print $2}')
-        access_litho -p $lat $lon -l ${LITHO_LEVEL} 2>/dev/null | awk -v extfield=$LITHO1_FIELDNUM -v xoff=${XOFFSET_NUM} -v ptcnt=$ptcount -v dinc=${LITHO_INC} '
+        access_litho -p $lat $lon -l ${LITHO1_LEVEL} 2>/dev/null | awk -v extfield=$LITHO1_FIELDNUM -v xoff=${XOFFSET_NUM} -v ptcnt=$ptcount -v dinc=${LITHO1_INC} '
           BEGIN {
             getline;
             lastz=-$1/1000
@@ -720,13 +699,13 @@ for i in $(seq 1 $k); do
       # Then, do the cross-profile to go on the end of the block diagram.
 
       if [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]]; then
-        gmt sample1d ${LINEID}_endprof.txt -Af -fg -I${LITHO_INC}k  > ./${LINEID}_litho1_cross_track.txt
+        gmt sample1d ${LINEID}_endprof.txt -Af -fg -I${LITHO1_INC}k  > ./${LINEID}_litho1_cross_track.txt
         rm -f lab.xy
         ptcount=0
         while read p; do
           lon=$(echo $p | awk '{print $1}')
           lat=$(echo $p | awk '{print $2}')
-          access_litho -p $lat $lon -l ${LITHO_LEVEL} 2>/dev/null | awk -v extfield=$LITHO1_FIELDNUM -v xoff=${XOFFSET_CROSS} -v ptcnt=$ptcount -v dinc=${LITHO_INC} '
+          access_litho -p $lat $lon -l ${LITHO1_LEVEL} 2>/dev/null | awk -v extfield=$LITHO1_FIELDNUM -v xoff=${XOFFSET_CROSS} -v ptcnt=$ptcount -v dinc=${LITHO1_INC} '
             BEGIN {
               getline;
               lastz=-$1/1000
@@ -1086,8 +1065,9 @@ EOF
         echo "yshift=\$(awk -v height=\${PROFILE_HEIGHT_IN} -v inc=\$PERSPECTIVE_INC 'BEGIN{print cos(inc*3.1415926/180)*(height+0)}')" >> ${LINEID}_topscript.sh
         echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" --MAP_FRAME_PEN=thinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
-        # Draw the box at the end of the profile. For other view angles, should draw the other box?
-
+        # If we have an end-cap plot (e.g. litho1), plot that here.
+        # Data needs to be plottable by psxyz
+        # There's a weird world where we project seismicity and CMTs onto this plane.....
 
         if [[ $litho1profileflag -eq 1 ]]; then
 
@@ -1106,6 +1086,8 @@ print
 EOF
           echo "gmt psxyz -p  ${LINEID}_litho1_cross_poly_xyz.dat -L -G+z -C$LITHO1_CPT -Vn -R -J -JZ -O -K >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
         fi
+
+        # Draw the box at the end of the profile. For other view angles, should draw the other box?
 
         echo "echo \"\$line_max_x \$dem_maxy \$line_max_z\" > ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
         echo "echo \"\$line_max_x \$dem_maxy \$line_min_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
@@ -2016,5 +1998,8 @@ else
   PROFILE_Y=$(echo "-${PROFILE_Y}")
 fi
 
-# The idea here is to return to the correct X,Y position to allow further plotting on the map by tectoplot.
+# The idea here is to return to the correct X,Y position to allow further
+# plotting on the map by tectoplot, if mprof) was called in the middle of
+# plotting for some reason.
+
 echo "0 -10" | gmt psxy -Sc0.01i -J -R -O -K -X$PROFILE_X -Y$PROFILE_Y -Vn >> "${PSFILE}"
