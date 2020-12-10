@@ -3,6 +3,12 @@
 Kyle Edward Bradley, Asian School of the Environment, Nanyang Technological University, Singapore - November 2020
 kbradley@ntu.edu.sg
 
+NOTE: This script is being actively developed during my spare time to support my own research projects, and large changes can occur that can accidentally break functionality. Eventually the code will be reworked to be more robust and will be more thoroughly tested and documented. In the mean time, a general changelog can be found at the top of the main tectoplot script. I am commiting updates fairly often as of December 2020.
+
+If you use this script, please keep an eye on your data and validate any plots and outputs before you use them!
+
+At present, not all the data files linked in the script are downloadable from original sources. This mainly includes the plate and plate motion models and GPS data, which do need a small amount of customization before use, like splitting polygons that cross the antimeridian, etc. 
+
 ### Example: A seismotectonic map with alternative hillshading
 <p align="center">
   <img src="pictures/solomon2.png" width="600">
@@ -68,8 +74,11 @@ tectoplot will download and manage various publicly available datasets, like SRT
 
 tectoplot's cross section functionality supports multiple profiles incorporating various kinds of data (swath grids like topography or gravity, along-profile sampled grids like Slab2 depth grids, XYZ data, XYZ seismicity data scaled by magnitude, and focal mechanisms). Profiles can be aligned in the X direction using an XY polyline that crosses the profiles, such as a trench axis, and can be aligned in the Z direction by matching profile values to 0 at this intersection point. This allows stacking of profiles. Profiles can have more than two vertices, and attempts are made to project data intelligently onto such profiles. Notably, a signed distance function is available that will extract topography in a distance-from-track and distance-along-track-of-closest-point-on-track space, which avoids some of the nasty artifacts arising from kinked profiles. 
 
-## Credits for external code used: 
-A heavily modified version of ndk2meca.awk by Thorsten Becker (NDK to PSMECA conversion script)
+## Credits 
+This script relies very heavily on GMT 6 (www.generic-mapping-tools.org) and gdal (gdal.org)
+NDK import in cmt_tools.sh is from a heavily modified version of ndk2meca.awk by Thorsten Becker (sourced from http://www-udc.ig.utexas.edu/external/becker/software/ndk2meca.awk)
+Moment tensor diagonalization via perl is heavily modified from diagonalize.pl by Utpal Kumar (IESAS)
+Various CMT calculations are modified from GMT's psmeca.c/ultimeca.c by G. Patau (IPGP)
 
 ## Setup
 
