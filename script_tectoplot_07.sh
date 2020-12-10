@@ -9,15 +9,17 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 
 # CHANGELOG
 
-# December 7, 2020: Updated -eqlabel options
-# December 7, 2020: Added option to center map on a hypocenter/CMT based on event_id (-r eq EVENT_ID).
-# December 7, 2020: Added GFZ focal mechanism scraping / reconciliation with GCMT/ISC
-# December 4, 2020: Added option to filter EQ/CMT by magnitude: -zmag
-# December 4, 2020: Added CMT/hypocenter labeling by provided list (file/cli) or by magnitude range, with some format options
+# December 10, 2020: Updated ANSS earthquake scraping to be faster
+# December  9, 2020: Added LITHO1.0 download and plotting on cross sections (density, Vp, Vs)
+# December  7, 2020: Updated -eqlabel options
+# December  7, 2020: Added option to center map on a hypocenter/CMT based on event_id (-r eq EVENT_ID).
+# December  7, 2020: Added GFZ focal mechanism scraping / reconciliation with GCMT/ISC
+# December  4, 2020: Added option to filter EQ/CMT by magnitude: -zmag
+# December  4, 2020: Added CMT/hypocenter labeling by provided list (file/cli) or by magnitude range, with some format options
 #                   -eqlist -eqlabel
-# December 4, 2020: Added ISC_MIRROR variable to tectoplot.paths to possibly speed up focal mechanism scraping
-# December 4, 2020: Major update to CMT data format, scraping, input formats, etc.
-#                   We now calculate all SDR/TNP/Moment tensor fields as necessary and do better filtering
+# December  4, 2020: Added ISC_MIRROR variable to tectoplot.paths to possibly speed up focal mechanism scraping
+# December  4, 2020: Major update to CMT data format, scraping, input formats, etc.
+#                    We now calculate all SDR/TNP/Moment tensor fields as necessary and do better filtering
 # November 30, 2020: Added code to input and process CMT data from several formats (cmt_tools.sh)
 # November 28, 2020: Added output of flat profile PDFs, V option in profile.control files
 # November 28, 2020: Updated 3d perspective diagram to plot Z axes of exaggerated top tile
@@ -61,7 +63,7 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 # October   9, 2020: Update seismicity for legend plot using SEISSTRETCH
 
 # FUN FACTS:
-# You can make a Minecraft landscape in oblique perspective diagrams if you oversample the grid!
+# You can make a Minecraft landscape in oblique perspective diagrams if you oversample the grid.
 #
 # # KNOWN BUGS:
 # tectoplot remake seems broken?
@@ -76,8 +78,6 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 #
 # HIGHER PRIORITY:
 
-# Add option to highlight focal mechanisms, hypocenters with event codes in a given list.
-#    Highlight options: alternative symbology?
 # Add option to adjust PROFILE_WIDTH_IN rather than max_z when plotting one-to-one?
 # Add option to decluster CMT/seismicity data before plotting to remove aftershocks?
 # Update legend to include more plot elements
@@ -85,19 +85,14 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 # Add option to plot GPS velocity vectors at the surface along profiles?
 #     --> e.g. sample elevation at GPS point; project onto profile, plot horizontal velocity since verticals are not usually in the data
 # Add option to profile.control to plot 3D datasets within the box?
-# Add option to profile.control to plot 2D datasets on the box edge (e.g. data slices)?
 # Add option to smooth/filter the DEM before hillshading?
-# Add option to overlay a globe map/inset with a box indicating the AOI? -globeinset? Perhaps plotted off the map, above the legend?
-# Add routines to download and process the base datasets (SRTM30, GEBCO20, volcanoes, gravity, emag, etc.) (partially added)
 # Add option to specify only a profile and plot default data onto that profile and a map within that AOI
 # Add routines to plot existing cached data tile extents (e.g. GMRT, other topo) and clear cached data
 # Need to formalize argument checking approach and apply it to all options
 # Need to change program structure so that multiple grids can be overlaid onto shaded relief.
-# Add option to scrape only recent data to make updating EQ/CMTs much faster
 # Add option to plot a USGS event from a URL?
 # Add option to plot stacked data across a profile swath
 # Add option to take a data selection polygon from a plate model?
-# Add option to -ob) to specify vertical exaggeration for oblique plots
 # add option to plot NASA Blue Marble / day/night images, and crustal age maps, from GMT online server
 #
 # LOW PRIORITY
@@ -352,7 +347,6 @@ cat <<-EOF
                       X,Y are horizontal and vertical offset in inches
     --open           [[program]]                         open PDF file at end
     -o|--out         [filename]                          name of output file
-
     --inset          [[size]]                            plot a globe with AOI polygon
     --legend         [[width]]                           plot legend above the map area (color bar width=2i)
 
@@ -360,10 +354,9 @@ cat <<-EOF
     -B               [{ -Betc -Betc }]                   provide custom B strings for map in GMT argument format
     -pgs             [gridline spacing]                  override map gridline spacing
     -pgo                                                 turn grid lines off
+    -scale           [length] [lon] [lat]                plot a scale bar. length needs suffix (e.g. 100k).
 
   Plotting/control commands:
-    -pg|--polygon    [polygon_file.xy] [[show]]          use a closed polygon to select data instead of AOI; show prints to map
-    -scale           [length] [lon] [lat]                plot a scale bar. length needs suffix (e.g. 100k).
 
   Profiles and oblique block diagrams:
     -mprof           [control_file] [[A B X Y]]          plot multiple swath profile
@@ -374,7 +367,7 @@ cat <<-EOF
     -oto             adjust vertical scale (after all other options) to set V:H ratio at 1 (no exaggeration)
     -psel            [PID1] [[PID2...]]                  only plot profiles with specified PID from control file
     -mob             [[Azimuth(deg)]] [[Inclination(deg)]] [[VExagg(factor)]] [[Resolution(m)]]
-                          create oblique view components for plotted profiles
+                            create oblique perspective diagrams for profiles
     -msd             Use a signed distance formulation for profiling to generate DEM for display (for kinked profiles)
     -msl             Display only the left side of the profile so that the cut is exactly on-profile
     -litho1 [type]   Plot LITHO1.0 data for each profile. Allowed types are: density Vp Vs
@@ -432,6 +425,7 @@ cat <<-EOF
     -recenteq                                            run scraper and plot recent earthquakes. Need to specify -c, -z, -r options.
     -eqlist          [[file]] { event1 event2 event3 ... }  highlight focal mechanisms/hypocenters with ID codes in file or list
     -eqlabel         [list] [[minmag]] [format      ]    label earthquakes in eqlist or within magnitude range
+    -pg|--polygon    [polygon_file.xy] [[show]]          use a closed polygon to select data instead of AOI; show prints to map
 
   Focal mechanisms:
     -c|--cmt         [[source]] [[scale]]                plot focal mechanisms from global databases
@@ -485,8 +479,7 @@ cat <<-EOF
     -gg|--extragps   [filename]                          plot an additional GPS / psvelo format file
     -cn              [gridfile] [interval] { gmtargs }   plot contours of a gridded dataset
                                             gmtargs for -A -S and -C will replace defaults
-
-
+                                            
   TDEFNODE block model
     --tdefnode       [folder path] [lbsovrfet ]          plot TDEFNODE output data.
           l=locking b=blocks s=slip o=observed gps vectors v=modeled gps vectors
@@ -2238,11 +2231,9 @@ do
 
   -reportdates)
     echo -n "Focal mechanisms: "
-    # cat $GCMTORIGIN $GCMTCENTROID | cut -d ' ' -f 15 | sort | sed -n -e '1p;$p' |  awk '(NR==1){ printf "%s to ", $1} (NR!=1) {printf "%s", $1 } END { printf "\n"}'
-    echo -n "ISC focal mechanism data: "
-    # cat $ISC_ORIGIN $ISC_CENTROID | cut -d ' ' -f 15 | sort | sed -n -e '1p;$p' |  awk '(NR==1){ printf "%s to ", $1} (NR!=1) {printf "%s", $1 } END { printf "\n"}'
-    echo -n "ANSS data: "
-    cat $EQCATALOG | cut -d ' ' -f 5 | sort | sed -n -e '1p;$p' |  awk '(NR==1){ printf "%s to ", $1} (NR!=1) {printf "%s", $1 } END { printf "\n"}'
+    echo "$(head -n 1 $FOCALCATALOG | cut -d ' ' -f 3) to $(tail -n 1 $FOCALCATALOG | cut -d ' ' -f 3)"
+    echo -n "Earthquake hypocenters: "
+    echo "$(head -n 1 $EQCATALOG | cut -d ' ' -f 5) to $(tail -n 1 $EQCATALOG | cut -d ' ' -f 5)"
     exit
     ;;
 
@@ -2369,6 +2360,7 @@ do
       info_msg "Merging focal catalogs"
       . $MERGECATS
     fi
+    exit
     ;;
 
   -setup)
@@ -3370,9 +3362,12 @@ echo $MAXLON $MINLAT 0 >> gridcorners.txt
 
 if [[ $plotseis -eq 1 ]]; then
 
+  # WE SHOULD REMOVE THIS CODE AS NEW EQs WONT BE ADDED TO SAVED EQS AND THE
+  # TIME TO SELECT DATA FROM THE CATALOG IS ~5 seconds currently
+
 	# # #This code downloads EQ data from ANSS catalog in the study area saves them in a file to avoid reloading
 	# EQANSSFILE=$ANSSDIR"ANSS_"$MINLAT"_"$MAXLAT"_"$MINLON"_"$MAXLON".csv"
-	EQSAVED=$ANSSDIR"ANSS_"$MINLAT"_"$MAXLAT"_"$MINLON"_"$MAXLON".txt"
+	# EQSAVED=$ANSSDIR"ANSS_"$MINLAT"_"$MAXLAT"_"$MINLON"_"$MAXLON".txt"
   #
 	# QMARK="https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=1900-01-01&endtime=2020-09-14&minlatitude="$MINLAT"&maxlatitude="$MAXLAT"&minlongitude="$MINLON"&maxlongitude="$MAXLON
   #
@@ -3381,24 +3376,24 @@ if [[ $plotseis -eq 1 ]]; then
   #   rm -f $EQANSSFILE
   # fi
 
-	if [[ -e $EQSAVED ]]; then
-		info_msg "Processed earthquake data already exists and recalc flag is not set, not retrieving new data"
-    EQCATALOG=$EQSAVED
-	else
-    if [[ $USEANSS_DATABASE -eq 1 ]]; then
-      info_msg "Using scraped ANSS database as source of earthquake data, may not be up to date!"
-      awk < $EQCATALOG -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON"  -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG}  '{
-          if ($1 < maxlon && $1 > minlon && $2 < maxlat && $2 > minlat && $4 <= maxmag && $4 >= minmag ) {
-           print
-          }
-        }' > $EQSAVED
-        EQCATALOG=$EQSAVED
-    else
-      info_msg "Should download EQ data but currently not enabled"
-  		# info_msg "Downloading ANSS data if possible"
-  		# curl $QMARK > $EQANSSFILE
-    fi
-	fi
+	# if [[ -e $EQSAVED ]]; then
+	# 	info_msg "Processed earthquake data already exists and recalc flag is not set, not retrieving new data"
+  #   EQCATALOG=$EQSAVED
+	# else
+  #   if [[ $USEANSS_DATABASE -eq 1 ]]; then
+  #     info_msg "Using scraped ANSS database as source of earthquake data, may not be up to date!"
+  #     awk < $EQCATALOG -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON"  -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG}  '{
+  #         if ($1 < maxlon && $1 > minlon && $2 < maxlat && $2 > minlat && $4 <= maxmag && $4 >= minmag ) {
+  #          print
+  #         }
+  #       }' > $EQSAVED
+  #       EQCATALOG=$EQSAVED
+  #   else
+  #     info_msg "Should download EQ data but currently not enabled"
+  # 		# info_msg "Downloading ANSS data if possible"
+  # 		# curl $QMARK > $EQANSSFILE
+  #   fi
+	# fi
 
   ##############################################################################
   # Initial select of seismicity from the catalog based on AOI and min/max depth
