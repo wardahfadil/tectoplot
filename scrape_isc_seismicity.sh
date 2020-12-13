@@ -20,6 +20,12 @@
 [[ ! -d $ISC_EQS_DIR ]] && mkdir -p $ISC_EQS_DIR
 cd $ISC_EQS_DIR
 
+# tac not available in all environments but tail usually is
+
+function tac() {
+  tail -r -- "$@";
+}
+
 function epoch_ymdhms() {
   echo "$1 $2 $3 $4 $5 $6" | gawk '{
     the_time=sprintf("%i %i %i %i %i %i",$1,$2,$3,$4,$5,$6);

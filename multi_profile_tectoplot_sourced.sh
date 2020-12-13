@@ -70,6 +70,10 @@
 
 # profile_all.pdf needs to have each individual profile plotted on the combined axes
 
+function tac() {
+  tail -r -- "$@";
+}
+
 function project_xyz_pts_onto_track() {
   project_xyz_pts_onto_track_trackfile=$1
   project_xyz_pts_onto_track_xyzfile=$2
