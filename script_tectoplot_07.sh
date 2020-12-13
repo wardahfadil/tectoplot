@@ -228,6 +228,8 @@ RJOK="-R -J -O -K"
 # TECTOPLOTDIR is where the (symlink to the) script resides
 TECTOPLOTDIR=$(dirname "$0")"/"
 
+echo "Running script from $TECTOPLOTDIR"
+
 DEFDIR=$TECTOPLOTDIR"tectoplot_defs/"
 
 # These files are sourced using the . command, so they should be valid bash
