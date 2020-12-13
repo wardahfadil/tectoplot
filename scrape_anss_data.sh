@@ -24,7 +24,7 @@ this_year=$(date +"%Y")
 this_month=$(date +"%m")
 
 # Find the ANSS catalog file with the latest date
-lastfile=$(ls -l anss*.dat | awk '{print $(NF)}' | sort -n -t "_" -k 3 -k 4 -k 5 | tail -n 1)
+lastfile=$(ls -l anss*.dat | gawk '{print $(NF)}' | sort -n -t "_" -k 3 -k 4 -k 5 | tail -n 1)
 
 if [[ -z $lastfile ]]; then
   echo "No ANSS data files exist. Scraping from January 1951 to present"
@@ -33,7 +33,7 @@ if [[ -z $lastfile ]]; then
   earliest_month=1
 else
   echo "ANSS files exist. Latest file is $lastfile"
-  lastfile_timecode=$(tail -n 1 $lastfile | awk -F, '{print $1}')
+  lastfile_timecode=$(tail -n 1 $lastfile | gawk -F, '{print $1}')
   lastfile_year=$(echo $lastfile_timecode | cut -d '-' -f 1)
   lastfile_month=$(echo $lastfile_timecode | cut -d '-' -f 2)
   lastfile_day=$(echo $lastfile_timecode | cut -d '-' -f 3 | cut -c 1,2)
@@ -146,8 +146,8 @@ files=($(echo ${firstfiles[@]} | tr ' ' '\n' | sort -n -t '_' -k3 -k4))
 
 for ((i=${#files[@]}-1; i>=0; i--)); do
   datfile=${files[i]}
-  lastdatfile_event=($(tail -n 1 $datfile | awk -F, '{print $1}'))
-  lastdatfile_epoch=$(echo $lastdatfile_event | awk '{
+  lastdatfile_event=($(tail -n 1 $datfile | gawk -F, '{print $1}'))
+  lastdatfile_epoch=$(echo $lastdatfile_event | gawk '{
     split($1, a, "-")
     year=a[1]
     month=a[2]
@@ -163,7 +163,7 @@ for ((i=${#files[@]}-1; i>=0; i--)); do
   }')
 
   if [[ $(echo "$lastdatfile_epoch > $lastevent_epoch" | bc) -eq 1 ]]; then
-    awk < $datfile -F, -v lasttime=$lastevent_epoch '{
+    gawk < $datfile -F, -v lasttime=$lastevent_epoch '{
         if ($4 && $5 && $1 != "time") {
           timecode=substr($1, 1, 19)
           split(timecode, a, "-")
@@ -190,7 +190,7 @@ done
 
 if [[ -e add_to_catalog.cat ]]; then
   sort add_to_catalog.cat -n -k 7 >> $EQCATALOG
-  echo "Added $(wc -l < add_to_catalog.cat | awk '{print $1}') events to seismicity catalog"
+  echo "Added $(wc -l < add_to_catalog.cat | gawk '{print $1}') events to seismicity catalog"
   rm -f add_to_catalog.cat
 else
   echo "No new events"
@@ -198,7 +198,7 @@ fi
 
 #
 #
-# cat anss_events_* | awk -F, '{
+# cat anss_events_* | gawk -F, '{
 #   if ($4 && $5 && $1 != "time") {
 #     timecode=substr($1, 1, 19)
 #     split(timecode, a, "-")

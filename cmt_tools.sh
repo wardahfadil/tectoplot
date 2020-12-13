@@ -63,7 +63,7 @@ else
   DELIM=""
 fi
 
-cat $INFILE | awk $DELIM -v FMT=$2 -v INID=$3 -v diagscript=$DIAGSCRIPT -v diagdir=$DIAGDIR '
+cat $INFILE | gawk $DELIM -v FMT=$2 -v INID=$3 -v diagscript=$DIAGSCRIPT -v diagdir=$DIAGDIR '
 
 function getpi()       { return atan2(0,-1)             }
 function abs(v)        { return v < 0 ? -v : v          }

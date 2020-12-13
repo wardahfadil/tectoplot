@@ -11,12 +11,12 @@
 cd $ISCDIR
 
 earliest_year=1952
-# this_year=$(date | awk '{print $(NF)}')
+# this_year=$(date | gawk '{print $(NF)}')
 
 today=$(date "+%Y %m %d")
-this_year=$(echo $today | awk '{print $1}')
-this_month=$(echo $today | awk '{print $2}')
-this_day=$(echo $today | awk '{print $3}')
+this_year=$(echo $today | gawk '{print $1}')
+this_month=$(echo $today | gawk '{print $2}')
+this_day=$(echo $today | gawk '{print $3}')
 
 
 # echo "Deleting ISC scrape file from present year to ensure updated catalog: isc_focals_${this_year}.dat"
@@ -35,7 +35,7 @@ if [[ -e ${ISCDIR}"isc_extract.cat" ]]; then
   echo "ISC catalog ${ISCDIR}isc_extract.cat exists. Trying to update only with latest events."
   echo "This may fail if the database is so out of date that the web server chokes."
 
-  lastevent_ymd=$(tail -n 1 ${ISCDIR}"isc_extract.cat" | awk '{
+  lastevent_ymd=$(tail -n 1 ${ISCDIR}"isc_extract.cat" | gawk '{
     datestr=$3
     split(datestr, ymdstr, "T")
     split(ymdstr[1], ymd, "-")
@@ -45,12 +45,12 @@ if [[ -e ${ISCDIR}"isc_extract.cat" ]]; then
     }
     print ymd[1], ymd[2], ymd[3], hms[1], hms[2], hms[3]
   }')
-  last_year=$(echo $lastevent_ymd | awk '{print $1}')
-  last_month=$(echo $lastevent_ymd | awk '{print $2}')
-  last_day=$(echo $lastevent_ymd | awk '{print $3}')
-  last_hour=$(echo $lastevent_ymd | awk '{print $4}')
-  last_minute=$(echo $lastevent_ymd | awk '{print $5}')
-  last_second=$(echo $lastevent_ymd | awk '{print $6}')
+  last_year=$(echo $lastevent_ymd | gawk '{print $1}')
+  last_month=$(echo $lastevent_ymd | gawk '{print $2}')
+  last_day=$(echo $lastevent_ymd | gawk '{print $3}')
+  last_hour=$(echo $lastevent_ymd | gawk '{print $4}')
+  last_minute=$(echo $lastevent_ymd | gawk '{print $5}')
+  last_second=$(echo $lastevent_ymd | gawk '{print $6}')
   echo "Trying to download only the events after last event in catalog:", $last_year "/" $last_month "/" $last_day " " $last_hour ":" $last_minute ":" $last_second, "to", $this_year "/" $this_month "/" $this_day
   echo   curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=FMCSV&bot"
   curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=FMCSV&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&searchshape=GLOBAL&srn=&grn=&start_year=${last_year}&start_month=${last_month}&start_day=${last_day}&start_time=${last_hour}%3A${last_minute}%3A${last_second}&end_year=${this_year}&end_month=${this_month}&end_day=${this_day}&end_time=23%3A59%3A59" > isc_focals_uptodate.dat

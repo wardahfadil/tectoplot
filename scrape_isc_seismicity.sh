@@ -21,7 +21,7 @@
 cd $ISC_EQS_DIR
 
 function epoch_ymdhms() {
-  echo "$1 $2 $3 $4 $5 $6" | awk '{
+  echo "$1 $2 $3 $4 $5 $6" | gawk '{
     the_time=sprintf("%i %i %i %i %i %i",$1,$2,$3,$4,$5,$6);
     print mktime(the_time);
   }'
@@ -98,9 +98,9 @@ for year in $(seq 1951 1980); do
   download_and_check ${year} 01 01 ${year} 12 31
 done
 
-lastfile=$(ls -l isc_seis_*.dat | awk '{print $(NF)}' | sort -n -t "_" -k 3 -k 4 -k 5 | tail -n 1)
+lastfile=$(ls -l isc_seis_*.dat | gawk '{print $(NF)}' | sort -n -t "_" -k 3 -k 4 -k 5 | tail -n 1)
 echo "The last existing database file is $lastfile"
-last_year=$(echo $lastfile | awk -F_ '{print substr($3,1,4)}')
+last_year=$(echo $lastfile | gawk -F_ '{print substr($3,1,4)}')
 
 if [[ $last_year -eq 1980 ]]; then
   earliest_year=1981
@@ -114,7 +114,7 @@ for year in $(seq $earliest_year $this_year); do
     case $month in
         0[13578]|10|12) days=31;;
         0[469]|11)	    days=30;;
-        02) days=$(echo $year | awk '{
+        02) days=$(echo $year | gawk '{
             jul=strftime("%j",mktime($1 " 12 31 0 0 0 "));
             if (jul==366) {
               print 29
@@ -170,8 +170,8 @@ for ((i=${#catfiles[@]}-1; i>=0; i--)); do
   cat $datfile | sed -n '/^  EVENTID/,/^STOP/p' | sed '1d;$d' | sed '$d' > tmp.dat
   tail -n 1 tmp.dat
   # Determine the epoch of the last event in the candidate catalog file
-  lastdatfile_event=($(tail -n 1 tmp.dat | awk -F, '{print $1}'))
-  lastdatfile_epoch=$(tail -n 1 tmp.dat | awk -F, '{
+  lastdatfile_event=($(tail -n 1 tmp.dat | gawk -F, '{print $1}'))
+  lastdatfile_epoch=$(tail -n 1 tmp.dat | gawk -F, '{
     timecode=sprintf("%sT%s", $3, substr($4, 1, 8))
     print "timecode is", timecode > "/dev/stderr"
     split(timecode, a, "-")
@@ -192,7 +192,7 @@ for ((i=${#catfiles[@]}-1; i>=0; i--)); do
 
   # Only output events that are younger than the last event in the preexisting catalog
   if [[ $(echo "$lastdatfile_epoch > $lastevent_epoch" | bc) -eq 1 ]]; then
-    awk < tmp.dat -F, -v lasttime=$lastevent_epoch '{
+    gawk < tmp.dat -F, -v lasttime=$lastevent_epoch '{
         timecode=sprintf("%sT%s", $3, substr($4, 1, 8))
         split(timecode, a, "-")
         year=a[1]
@@ -232,8 +232,8 @@ done
 
 if [[ -e added_to_cat.dat ]]; then
   if [[ -e $ISC_EQ_CATALOG ]]; then
-    sort added_to_cat.dat -n -k 7  | awk '{print $1, $2, $3, $4, $5, $6, $7}' >> $ISC_EQ_CATALOG
-    echo "Added $(wc -l < added_to_cat.dat | awk '{print $1}') events to seismicity catalog"
+    sort added_to_cat.dat -n -k 7  | gawk '{print $1, $2, $3, $4, $5, $6, $7}' >> $ISC_EQ_CATALOG
+    echo "Added $(wc -l < added_to_cat.dat | gawk '{print $1}') events to seismicity catalog"
     rm -f added_to_cat.dat
   else
     mv added_to_cat.dat $ISC_EQ_CATALOG

@@ -3,7 +3,7 @@
 # window is half-width of moving mean (number of lines to each side to include)
 # Input rows are averaged with each other.
 
-awk -v window="${1}" '{
+gawk -v window="${1}" '{
     if (max_nf < NF) {
         max_nf = NF
     }

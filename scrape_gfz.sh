@@ -17,10 +17,10 @@ while : ; do
     pagenum=$(echo "$pagenum +1 " | bc)
 done
 
-awk < gfzmtlist.txt '{print $1}' > exists.txt
+gawk < gfzmtlist.txt '{print $1}' > exists.txt
 
-ls | awk -F_ '(/_mt.txt/){ print $1}' >> exists.txt
-awk < exists.txt '{seen[$1]++} END {
+ls | gawk -F_ '(/_mt.txt/){ print $1}' >> exists.txt
+gawk < exists.txt '{seen[$1]++} END {
   for (key in seen) {
     if (seen[key] < 2) {
       print key
@@ -33,8 +33,8 @@ currentcount=1
 
 while read p; do
   echo "Trying to download missing file $p ($currentcount/$totalcount)"
-  event_id=$(grep $p gfzmtlist.txt | head -n 1 | awk '{print $1}')
-  event_yr=$(grep $p gfzmtlist.txt | head -n 1 | awk  '{split($5,idv,"-"); print idv[1]; }')
+  event_id=$(grep $p gfzmtlist.txt | head -n 1 | gawk '{print $1}')
+  event_yr=$(grep $p gfzmtlist.txt | head -n 1 | gawk  '{split($5,idv,"-"); print idv[1]; }')
   curl "https://geofon.gfz-potsdam.de/data/alerts/${event_yr}/${event_id}/mt.txt" > ${event_id}_mt.txt
   linelen=$(wc -l < ${event_id}_mt.txt)
   if [[ $linelen -lt 20 ]]; then

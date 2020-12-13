@@ -6,7 +6,7 @@
 
 # November 25, 2020: Updated to strip NaN values before calculating (counted as 0 before)
 
-cat $1 | sed 's/NaN//g' | awk '{
+cat $1 | sed 's/NaN//g' | gawk '{
   q1=-1;
   q2=-1;
   q3=-1

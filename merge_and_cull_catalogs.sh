@@ -25,7 +25,7 @@ fi
 # Clean up ISC catalog to yield unique events per EQ. Match CMT+ORIGIN for some
 # non-GCMT events. Keep only the last event out of a group.
 
-awk < $ISCCATALOG 'BEGIN{lastlastid="YYY"; lastid="XXX"; storage[1]=""; groupind=1; groupnum=1}
+gawk < $ISCCATALOG 'BEGIN{lastlastid="YYY"; lastid="XXX"; storage[1]=""; groupind=1; groupnum=1}
 {
   newid=$2
 
@@ -99,7 +99,7 @@ awk < $ISCCATALOG 'BEGIN{lastlastid="YYY"; lastid="XXX"; storage[1]=""; groupind
 cat $CLEANISC $GCMTCATALOG $GFZCATALOG | sort -n -k4,4 > $FOCALDIR"mergecat.cat"
 
 # Remove any GFZ focal mechanisms that match GCMT/ISC events.
-awk < $FOCALDIR"mergecat.cat" -v tdiffmin=40 -v outfile=$FOCALDIR"gfz_reject.cat" '
+gawk < $FOCALDIR"mergecat.cat" -v tdiffmin=40 -v outfile=$FOCALDIR"gfz_reject.cat" '
   function abs(v) { return (v<0)?-v:v }
   BEGIN {
       getline
@@ -134,7 +134,7 @@ awk < $FOCALDIR"mergecat.cat" -v tdiffmin=40 -v outfile=$FOCALDIR"gfz_reject.cat
   print
 }' > $FOCALCATALOG
 
-awk < $FOCALCATALOG '{if (substr($0,1,1)=="Z") { print }} ' > ${FOCALDIR}nongcmt.txt
+gawk < $FOCALCATALOG '{if (substr($0,1,1)=="Z") { print }} ' > ${FOCALDIR}nongcmt.txt
 
 # Cleanup the intermediate file
 rm -f $CLEANISC

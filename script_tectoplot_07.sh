@@ -183,13 +183,13 @@ function cleanup()
 
 function grid_zrange() {
    output=$(gmt grdinfo -C $1 -Vn)
-   zmin=$(echo $output | awk '{print $6}')
-   zmax=$(echo $output | awk '{print $7}')
+   zmin=$(echo $output | gawk  '{print $6}')
+   zmax=$(echo $output | gawk  '{print $7}')
    if [[ $(echo "$zmin == 0 && $zmax == 0" | bc) -eq 1 ]]; then
       # echo "Querying full grid as zrange is 0"
       output=$(gmt grdinfo -C -L $1 -Vn)
    fi
-   echo $output | awk '{print $6, $7}'
+   echo $output | gawk  '{print $6, $7}'
 }
 
 ##### A first step toward portability. Credit Jordan@StackExchange
@@ -233,8 +233,6 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
   [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
 done
 TECTOPLOTDIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"/
-
-echo "Running script from $TECTOPLOTDIR"
 
 DEFDIR=$TECTOPLOTDIR"tectoplot_defs/"
 
@@ -588,7 +586,7 @@ function print_setup() {
     GMT${GMTREQ}
     gdal, geod
     Preview (or equivalent PDF viewer)
-    Unix commands: awk, bc, cat, curl, date, grep, sed
+    Unix commands: gawk, bc, cat, curl, date, grep, sed
 
   Installation and setup:
 
@@ -599,6 +597,7 @@ function print_setup() {
   ~/# /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   ~/# brew update
   ~/# brew install gmt
+  ~/# brew install gawk
 
   Installing and configuring tectoplot
 
@@ -747,7 +746,7 @@ function interval_and_subinterval_from_minmax_and_number () {
   local diffval=$(echo "($vmax - $vmin) / $numint" | bc -l)
   #
   #
-  # echo $INTERVALS_STRING | awk -v s=$diffval -v md=$subval 'function abs(a) { return (a<0)?-a:a }{
+  # echo $INTERVALS_STRING | gawk  -v s=$diffval -v md=$subval 'function abs(a) { return (a<0)?-a:a }{
   #   n=split($0, var, " ");
   #   mindiff=var[n];
   #   for(i=0;i<n;i++) {
@@ -932,7 +931,7 @@ do
       if [[ ! -e ~/.profile ]]; then
         info_msg "[-addpath]: ~/.profile does not exist. Creating."
       else
-        val=$(grep "tectoplot" ~/.profile | awk 'END{print NR}')
+        val=$(grep "tectoplot" ~/.profile | gawk  'END{print NR}')
         info_msg "[-addpath]: Backing up ~/.profile file to ${DEFDIR}".profile_old""
 
         if [[ ! $val -eq 0 ]]; then
@@ -1245,7 +1244,7 @@ do
         EQLISTFILE=$(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")")
         shift
         while read p; do
-          pq=$(echo "${p}" | awk '{print $1}')
+          pq=$(echo "${p}" | gawk  '{print $1}')
           eqlistarray+=("${pq}")
         done < $EQLISTFILE
       fi
@@ -1337,7 +1336,7 @@ do
     check_and_download_dataset "WGM2012-FreeAir-CPT" $WGMFREEAIR_CPT_SOURCEURL "no" $WGMDIR $WGMFREEAIR_CPT "none" $WGMFREEAIR_CPT_BYTES "none"
 
     check_and_download_dataset "Geonames-Cities" $CITIES_SOURCEURL "yes" $CITIESDIR $CITIES500 $CITIESDIR"data.zip" $CITIES500_BYTES $CITIES_ZIP_BYTES
-    info_msg "Processing cities data to correct format" && awk < $CITIESDIR"cities500.txt" -F'\t' '{print $6 "," $5 "," $2 "," $15}' > $CITIES
+    info_msg "Processing cities data to correct format" && gawk  < $CITIESDIR"cities500.txt" -F'\t' '{print $6 "," $5 "," $2 "," $15}' > $CITIES
 
     check_and_download_dataset "GlobalCurieDepthMap" $GCDM_SOURCEURL "no" $GCDMDIR $GCDMDATA_ORIG "none" $GCDM_BYTES "none"
     [[ ! -e $GCDMDATA ]] && info_msg "Processing GCDM data to grid format" && gmt xyz2grd -R-180/180/-80/80 $GCDMDATA_ORIG -I10m -G$GCDMDATA
@@ -1359,7 +1358,7 @@ do
       ${ACCESS_LITHO_CPP} -c ${LITHO1PROGDIR}access_litho.cc -DMODELLOC=\"${LITHO1DIR_2}\" -o ${LITHO1PROGDIR}access_litho.o
       ${ACCESS_LITHO_CPP}  ${LITHO1PROGDIR}access_litho.o -lm -DMODELLOC=\"${LITHO1DIR_2}\" -o ${LITHO1_PROG}
       echo "Testing LITHO1 extract tool"
-      res=$(access_litho -p 20 20 2>/dev/null | awk '(NR==1) { print $3 }')
+      res=$(access_litho -p 20 20 2>/dev/null | gawk  '(NR==1) { print $3 }')
       if [[ $(echo "$res == 8060.22" | bc) -eq 1 ]]; then
         echo "access_litho returned correct value"
       else
@@ -1957,7 +1956,7 @@ do
     ;;
 
   -printcountries)
-    awk -F, < $COUNTRY_CODES '{ print $1, $4 }'
+    gawk -F, < $COUNTRY_CODES '{ print $1, $4 }'
     exit
     ;;
 
@@ -2144,16 +2143,16 @@ do
         info_msg "[-r]: Raster file given to -r command in the form of a filename argument"
 
         # gmt grdinfo $(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")") > tmp.ras.data 2>/dev/null
-        # MINLON=$(grep "x_min" tmp.ras.data | cut -d ":" -f 3 | awk '{print $1}')
-        # MAXLON=$(grep "x_min" tmp.ras.data | cut -d ":" -f 4 | awk '{print $1}')
-        # MINLAT=$(grep "y_min" tmp.ras.data | cut -d ":" -f 3 | awk '{print $1}')
-        # MAXLAT=$(grep "y_min" tmp.ras.data | cut -d ":" -f 4 | awk '{print $1}')
+        # MINLON=$(grep "x_min" tmp.ras.data | cut -d ":" -f 3 | gawk  '{print $1}')
+        # MAXLON=$(grep "x_min" tmp.ras.data | cut -d ":" -f 4 | gawk  '{print $1}')
+        # MINLAT=$(grep "y_min" tmp.ras.data | cut -d ":" -f 3 | gawk  '{print $1}')
+        # MAXLAT=$(grep "y_min" tmp.ras.data | cut -d ":" -f 4 | gawk  '{print $1}')
 
         rasrange=$(gmt grdinfo $(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")") -C -Vn)
-        MINLON=$(echo $rasrange | awk '{print $2}')
-        MAXLON=$(echo $rasrange | awk '{print $3}')
-        MINLAT=$(echo $rasrange | awk '{print $4}')
-        MAXLAT=$(echo $rasrange | awk '{print $5}')
+        MINLON=$(echo $rasrange | gawk  '{print $2}')
+        MAXLON=$(echo $rasrange | gawk  '{print $3}')
+        MINLAT=$(echo $rasrange | gawk  '{print $4}')
+        MAXLAT=$(echo $rasrange | gawk  '{print $5}')
 
         if [[ $(echo "$MAXLON > $MINLON" | bc) -eq 1 ]]; then
           if [[ $(echo "$MAXLAT > $MINLAT" | bc) -eq 1 ]]; then
@@ -2171,12 +2170,12 @@ do
         fi
         COUNTRYID=${2}
         shift
-        COUNTRYNAME=$(awk -v cid="${COUNTRYID}" -F, '(index($0,cid)==1) { print $4 }' $COUNTRY_CODES)
+        COUNTRYNAME=$(gawk -v cid="${COUNTRYID}" -F, '(index($0,cid)==1) { print $4 }' $COUNTRY_CODES)
         if [[ $COUNTRYNAME == "" ]]; then
           info_msg "Country code ${COUNTRYID} is not a valid code. Use tectoplot -printcountries"
           exit 1
         fi
-        RCOUNTRY=($(gmt pscoast -E${COUNTRYID}+r1 ${VERBOSE} | awk '{v=substr($0,3,length($0)); split(v,w,"/"); print w[1], w[2], w[3], w[4]}'))
+        RCOUNTRY=($(gmt pscoast -E${COUNTRYID}+r1 ${VERBOSE} | gawk  '{v=substr($0,3,length($0)); split(v,w,"/"); print w[1], w[2], w[3], w[4]}'))
 
         # info_msg "RCOUNTRY=${RCOUNTRY[@]}"
         if [[ $(echo "${RCOUNTRY[0]} >= -180 && ${RCOUNTRY[1]} <= 360 && ${RCOUNTRY[2]} >= -90 && ${RCOUNTRY[3]} <= 90" | bc) -eq 1 ]]; then
@@ -2615,8 +2614,8 @@ do
 			# echo "${TDFOLD}/${TDMODEL}/"def2tecto_out/
 			str1="G# P# Name      Lon.      Lat.     Omega     SigOm    Emax    Emin      Az"
 			str2="Relative poles"
-			cat "${BASENAME}.poles" | sed '1,/G# P# Name      Lon.      Lat.     Omega     SigOm    Emax    Emin      Az     VAR/d;/ Relative poles/,$d' | sed '$d' | awk '{print $3, $5, $4, $6}' | grep '\S' > ${TDPATH}/def2tecto_out/poles.dat
-			cat "${BASENAME}_blk.gmt" | awk '{ if ($1 == ">") print $1, $6; else print $1, $2 }' > ${TDPATH}/def2tecto_out/blocks.dat
+			cat "${BASENAME}.poles" | sed '1,/G# P# Name      Lon.      Lat.     Omega     SigOm    Emax    Emin      Az     VAR/d;/ Relative poles/,$d' | sed '$d' | gawk  '{print $3, $5, $4, $6}' | grep '\S' > ${TDPATH}/def2tecto_out/poles.dat
+			cat "${BASENAME}_blk.gmt" | gawk  '{ if ($1 == ">") print $1, $6; else print $1, $2 }' > ${TDPATH}/def2tecto_out/blocks.dat
 			POLESRC="TDEFNODE"
 			PLATES="${TDFOLD}/${TDMODEL}/"def2tecto_out/blocks.dat
 			POLES="${TDFOLD}/${TDMODEL}/"def2tecto_out/poles.dat
@@ -2920,20 +2919,20 @@ if [[ $setregionbyearthquakeflag -eq 1 ]]; then
     echo "Found EQ region focal mechanism $REGION_EQ"
     case $CMTTYPE in
       ORIGIN)
-        REGION_EQ_LON=$(echo $LOOK1 | awk '{print $8}')
-        REGION_EQ_LAT=$(echo $LOOK1 | awk '{print $9}')
+        REGION_EQ_LON=$(echo $LOOK1 | gawk  '{print $8}')
+        REGION_EQ_LAT=$(echo $LOOK1 | gawk  '{print $9}')
         ;;
       CENTROID)
-        REGION_EQ_LON=$(echo $LOOK1 | awk '{print $5}')
-        REGION_EQ_LAT=$(echo $LOOK1 | awk '{print $6}')
+        REGION_EQ_LON=$(echo $LOOK1 | gawk  '{print $5}')
+        REGION_EQ_LAT=$(echo $LOOK1 | gawk  '{print $6}')
         ;;
     esac
   else
     LOOK2=$(grep $REGION_EQ $EQCATALOG)
     if [[ $LOOK1 != "" ]]; then
       echo "Found EQ region hypocenter $REGION_EQ"
-      REGION_EQ_LON=$(echo $LOOK2 | awk '{print $1}')
-      REGION_EQ_LAT=$(echo $LOOK2 | awk '{print $2}')
+      REGION_EQ_LON=$(echo $LOOK2 | gawk  '{print $1}')
+      REGION_EQ_LAT=$(echo $LOOK2 | gawk  '{print $2}')
     else
       echo "No event found"
       exit
@@ -2987,7 +2986,7 @@ if [[ $setutmrjstringfromarrayflag -eq 1 ]]; then
   if [[ $calcutmzonelaterflag -eq 1 ]]; then
     AVELONp180o6=$(echo "(($MAXLON + $MINLON) / 2 + 180)/6" | bc -l)
     # echo $AVELONp180o6
-    UTMZONE=$(echo $AVELONp180o6 1 | awk '{print int($1)+($1>int($1))}')
+    UTMZONE=$(echo $AVELONp180o6 1 | gawk  '{print int($1)+($1>int($1))}')
   fi
   info_msg "Using UTM Zone $UTMZONE"
 
@@ -2997,10 +2996,10 @@ if [[ $setutmrjstringfromarrayflag -eq 1 ]]; then
     RJSTRING="${rj[@]}"
 
     gmt psbasemap -A $RJSTRING | grep -v "#" > mapoutline.txt
-    MINLONNEW=$(awk < mapoutline.txt 'BEGIN {getline;min=$1} NF { min=(min>$1)?$1:min } END{print min}')
-    MAXLONNEW=$(awk < mapoutline.txt 'BEGIN {getline;max=$1} NF { max=(max>$1)?max:$1 } END{print max}')
-    MINLATNEW=$(awk < mapoutline.txt 'BEGIN {getline;min=$2} NF { min=(min>$2)?$2:min } END{print min}')
-    MAXLATNEW=$(awk < mapoutline.txt 'BEGIN {getline;max=$2} NF { max=(max>$2)?max:$2} END{print max}')
+    MINLONNEW=$(gawk < mapoutline.txt 'BEGIN {getline;min=$1} NF { min=(min>$1)?$1:min } END{print min}')
+    MAXLONNEW=$(gawk < mapoutline.txt 'BEGIN {getline;max=$1} NF { max=(max>$1)?max:$1 } END{print max}')
+    MINLATNEW=$(gawk < mapoutline.txt 'BEGIN {getline;min=$2} NF { min=(min>$2)?$2:min } END{print min}')
+    MAXLATNEW=$(gawk < mapoutline.txt 'BEGIN {getline;max=$2} NF { max=(max>$2)?max:$2} END{print max}')
     info_msg "Updating AOI from ${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} to ${MINLONNEW}/${MAXLONNEW}/${MINLATNEW}/${MAXLATNEW}"
     MINLON=$MINLONNEW
     MAXLON=$MAXLONNEW
@@ -3091,7 +3090,7 @@ fi
 ##### MAKE FIBONACCI GRID POINTS
 if [[ $gridfibonacciflag -eq 1 ]]; then
   FIB_PHI=1.618033988749895
-  echo "" | awk -v n=$FIB_N  -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" 'function asin(x) { return atan2(x, sqrt(1-x*x)) } BEGIN {
+  echo "" | gawk  -v n=$FIB_N  -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" 'function asin(x) { return atan2(x, sqrt(1-x*x)) } BEGIN {
     phi=1.618033988749895;
     pi=3.14159265358979;
     phi_inv=1/phi;
@@ -3111,7 +3110,7 @@ if [[ $gridfibonacciflag -eq 1 ]]; then
       }
     }
   }' > gridfile.txt
-  awk < gridfile.txt '{print $2 $1}' > gridswap.txt
+  gawk < gridfile.txt '{print $2 $1}' > gridswap.txt
 fi
 
 ##### MAKE LAT/LON REGULAR GRID
@@ -3196,7 +3195,7 @@ fi
 if [[ $plotslab2 -eq 1 ]]; then
   numslab2inregion=0
   for slabcfile in $(ls -1a ${SLAB2_CLIPDIR}*.csv); do
-    awk < $slabcfile '{
+    gawk < $slabcfile '{
       if ($1 > 180) {
         print $1-360, $2
       } else {
@@ -3236,8 +3235,8 @@ if [[ $plottopo -eq 1 ]]; then
 
   if [[ $BATHYMETRY =~ "GMRT" || $besttopoflag -eq 1 && $bestexistsflag -eq 0 ]]; then   # We manage GMRT tiling ourselves
 
-    minlon360=$(echo $MINLON | awk '{ if ($1<0) {print $1+360} else {print $1} }')
-    maxlon360=$(echo $MAXLON | awk '{ if ($1<0) {print $1+360} else {print $1} }')
+    minlon360=$(echo $MINLON | gawk  '{ if ($1<0) {print $1+360} else {print $1} }')
+    maxlon360=$(echo $MAXLON | gawk  '{ if ($1<0) {print $1+360} else {print $1} }')
 
     minlonfloor=$(echo $minlon360 | cut -f1 -d".")
     maxlonfloor=$(echo $maxlon360 | cut -f1 -d".")
@@ -3387,10 +3386,10 @@ fi
 # Contour interval for grid if not specified using -cn
 if [[ $gridcontourcalcflag -eq 1 ]]; then
   zrange=$(grid_zrange $CONTOURGRID -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
-  MINCONTOUR=$(echo $zrange | awk '{print $1}')
-  MAXCONTOUR=$(echo $zrange | awk '{print $2}')
-  # MINCONTOUR=$(gmt grdinfo $CONTOURGRID -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_min" | cut -d ":" -f 3 | awk '{print $1}')
-  # MAXCONTOUR=$(gmt grdinfo $CONTOURGRID -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_max" | cut -d ":" -f 4 | awk '{print $1}')
+  MINCONTOUR=$(echo $zrange | gawk  '{print $1}')
+  MAXCONTOUR=$(echo $zrange | gawk  '{print $2}')
+  # MINCONTOUR=$(gmt grdinfo $CONTOURGRID -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_min" | cut -d ":" -f 3 | gawk  '{print $1}')
+  # MAXCONTOUR=$(gmt grdinfo $CONTOURGRID -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_max" | cut -d ":" -f 4 | gawk  '{print $1}')
   CONTOURINTGRID=$(echo "($MAXCONTOUR - $MINCONTOUR) / $CONTOURNUMDEF" | bc -l)
   if [[ $(echo "$CONTOURINTGRID > 1" | bc -l) -eq 1 ]]; then
     CONTOURINTGRID=$(echo "$CONTOURINTGRID / 1" | bc)
@@ -3400,10 +3399,10 @@ fi
 # Contour interval for grid if not specified using -cn
 if [[ $topocontourcalcflag -eq 1 ]]; then
   zrange=$(grid_zrange $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
-  MINCONTOUR=$(echo $zrange | awk '{print $1}')
-  MAXCONTOUR=$(echo $zrange | awk '{print $2}')
-  # MINCONTOUR=$(gmt grdinfo $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_min" | cut -d ":" -f 3 | awk '{print $1}')
-  # MAXCONTOUR=$(gmt grdinfo $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_max" | cut -d ":" -f 4 | awk '{print $1}')
+  MINCONTOUR=$(echo $zrange | gawk  '{print $1}')
+  MAXCONTOUR=$(echo $zrange | gawk  '{print $2}')
+  # MINCONTOUR=$(gmt grdinfo $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_min" | cut -d ":" -f 3 | gawk  '{print $1}')
+  # MAXCONTOUR=$(gmt grdinfo $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_max" | cut -d ":" -f 4 | gawk  '{print $1}')
   TOPOCONTOURINT=$(echo "($MAXCONTOUR - $MINCONTOUR) / $TOPOCONTOURNUMDEF" | bc -l)
   if [[ $(echo "$TOPOCONTOURINT > 1" | bc -l) -eq 1 ]]; then
     TOPOCONTOURINT=$(echo "$TOPOCONTOURINT / 1" | bc)
@@ -3435,7 +3434,7 @@ if [[ $volcanoesflag -eq 1 ]]; then
   gmt select $SMITHVOLC -: -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE >> volctmp.dat
   gmt select $WHELLEYVOLC  -: -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE  >> volctmp.dat
   gmt select $JAPANVOLC -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE  >> volctmp.dat
-  awk < volctmp.dat '{
+  gawk < volctmp.dat '{
     printf "%s %s ", $2, $1
     for (i=3; i<=NF; i++) {
       printf "%s ", $(i)
@@ -3471,7 +3470,7 @@ if [[ $plotseis -eq 1 ]]; then
 	# else
   #   if [[ $USEANSS_DATABASE -eq 1 ]]; then
   #     info_msg "Using scraped ANSS database as source of earthquake data, may not be up to date!"
-  #     awk < $EQCATALOG -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON"  -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG}  '{
+  #     gawk < $EQCATALOG -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON"  -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG}  '{
   #         if ($1 < maxlon && $1 > minlon && $2 < maxlat && $2 > minlat && $4 <= maxmag && $4 >= minmag ) {
   #          print
   #         }
@@ -3487,7 +3486,7 @@ if [[ $plotseis -eq 1 ]]; then
   ##############################################################################
   # Initial select of seismicity from the catalog based on AOI and min/max depth
 
-  awk < $EQCATALOG -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG}   '{
+  gawk < $EQCATALOG -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG}   '{
     if ($1 < maxlon && $1 > minlon && $2 < maxlat && $2 > minlat && $3 > mindepth && $3 < maxdepth && $4 < maxmag && $4 > minmag )
     {
       print
@@ -3501,7 +3500,7 @@ if [[ $plotseis -eq 1 ]]; then
 
   if [[ $suppseisflag -eq 1 ]]; then
     info_msg "Concatenating supplementary earthquake file $SUPSEISFILE"
-    awk < $SUPSEISFILE '(NF==7) { print } ' >> eqs.txt
+    gawk < $SUPSEISFILE '(NF==7) { print } ' >> eqs.txt
   fi
 
   ##############################################################################
@@ -3519,7 +3518,7 @@ if [[ $plotseis -eq 1 ]]; then
   if [[ $timeselectflag -eq 1 ]]; then
     info_msg "Selecting seismicity between ${STARTTIME} and ${ENDTIME}"
 
-    STARTSECS=$(echo "${STARTTIME}" | awk '{
+    STARTSECS=$(echo "${STARTTIME}" | gawk  '{
       split($1, a, "-")
       year=a[1]
       month=a[2]
@@ -3534,7 +3533,7 @@ if [[ $plotseis -eq 1 ]]; then
       print epoch;
     }')
 
-    ENDSECS=$(echo "${ENDTIME}" | awk '{
+    ENDSECS=$(echo "${ENDTIME}" | gawk  '{
       split($1, a, "-")
       year=a[1]
       month=a[2]
@@ -3550,7 +3549,7 @@ if [[ $plotseis -eq 1 ]]; then
     }')
 
     #LON LAT DEPTH MAG TIMECODE ID EPOCH MAGTYPE
-    awk < eqs.txt -v ss=$STARTSECS -v es=$ENDSECS '{
+    gawk < eqs.txt -v ss=$STARTSECS -v es=$ENDSECS '{
       if (($7 >= ss) && ($7 <= es)) {
         print
       }
@@ -3601,7 +3600,7 @@ SYMSIZE3=$(echo "${KINSCALE} * 3.5" | bc -l)
 ##### FOCAL MECHANISMS
 if [[ $calccmtflag -eq 1 ]]; then
 
-# I need an awk script that does a lot of these steps in one go (after CMT combined database generation)
+# I need an gawk  script that does a lot of these steps in one go (after CMT combined database generation)
 
   # If we are plotting from a global database
   if [[ $plotcmtfromglobal -eq 1 ]]; then
@@ -3614,7 +3613,7 @@ if [[ $calccmtflag -eq 1 ]]; then
 
     # Do the initial AOI scrape
 
-    awk < $CMTFILE -v orig=$ORIGINFLAG -v cent=$CENTROIDFLAG -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '{
+    gawk < $CMTFILE -v orig=$ORIGINFLAG -v cent=$CENTROIDFLAG -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '{
       doprint=0
       if (cent==1) {
         if (($7 >= mindepth && $7 <= maxdepth) && ($5 >= minlon && $5 <= maxlon) && ($6 >= minlat   && $6 <= maxlat))
@@ -3640,7 +3639,7 @@ if [[ $calccmtflag -eq 1 ]]; then
 
     for i in $(seq 1 $cmtfilenumber); do
       info_msg "Slurping custom CMTs from $CMTADDFILE[$i] and appending to CMT file"
-      ${CMTSLURP} ${CMTADDFILE[$i]} ${CMTFORMATCODE[$i]} ${CMTIDCODE[$i]} | awk < $CMTFILE -v orig=$ORIGINFLAG -v cent=$CENTROIDFLAG -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '{
+      ${CMTSLURP} ${CMTADDFILE[$i]} ${CMTFORMATCODE[$i]} ${CMTIDCODE[$i]} | gawk  < $CMTFILE -v orig=$ORIGINFLAG -v cent=$CENTROIDFLAG -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '{
           doprint=0
           if (cent==1) {
             if (($7 >= mindepth && $7 <= maxdepth) && ($5 >= minlon && $5 <= maxlon) && ($6 >= minlat   && $6 <= maxlat))
@@ -3677,11 +3676,11 @@ if [[ $calccmtflag -eq 1 ]]; then
 
     case $CMTTYPE in
       CENTROID)
-        awk < $CMTFILE '{
+        gawk < $CMTFILE '{
           for (i=5; i<=NF; i++) {
             printf "%s ", $(i) }
             print $1, $2, $3, $4;
-          }' | gmt select -F${POLYGONAOI} ${VERBOSE} | tr '\t' ' ' | awk '{
+          }' | gmt select -F${POLYGONAOI} ${VERBOSE} | tr '\t' ' ' | gawk  '{
           printf "%s %s %s %s", $(NF-3), $(NF-2), $(NF-1), $(NF);
           for (i=1; i<=NF-4; i++) {
             printf " %s", $(i)
@@ -3690,12 +3689,12 @@ if [[ $calccmtflag -eq 1 ]]; then
         }' > cmt_aoiselect.dat
         ;;
       ORIGIN)
-        awk < $CMTFILE '{
+        gawk < $CMTFILE '{
           for (i=8; i<=NF; i++) {
             printf "%s ", $(i) }
             print $1, $2, $3, $4, $5, $6, $7;
           }' > tmp.dat
-          gmt select tmp.dat -F${POLYGONAOI} ${VERBOSE} | tr '\t' ' ' | awk '{
+          gmt select tmp.dat -F${POLYGONAOI} ${VERBOSE} | tr '\t' ' ' | gawk  '{
           printf "%s %s %s %s %s %s %s", $(NF-6), $(NF-5), $(NF-4), $(NF-3), $(NF-2), $(NF-1), $(NF);
           for (i=1; i<=NF-6; i++) {
             printf " %s", $(i)
@@ -3708,7 +3707,7 @@ if [[ $calccmtflag -eq 1 ]]; then
 
   info_msg "Selecting focal mechanisms and kinematic mechanisms based on magnitude constraints"
 
-  awk < $CMTFILE -v kminmag="${KIN_MINMAG}" -v kmaxmag="${KIN_MAXMAG}" -v minmag="${EQ_MINMAG}" -v maxmag="${EQ_MAXMAG}" '{
+  gawk < $CMTFILE -v kminmag="${KIN_MINMAG}" -v kmaxmag="${KIN_MAXMAG}" -v minmag="${EQ_MINMAG}" -v maxmag="${EQ_MAXMAG}" '{
     mw=$13
     if (mw < maxmag && mw > minmag) {
       print > "cmt_orig.dat"
@@ -3721,7 +3720,7 @@ if [[ $calccmtflag -eq 1 ]]; then
 
   # Select CMT data between start and end times
   if [[ $timeselectflag -eq 1 ]]; then
-    STARTSECS=$(echo "${STARTTIME}" | awk '{
+    STARTSECS=$(echo "${STARTTIME}" | gawk  '{
       split($1, a, "-")
       year=a[1]
       month=a[2]
@@ -3736,7 +3735,7 @@ if [[ $calccmtflag -eq 1 ]]; then
       print epoch;
     }')
 
-    ENDSECS=$(echo "${ENDTIME}" | awk '{
+    ENDSECS=$(echo "${ENDTIME}" | gawk  '{
       split($1, a, "-")
       year=a[1]
       month=a[2]
@@ -3751,7 +3750,7 @@ if [[ $calccmtflag -eq 1 ]]; then
       print epoch;
     }')
 
-    awk < $CMTFILE -v ss=$STARTSECS -v es=$ENDSECS '{
+    gawk < $CMTFILE -v ss=$STARTSECS -v es=$ENDSECS '{
       if (($4 >= ss) && ($4 <= es)) {
         print
       }
@@ -3799,7 +3798,7 @@ if [[ $calccmtflag -eq 1 ]]; then
   if [[ $SCALEEQS -eq 1 ]]; then
     info_msg "Scaling CMT earthquake magnitudes for display only"
 
-    awk < $CMTFILE -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
+    gawk < $CMTFILE -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
       mw=$13
       mwmod = (mw^str)/(sref^(str-1))
       a=sprintf("%E", 10^((mwmod + 10.7)*3/2))
@@ -3817,14 +3816,14 @@ if [[ $calccmtflag -eq 1 ]]; then
     info_msg "Rotating principal axes by back azimuth to ${CMT_ROTATELON}/${CMT_ROTATELAT}"
     case $CMTTYPE in
       ORIGIN)
-        awk < $CMTFILE '{ print $8, $9 }' | gmt mapproject -Ab${CMT_ROTATELON}/${CMT_ROTATELAT} ${VERBOSE} > cmt_backaz.txt
+        gawk < $CMTFILE '{ print $8, $9 }' | gmt mapproject -Ab${CMT_ROTATELON}/${CMT_ROTATELAT} ${VERBOSE} > cmt_backaz.txt
       ;;
       CENTROID)
-        awk < $CMTFILE '{ print $5, $6 }' | gmt mapproject -Ab${CMT_ROTATELON}/${CMT_ROTATELAT} ${VERBOSE} > cmt_backaz.txt
+        gawk < $CMTFILE '{ print $5, $6 }' | gmt mapproject -Ab${CMT_ROTATELON}/${CMT_ROTATELAT} ${VERBOSE} > cmt_backaz.txt
       ;;
     esac
     paste $CMTFILE cmt_backaz.txt > cmt_backscale.txt
-    awk < cmt_backscale.txt -v refaz=$CMT_REFAZ '{ for (i=1; i<=22; i++) { printf "%s ", $(i) }; printf "%s %s %s %s %s %s %s %s %s", $23, ($24-$42+refaz)%360, $25, $26, ($27-$42+refaz)%360, $28, $29,($30-$40+refaz)%360, $31;  for(i=32;i<=39;i++) {printf " %s", $(i)}; printf("\n");  }' > cmt_rotated.dat
+    gawk < cmt_backscale.txt -v refaz=$CMT_REFAZ '{ for (i=1; i<=22; i++) { printf "%s ", $(i) }; printf "%s %s %s %s %s %s %s %s %s", $23, ($24-$42+refaz)%360, $25, $26, ($27-$42+refaz)%360, $28, $29,($30-$40+refaz)%360, $31;  for(i=32;i<=39;i++) {printf " %s", $(i)}; printf("\n");  }' > cmt_rotated.dat
     CMTFILE=cmt_rotated.dat
   fi
 
@@ -3845,7 +3844,7 @@ if [[ $calccmtflag -eq 1 ]]; then
 
   # This should go into an external utility script that converts from tectoplot->psmeca format
 
-  awk < $CMTFILE -v fmt=$CMTFORMAT -v cmttype=$CMTTYPE -v minmag="${KIN_MINMAG}" -v maxmag="${KIN_MAXMAG}" '
+  gawk < $CMTFILE -v fmt=$CMTFORMAT -v cmttype=$CMTTYPE -v minmag="${KIN_MINMAG}" -v maxmag="${KIN_MAXMAG}" '
     function abs(v) { return (v>0)?v:-v}
     BEGIN { pi=atan2(0,-1) }
     {
@@ -3929,19 +3928,19 @@ if [[ $calccmtflag -eq 1 ]]; then
 	# Generate the kinematic vectors
 	# For thrust faults, take the slip vector associated with the shallower dipping nodal plane
 
-	awk < kin_thrust.txt -v symsize=$SYMSIZE1 '{if($8 > 45) print $1, $2, ($7+270) % 360, symsize; else print $1, $2, ($4+270) % 360, symsize;  }' > thrust_gen_slip_vectors_np1.txt
-	awk < kin_thrust.txt -v symsize=$SYMSIZE2 '{if($8 > 45) print $1, $2, ($4+90) % 360, symsize; else print $1, $2, ($7+90) % 360, symsize;  }' > thrust_gen_slip_vectors_np1_downdip.txt
-	awk < kin_thrust.txt -v symsize=$SYMSIZE3 '{if($8 > 45) print $1, $2, ($4) % 360, symsize / 2; else print $1, $2, ($7) % 360, symsize / 2;  }' > thrust_gen_slip_vectors_np1_str.txt
+gawk < kin_thrust.txt -v symsize=$SYMSIZE1 '{if($8 > 45) print $1, $2, ($7+270) % 360, symsize; else print $1, $2, ($4+270) % 360, symsize;  }' > thrust_gen_slip_vectors_np1.txt
+gawk < kin_thrust.txt -v symsize=$SYMSIZE2 '{if($8 > 45) print $1, $2, ($4+90) % 360, symsize; else print $1, $2, ($7+90) % 360, symsize;  }' > thrust_gen_slip_vectors_np1_downdip.txt
+gawk < kin_thrust.txt -v symsize=$SYMSIZE3 '{if($8 > 45) print $1, $2, ($4) % 360, symsize / 2; else print $1, $2, ($7) % 360, symsize / 2;  }' > thrust_gen_slip_vectors_np1_str.txt
 
-	awk 'NR > 1' kin_thrust.txt | awk -v symsize=$SYMSIZE1 '{if($8 > 45) print $1, $2, ($4+270) % 360, symsize; else print $1, $2, ($7+270) % 360, symsize;  }' > thrust_gen_slip_vectors_np2.txt
-	awk 'NR > 1' kin_thrust.txt | awk -v symsize=$SYMSIZE2 '{if($8 > 45) print $1, $2, ($7+90) % 360, symsize; else print $1, $2, ($4+90) % 360, symsize ;  }' > thrust_gen_slip_vectors_np2_downdip.txt
-	awk 'NR > 1' kin_thrust.txt | awk -v symsize=$SYMSIZE3 '{if($8 > 45) print $1, $2, ($7) % 360, symsize / 2; else print $1, $2, ($4) % 360, symsize / 2;  }' > thrust_gen_slip_vectors_np2_str.txt
+gawk 'NR > 1' kin_thrust.txt | gawk  -v symsize=$SYMSIZE1 '{if($8 > 45) print $1, $2, ($4+270) % 360, symsize; else print $1, $2, ($7+270) % 360, symsize;  }' > thrust_gen_slip_vectors_np2.txt
+gawk 'NR > 1' kin_thrust.txt | gawk  -v symsize=$SYMSIZE2 '{if($8 > 45) print $1, $2, ($7+90) % 360, symsize; else print $1, $2, ($4+90) % 360, symsize ;  }' > thrust_gen_slip_vectors_np2_downdip.txt
+gawk 'NR > 1' kin_thrust.txt | gawk  -v symsize=$SYMSIZE3 '{if($8 > 45) print $1, $2, ($7) % 360, symsize / 2; else print $1, $2, ($4) % 360, symsize / 2;  }' > thrust_gen_slip_vectors_np2_str.txt
 
-	awk 'NR > 1' kin_strikeslip.txt | awk -v symsize=$SYMSIZE1 '{ print $1, $2, ($7+270) % 360, symsize }' > strikeslip_slip_vectors_np1.txt
-	awk 'NR > 1' kin_strikeslip.txt | awk -v symsize=$SYMSIZE1 '{ print $1, $2, ($4+270) % 360, symsize }' > strikeslip_slip_vectors_np2.txt
+gawk 'NR > 1' kin_strikeslip.txt | gawk  -v symsize=$SYMSIZE1 '{ print $1, $2, ($7+270) % 360, symsize }' > strikeslip_slip_vectors_np1.txt
+gawk 'NR > 1' kin_strikeslip.txt | gawk  -v symsize=$SYMSIZE1 '{ print $1, $2, ($4+270) % 360, symsize }' > strikeslip_slip_vectors_np2.txt
 
-	awk 'NR > 1' kin_normal.txt | awk -v symsize=$SYMSIZE1 '{ print $1, $2, ($7+270) % 360, symsize }' > normal_slip_vectors_np1.txt
-	awk 'NR > 1' kin_normal.txt | awk -v symsize=$SYMSIZE1 '{ print $1, $2, ($4+270) % 360, symsize }' > normal_slip_vectors_np2.txt
+gawk 'NR > 1' kin_normal.txt | gawk  -v symsize=$SYMSIZE1 '{ print $1, $2, ($7+270) % 360, symsize }' > normal_slip_vectors_np1.txt
+gawk 'NR > 1' kin_normal.txt | gawk  -v symsize=$SYMSIZE1 '{ print $1, $2, ($4+270) % 360, symsize }' > normal_slip_vectors_np2.txt
 
 fi
 
@@ -3957,7 +3956,7 @@ if [[ $REMOVE_EQUIVS -eq 1 && -e $CMTFILE && -e eqs.txt ]]; then
   before_e=$(wc -l < eqs.txt)
 # echo "CMTFILE=$CMTFILE"
   # epoch is field 4 for CMTS
-  awk < $CMTFILE '{
+  gawk < $CMTFILE '{
     if ($10 != "none") {                       # Use origin location
       print "O", $8, $9, $4, $10, $13, $3, $2
     } else if ($11 != "none") {                # Use centroid location for events without origin
@@ -3969,7 +3968,7 @@ if [[ $REMOVE_EQUIVS -eq 1 && -e $CMTFILE && -e eqs.txt ]]; then
   # A LON LAT DEPTH MAG TIMECODE ID EPOCH
 
   # We need to first add a buffer of fake EQs to avoid problems with grep -A -B
-  awk < eqs.txt '{
+  gawk < eqs.txt '{
     print "EQ", $1, $2, $7, $3, $4, $5, $6
   }' >> eq_comp.dat
 
@@ -3984,7 +3983,7 @@ if [[ $REMOVE_EQUIVS -eq 1 && -e $CMTFILE && -e eqs.txt ]]; then
   # C LON LAT EPOCH DEPTH MAG TIMECODE  ID   C LON LAT EPOCH DEPTH MAG TIMECODE ID   C LON LAT EPOCH DEPTH MAG TIMECODE ID
 
   # We want to remove from A any A event that is close to a C event
-  awk < 3comp.txt -v secondlimit=5 -v deglimit=2 -v maglimit=0.3 'function abs(v) {return v < 0 ? -v : v} {
+  gawk < 3comp.txt -v secondlimit=5 -v deglimit=2 -v maglimit=0.3 'function abs(v) {return v < 0 ? -v : v} {
     if ($9 == "EQ") { # Only examine non-CMT events
       if ($14 > 7.5) {
         deglimit=3
@@ -4012,7 +4011,7 @@ if [[ $REMOVE_DEFAULTDEPTHS -eq 1 && -e eqs.txt ]]; then
   info_msg "Removing earthquakes with poorly determined origin depths"
   [[ REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && info_msg "Plotting removed events separately"
   # Plotting in km instead of in map geographic coords.
-  awk < eqs.txt '{
+  gawk < eqs.txt '{
     depth=$10
     if (depth == 10 || depth == 33 || depth == 30 || depth == 5 ||depth == 1 || depth == 6  || depth == 35 ) {
       print > "/dev/stderr"
@@ -4025,8 +4024,8 @@ if [[ $REMOVE_DEFAULTDEPTHS -eq 1 && -e eqs.txt ]]; then
 fi
 
 if [[ $SCALEEQS -eq 1 && -e eqs.txt ]]; then
-  awk < removed_eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6, $7}' > removed_eqs_scaled.txt
-  awk < eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6, $7}' > eqs_scaled.txt
+  gawk < removed_eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6, $7}' > removed_eqs_scaled.txt
+  gawk < eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6, $7}' > eqs_scaled.txt
 fi
 
 ################################################################################
@@ -4058,7 +4057,7 @@ if [[ $plotplates -eq 1 ]]; then
   # STEP 1: Identify the plates that fall within the AOI and extract their polygons and Euler poles
 
   # Cut the plate file by the ROI.
-  gmt spatial $PLATES -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C $VERBOSE | awk '{print $1, $2}' > map_plates_clip_a.txt
+  gmt spatial $PLATES -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C $VERBOSE | gawk  '{print $1, $2}' > map_plates_clip_a.txt
 
   # Ensure CW orientation of clipped polygons.
   # GMT spatial strips out the header labels for some reason.
@@ -4089,14 +4088,14 @@ if [[ $plotplates -eq 1 ]]; then
     fi
   done < map_plates_clip_orient.txt
 
-  grep ">" map_plates_clip.txt | uniq | awk '{print $2}' > plate_id_list.txt
+  grep ">" map_plates_clip.txt | uniq | gawk  '{print $2}' > plate_id_list.txt
 
   if [[ $outputplatesflag -eq 1 ]]; then
     echo "Plates in model:"
-    awk < $POLES '{print $1}' | tr '\n' '\t'
+    gawk < $POLES '{print $1}' | tr '\n' '\t'
     echo ""
     echo "Plates within AOI":
-    awk < plate_id_list.txt '{
+    gawk < plate_id_list.txt '{
       split($1, v, "_");
       for(i=1; i<length(v); i++) {
         printf "%s\n", v[i]
@@ -4129,7 +4128,7 @@ if [[ $plotplates -eq 1 ]]; then
   # Comes within 0.2 degrees of geod() results over large distances, while being symmetrical which geod isn't
   # We need perfect symmetry in order to create exact point pairs in adjacent polygons
 
-  awk < geodin.txt '{print $1, $2, $3, $4}' | awk 'function acos(x) { return atan2(sqrt(1-x*x), x) }
+  gawk < geodin.txt '{print $1, $2, $3, $4}' | gawk  'function acos(x) { return atan2(sqrt(1-x*x), x) }
       {
         if ($1 == ">") {
           print $1, $2;
@@ -4153,7 +4152,7 @@ if [[ $plotplates -eq 1 ]]; then
   # headers per plate are possible if multiple disconnected lines were generated
   # outfile is midpointlon midpointlat azimuth
 
-  cat plateazfile.txt | awk '{if (!/^>/) print $1, $2}' > halfwaypoints.txt
+  cat plateazfile.txt | gawk  '{if (!/^>/) print $1, $2}' > halfwaypoints.txt
   # output is lat1 lon1 midlat1 midlon1 az backaz distance
 
 	cp plate_id_list.txt map_ids_end.txt
@@ -4172,11 +4171,11 @@ if [[ $plotplates -eq 1 ]]; then
   done
 
   # Extract the unique Euler poles
-  awk '!seen[$1]++' polesextract_init.txt > polesextract.txt
+  gawk '!seen[$1]++' polesextract_init.txt > polesextract.txt
 
   # Define the reference plate (zero motion plate) either manually or using reference point (reflon, reflat)
   if [[ $manualrefplateflag -eq 1 ]]; then
-    REFPLATE=$(grep ^$MANUALREFPLATE polesextract.txt | head -n 1 | awk '{print $1}')
+    REFPLATE=$(grep ^$MANUALREFPLATE polesextract.txt | head -n 1 | gawk  '{print $1}')
     info_msg "Manual reference plate is $REFPLATE"
   else
     # We use a tiny little polygon to clip the map_plates and determine the reference polygon.
@@ -4188,7 +4187,7 @@ if [[ $plotplates -eq 1 ]]; then
     X1=$(echo "$REFPTLON-$REFWINDOW" | bc -l)
     X2=$(echo "$REFPTLON+$REFWINDOW" | bc -l)
 
-    nREFPLATE=$(gmt spatial map_plates_clip.txt -R$X1/$X2/$Y1/$Y2 -C $VERBOSE  | grep "> " | head -n 1 | awk '{print $2}')
+    nREFPLATE=$(gmt spatial map_plates_clip.txt -R$X1/$X2/$Y1/$Y2 -C $VERBOSE  | grep "> " | head -n 1 | gawk  '{print $2}')
     info_msg "Automatic reference plate is $nREFPLATE"
 
     if [[ -z "$nREFPLATE" ]]; then
@@ -4210,9 +4209,9 @@ if [[ $plotplates -eq 1 ]]; then
   	info_msg "Looking for reference plate $REFPLATE in pole file $POLES"
 
   	# Have to search for lines beginning with REFPLATE with a space after to avoid matching e.g. both Burma and BurmanRanges
-  	reflat=`grep "^$REFPLATE\s" < polesextract.txt | awk '{print $2}'`
-  	reflon=`grep "^$REFPLATE\s" < polesextract.txt | awk '{print $3}'`
-  	refrate=`grep "^$REFPLATE\s" < polesextract.txt | awk '{print $4}'`
+  	reflat=`grep "^$REFPLATE\s" < polesextract.txt | gawk  '{print $2}'`
+  	reflon=`grep "^$REFPLATE\s" < polesextract.txt | gawk  '{print $3}'`
+  	refrate=`grep "^$REFPLATE\s" < polesextract.txt | gawk  '{print $4}'`
 
   	info_msg "Found reference plate Euler pole $REFPLATE vs $DEFREF $reflat $reflon $refrate"
   fi
@@ -4238,7 +4237,7 @@ if [[ $plotplates -eq 1 ]]; then
   # Iterate over the plates. We create plate polygons, identify Euler poles, etc.
 
   # Slurp the plate IDs from map_plates_clip.txt
-  v=($(grep ">" map_plates_clip.txt | awk '{print $2}' | tr ' ' '\n'))
+  v=($(grep ">" map_plates_clip.txt | gawk  '{print $2}' | tr ' ' '\n'))
 	i=0
 	j=1
 	while [[ $i -lt ${#v[@]}-1 ]]; do
@@ -4250,7 +4249,7 @@ if [[ $plotplates -eq 1 ]]; then
 		# PLDAT files now contain the X Y coordinates and segment azimuth with a > PL header line and a single empty line at the end
 
 		# Calculate the true centroid of each polygon and output it to the label file
-		sed -e '2,$!d' -e '$d' "${v[$i]}.pldat" | awk '{
+		sed -e '2,$!d' -e '$d' "${v[$i]}.pldat" | gawk  '{
 			x[NR] = $1;
 			y[NR] = $2;
 		}
@@ -4279,13 +4278,13 @@ if [[ $plotplates -eq 1 ]]; then
     cat "${v[$i]}.centroid" >> map_centroids.txt
 
     # Calculate Euler poles relative to reference plate
-    pllat=`grep "^${v[$i]}\s" < polesextract.txt | awk '{print $2}'`
-    pllon=`grep "^${v[$i]}\s" < polesextract.txt | awk '{print $3}'`
-    plrate=`grep "^${v[$i]}\s" < polesextract.txt | awk '{print $4}'`
+    pllat=`grep "^${v[$i]}\s" < polesextract.txt | gawk  '{print $2}'`
+    pllon=`grep "^${v[$i]}\s" < polesextract.txt | gawk  '{print $3}'`
+    plrate=`grep "^${v[$i]}\s" < polesextract.txt | gawk  '{print $4}'`
     # Calculate resultant Euler pole
     info_msg "Euler poles ${v[$i]} vs $DEFREF: $pllat $pllon $plrate vs $reflat $reflon $refrate"
 
-    echo $pllat $pllon $plrate $reflat $reflon $refrate | awk -f $EULERADD_AWK  > ${v[$i]}.pole
+    echo $pllat $pllon $plrate $reflat $reflon $refrate | gawk  -f $EULERADD_AWK  > ${v[$i]}.pole
 
     # Calculate motions of grid points from their plate's Euler pole
 
@@ -4294,33 +4293,33 @@ if [[ $plotplates -eq 1 ]]; then
     	# gridpts are in lon lat
       # Select the grid points within the plate amd calculate plate velocities at the grid points
 
-      cat gridfile.txt | gmt select -: -F${v[$i]}.pldat $VERBOSE | awk '{print $2, $1}' > ${v[$i]}_gridpts.txt
+      cat gridfile.txt | gmt select -: -F${v[$i]}.pldat $VERBOSE | gawk  '{print $2, $1}' > ${v[$i]}_gridpts.txt
 
       # COMEBACK
 
-      awk -f $EULERVEC_AWK -v eLat_d1=$pllat -v eLon_d1=$pllon -v eV1=$plrate -v eLat_d2=$reflat -v eLon_d2=$reflon -v eV2=$refrate ${v[$i]}_gridpts.txt > ${v[$i]}_velocities.txt
-    	paste -d ' ' ${v[$i]}_gridpts.txt ${v[$i]}_velocities.txt | awk '{print $2, $1, $3, $4, 0, 0, 1, "ID"}' > ${v[$i]}_platevecs.txt
+      gawk -f $EULERVEC_AWK -v eLat_d1=$pllat -v eLon_d1=$pllon -v eV1=$plrate -v eLat_d2=$reflat -v eLon_d2=$reflon -v eV2=$refrate ${v[$i]}_gridpts.txt > ${v[$i]}_velocities.txt
+    	paste -d ' ' ${v[$i]}_gridpts.txt ${v[$i]}_velocities.txt | gawk  '{print $2, $1, $3, $4, 0, 0, 1, "ID"}' > ${v[$i]}_platevecs.txt
     fi
 
     # Small circles for showing plate relative motions. Not the greatest or worst concept.
 
     if [[ $platerotationflag -eq 1 ]]; then
 
-      polelat=$(cat ${v[$i]}.pole | awk '{print $1}')
-      polelon=$(cat ${v[$i]}.pole | awk '{print $2}')
-      polerate=$(cat ${v[$i]}.pole | awk '{print $3}')
+      polelat=$(cat ${v[$i]}.pole | gawk  '{print $1}')
+      polelon=$(cat ${v[$i]}.pole | gawk  '{print $2}')
+      polerate=$(cat ${v[$i]}.pole | gawk  '{print $3}')
 
       if [[ $(echo "$polerate == 0" | bc -l) -eq 1 ]]; then
         info_msg "Not generating small circles for reference plate"
         touch ${v[$i]}.smallcircles
       else
-        centroidlat=`cat ${v[$i]}.centroid | awk -F, '{print $1}'`
-        centroidlon=`cat ${v[$i]}.centroid | awk -F, '{print $2}'`
+        centroidlat=`cat ${v[$i]}.centroid | gawk  -F, '{print $1}'`
+        centroidlon=`cat ${v[$i]}.centroid | gawk  -F, '{print $2}'`
         info_msg "Generating small circles around pole $polelat $polelon"
 
         # Calculate the minimum and maximum colatitudes of points in .pldat file relative to Euler Pole
         #cos(AOB)=cos(latA)cos(latB)cos(lonB-lonA)+sin(latA)sin(latB)
-        grep -v ">" ${v[$i]}.pldat | grep "\S" | awk -v plat=$polelat -v plon=$polelon 'function acos(x) { return atan2(sqrt(1-x*x), x) }
+        grep -v ">" ${v[$i]}.pldat | grep "\S" | gawk  -v plat=$polelat -v plon=$polelon 'function acos(x) { return atan2(sqrt(1-x*x), x) }
           BEGIN {
             maxdeg=0; mindeg=180;
           }
@@ -4345,26 +4344,26 @@ if [[ $plotplates -eq 1 ]]; then
             if (mindeg < 1) { mindeg=1; }
             printf "%.0f %.0f\n", mindeg, maxdeg
         }' > ${v[$i]}.colatrange.txt
-        colatmin=$(cat ${v[$i]}.colatrange.txt | awk '{print $1}')
-        colatmax=$(cat ${v[$i]}.colatrange.txt | awk '{print $2}')
+        colatmin=$(cat ${v[$i]}.colatrange.txt | gawk  '{print $1}')
+        colatmax=$(cat ${v[$i]}.colatrange.txt | gawk  '{print $2}')
 
         # Find the antipode for GMT project
         poleantilat=$(echo "0 - (${polelat})" | bc -l)
-        poleantilon=$(echo "$polelon" | awk '{if ($1 < 0) { print $1+180 } else { print $1-180 } }')
+        poleantilon=$(echo "$polelon" | gawk  '{if ($1 < 0) { print $1+180 } else { print $1-180 } }')
         info_msg "Pole $polelat $polelon has antipode $poleantilat $poleantilon"
 
         # Generate small circle paths in colatitude range of plate
         rm -f ${v[$i]}.smallcircles
         for j2 in $(seq $colatmin $LATSTEPS $colatmax); do
           echo "> -Z${j2}" >> ${v[$i]}.smallcircles
-          gmt project -T${polelon}/${polelat} -C${poleantilon}/${poleantilat} -G0.5/${j2} -L-360/0 $VERBOSE | awk '{print $1, $2}' >> ${v[$i]}.smallcircles
+          gmt project -T${polelon}/${polelat} -C${poleantilon}/${poleantilat} -G0.5/${j2} -L-360/0 $VERBOSE | gawk  '{print $1, $2}' >> ${v[$i]}.smallcircles
         done
 
         # Clip the small circle paths by the plate polygon
-        gmt spatial ${v[$i]}.smallcircles -T${v[$i]}.pldat $VERBOSE | awk '{print $1, $2}' > ${v[$i]}.smallcircles_clip_1
+        gmt spatial ${v[$i]}.smallcircles -T${v[$i]}.pldat $VERBOSE | gawk  '{print $1, $2}' > ${v[$i]}.smallcircles_clip_1
 
         # We have trouble with gmt spatial giving us two-point lines segments. Remove all two-point segments by building a sed script
-        grep -n ">" ${v[$i]}.smallcircles_clip_1 | awk -F: 'BEGIN { oldval=0; oldline=""; }
+        grep -n ">" ${v[$i]}.smallcircles_clip_1 | gawk  -F: 'BEGIN { oldval=0; oldline=""; }
         {
           val=$1;
           diff=val-oldval;
@@ -4385,13 +4384,13 @@ if [[ $plotplates -eq 1 ]]; then
         cat ${v[$i]}.smallcircles_clip | gmt psxy -O -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -W0p -Sqd0.25i:+t"${v[$i]}labels.txt"+l" " $VERBOSE >> /dev/null
 
         # Reformat points
-        awk < ${v[$i]}labels.txt '{print $2, $1}' > ${v[$i]}_smallcirc_gridpts.txt
+        gawk < ${v[$i]}labels.txt '{print $2, $1}' > ${v[$i]}_smallcirc_gridpts.txt
 
         # Calculate the plate velocities at the points
-        awk -f $EULERVEC_AWK -v eLat_d1=$pllat -v eLon_d1=$pllon -v eV1=$plrate -v eLat_d2=$reflat -v eLon_d2=$reflon -v eV2=$refrate ${v[$i]}_smallcirc_gridpts.txt > ${v[$i]}_smallcirc_velocities.txt
+        gawk -f $EULERVEC_AWK -v eLat_d1=$pllat -v eLon_d1=$pllon -v eV1=$plrate -v eLat_d2=$reflat -v eLon_d2=$reflon -v eV2=$refrate ${v[$i]}_smallcirc_gridpts.txt > ${v[$i]}_smallcirc_velocities.txt
 
         # Transform to psvelo format for later plotting
-        paste -d ' ' ${v[$i]}_smallcirc_gridpts.txt ${v[$i]}_smallcirc_velocities.txt | awk '{print $1, $2, $3*100, $4*100, 0, 0, 1, "ID"}' > ${v[$i]}_smallcirc_platevecs.txt
+        paste -d ' ' ${v[$i]}_smallcirc_gridpts.txt ${v[$i]}_smallcirc_velocities.txt | gawk  '{print $1, $2, $3*100, $4*100, 0, 0, 1, "ID"}' > ${v[$i]}_smallcirc_platevecs.txt
       fi # small circles
     fi
 
@@ -4412,7 +4411,7 @@ if [[ $plotplates -eq 1 ]]; then
     # To re-build, use a global region -r -180 180 -90 90 and copy id_pts_euler.txt to $MIDPOINTS file
 
     if [[ -e $MIDPOINTS ]]; then
-      awk < $MIDPOINTS -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '{
+      gawk < $MIDPOINTS -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '{
         if ($1 >= minlon && $1 <= maxlon && $2 >= minlat && $2 <= maxlat) {
           print
         }
@@ -4425,10 +4424,10 @@ if [[ $plotplates -eq 1 ]]; then
 
     	# Create a file with all points one one line beginning with the plate ID only
       # The sed '$d' deletes the 'END' line
-      awk < plateazfile.txt '{print $1, $2 }' | tr '\n' ' ' | sed -e $'s/>/\\\n/g' | grep '\S' | tr -s '\t' ' ' | sed '$d' > map_plates_oneline.txt
+      gawk < plateazfile.txt '{print $1, $2 }' | tr '\n' ' ' | sed -e $'s/>/\\\n/g' | grep '\S' | tr -s '\t' ' ' | sed '$d' > map_plates_oneline.txt
 
     	# Create a list of unique block edge points.  Not sure I actually need this
-    	awk -F" " '!_[$1][$2]++' plateazfile.txt | awk '($1 != ">") {print $1, $2}' > map_plates_uniq.txt
+    gawk -F" " '!_[$1][$2]++' plateazfile.txt | gawk  '($1 != ">") {print $1, $2}' > map_plates_uniq.txt
 
       # Primary output is id_pts.txt, containing properties of segment midpoints
       # id_pts.txt
@@ -4445,13 +4444,13 @@ if [[ $plotplates -eq 1 ]]; then
 
       while read p; do
         if [[ ${p:0:1} == '>' ]]; then  # We encountered a plate segment header. All plate pairs should be referenced to this plate
-          curplate=$(echo $p | awk '{print $2}')
+          curplate=$(echo $p | gawk  '{print $2}')
           echo $p >> id_pts.txt
           pole1=($(grep "${curplate}\s" < polesextract.txt))
           info_msg "Current plate is $curplate with pole ${pole1[1]} ${pole1[2]} ${pole1[3]}"
         else
-          q=$(echo $p | awk '{print $1, $2}')
-          resvar=($(grep -n -- "${q}" < map_plates_oneline.txt | awk -F" " '{printf "%s\n", $2}'))
+          q=$(echo $p | gawk  '{print $1, $2}')
+          resvar=($(grep -n -- "${q}" < map_plates_oneline.txt | gawk  -F" " '{printf "%s\n", $2}'))
           numres=${#resvar[@]}
           if [[ $numres -eq 2 ]]; then   # Point is between two plates
             if [[ ${resvar[0]} == $curplate ]]; then
@@ -4468,23 +4467,23 @@ if [[ $plotplates -eq 1 ]]; then
           pole2=($(grep "${plate2}\s" < polesextract.txt))
           info_msg " Plate 2 is $plate2 with pole ${pole2[1]} ${pole2[2]} ${pole2[3]}"
           echo -n "${p} " >> id_pts.txt
-          echo ${plate1} ${plate2} ${pole2[1]} ${pole2[2]} ${pole2[3]} ${pole1[1]} ${pole1[2]} ${pole1[3]} | awk '{printf "%s %s ", $1, $2; print $3, $4, $5, $6, $7, $8}' >> id_pts.txt
+          echo ${plate1} ${plate2} ${pole2[1]} ${pole2[2]} ${pole2[3]} ${pole1[1]} ${pole1[2]} ${pole1[3]} | gawk  '{printf "%s %s ", $1, $2; print $3, $4, $5, $6, $7, $8}' >> id_pts.txt
         fi
       done < plateazfile.txt
 
       # Do the plate relative motion calculations all at once.
-      awk -f $EULERVECLIST_AWK id_pts.txt > id_pts_euler.txt
+      gawk -f $EULERVECLIST_AWK id_pts.txt > id_pts_euler.txt
 
     fi
 
-  	grep "^[^>]" < id_pts_euler.txt | awk '{print $1, $2, $3, 0.5}' >  paz1.txt
-  	grep "^[^>]" < id_pts_euler.txt | awk '{print $1, $2, $15, 0.5}' >  paz2.txt
+  	grep "^[^>]" < id_pts_euler.txt | gawk  '{print $1, $2, $3, 0.5}' >  paz1.txt
+  	grep "^[^>]" < id_pts_euler.txt | gawk  '{print $1, $2, $15, 0.5}' >  paz2.txt
 
-    grep "^[^>]" < id_pts_euler.txt | awk '{print $1, $2, $3-$15}' >  azdiffpts.txt
-    #grep "^[^>]" < id_pts_euler.txt | awk '{print $1, $2, $3-$15, $4}' >  azdiffpts_len.txt
+    grep "^[^>]" < id_pts_euler.txt | gawk  '{print $1, $2, $3-$15}' >  azdiffpts.txt
+    #grep "^[^>]" < id_pts_euler.txt | gawk  '{print $1, $2, $3-$15, $4}' >  azdiffpts_len.txt
 
     # Right now these values don't go from -180:180...
-    grep "^[^>]" < id_pts_euler.txt | awk '{
+    grep "^[^>]" < id_pts_euler.txt | gawk  '{
         val = $3-$15
         if (val > 180) { val = val - 360 }
         if (val < -180) { val = val + 360 }
@@ -4494,25 +4493,25 @@ if [[ $plotplates -eq 1 ]]; then
 
   	# currently these kinematic arrows are all the same scale. Can scale to match psvelo... but how?
 
-    grep "^[^>]" < id_pts_euler.txt |awk 'function abs(v) {return v < 0 ? -v : v} function ddiff(u) { return u > 180 ? 360 - u : u} {
+    grep "^[^>]" < id_pts_euler.txt | gawk  'function abs(v) {return v < 0 ? -v : v} function ddiff(u) { return u > 180 ? 360 - u : u} {
       diff=$15-$3;
       if (diff > 180) { diff = diff - 360 }
       if (diff < -180) { diff = diff + 360 }
       if (diff >= 20 && diff <= 70) { print $1, $2, $15, sqrt($13*$13+$14*$14) }}' >  paz1thrust.txt
 
-    grep "^[^>]" < id_pts_euler.txt |awk 'function abs(v) {return v < 0 ? -v : v} function ddiff(u) { return u > 180 ? 360 - u : u} {
+    grep "^[^>]" < id_pts_euler.txt | gawk  'function abs(v) {return v < 0 ? -v : v} function ddiff(u) { return u > 180 ? 360 - u : u} {
       diff=$15-$3;
       if (diff > 180) { diff = diff - 360 }
       if (diff < -180) { diff = diff + 360 }
       if (diff > 70 && diff < 110) { print $1, $2, $15, sqrt($13*$13+$14*$14) }}' >  paz1ss1.txt
 
-    grep "^[^>]" < id_pts_euler.txt |awk 'function abs(v) {return v < 0 ? -v : v} function ddiff(u) { return u > 180 ? 360 - u : u} {
+    grep "^[^>]" < id_pts_euler.txt | gawk  'function abs(v) {return v < 0 ? -v : v} function ddiff(u) { return u > 180 ? 360 - u : u} {
       diff=$15-$3;
       if (diff > 180) { diff = diff - 360 }
       if (diff < -180) { diff = diff + 360 }
       if (diff > -90 && diff < -70) { print $1, $2, $15, sqrt($13*$13+$14*$14) }}' > paz1ss2.txt
 
-    grep "^[^>]" < id_pts_euler.txt |awk 'function abs(v) {return v < 0 ? -v : v} function ddiff(u) { return u > 180 ? 360 - u : u} {
+    grep "^[^>]" < id_pts_euler.txt | gawk  'function abs(v) {return v < 0 ? -v : v} function ddiff(u) { return u > 180 ? 360 - u : u} {
       diff=$15-$3;
       if (diff > 180) { diff = diff - 360 }
       if (diff < -180) { diff = diff + 360 }
@@ -4564,10 +4563,10 @@ for cptfile in ${cpts[@]} ; do
       if [[ $rescalegravflag -eq 1 ]]; then
         # gmt grdcut $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -Ggravtmp.nc
         zrange=$(grid_zrange $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
-        MINZ=$(echo $zrange | awk '{print int($1/100)*100}')
-        MAXZ=$(echo $zrange | awk '{print int($2/100)*100}')
-        # MINZ=$(gmt grdinfo $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep z_min | awk '{ print int($3/100)*100 }')
-        # MAXZ=$(gmt grdinfo $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep z_min | awk '{print int($5/100)*100}')
+        MINZ=$(echo $zrange | gawk  '{print int($1/100)*100}')
+        MAXZ=$(echo $zrange | gawk  '{print int($2/100)*100}')
+        # MINZ=$(gmt grdinfo $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep z_min | gawk  '{ print int($3/100)*100 }')
+        # MAXZ=$(gmt grdinfo $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep z_min | gawk  '{print int($5/100)*100}')
         # echo MINZ MAXZ $MINZ $MAXZ
         # GRAVCPT is set by the type of gravity we selected (BG, etc) and is not the same as GRAV_CPT
         gmt makecpt -C$GRAVCPT -T$MINZ/$MAXZ $VERBOSE > $GRAV_CPT
@@ -4591,7 +4590,7 @@ for cptfile in ${cpts[@]} ; do
     oceanage)
       if [[ $stretchoccptflag -eq 1 ]]; then
         # The ocean CPT has a long 'purple' tail that isn't useful when stretching the CPT
-        awk < $OC_AGE_CPT '{ if ($1 < 180) print }' > ./oceanage_cut.cpt
+        gawk < $OC_AGE_CPT '{ if ($1 < 180) print }' > ./oceanage_cut.cpt
         printf "B\twhite\n" >> ./oceanage_cut.cpt
         printf "F\tblack\n" >> ./oceanage_cut.cpt
         printf "N\t128\n" >> ./oceanage_cut.cpt
@@ -4627,12 +4626,12 @@ for cptfile in ${cpts[@]} ; do
       fi
       if [[ $rescaletopoflag -eq 1 ]]; then
         zrange=$(grid_zrange $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
-        MINZ=$(echo $zrange | awk '{printf "%d\n", $1}')
-        MAXZ=$(echo $zrange | awk '{printf "%d\n", $2}')
-        # # MINZ=$(gmt grdinfo $BATHY ${VERBOSE} | grep z_min | awk '{ print int($3/100)*100 }')
-        # # MAXZ=$(gmt grdinfo $BATHY ${VERBOSE} | grep z_min | awk '{print int($5/100)*100}')
-        # MINZ=$(gmt grdinfo -L $BATHY ${VERBOSE} | grep z_min | awk '{ print $3 }')
-        # MAXZ=$(gmt grdinfo -L $BATHY ${VERBOSE} | grep z_min | awk '{ print $5 }')
+        MINZ=$(echo $zrange | gawk  '{printf "%d\n", $1}')
+        MAXZ=$(echo $zrange | gawk  '{printf "%d\n", $2}')
+        # # MINZ=$(gmt grdinfo $BATHY ${VERBOSE} | grep z_min | gawk  '{ print int($3/100)*100 }')
+        # # MAXZ=$(gmt grdinfo $BATHY ${VERBOSE} | grep z_min | gawk  '{print int($5/100)*100}')
+        # MINZ=$(gmt grdinfo -L $BATHY ${VERBOSE} | grep z_min | gawk  '{ print $3 }')
+        # MAXZ=$(gmt grdinfo -L $BATHY ${VERBOSE} | grep z_min | gawk  '{ print $5 }')
         info_msg "Rescaling topo $BATHY with CPT to $MINZ/$MAXZ with hinge at 0"
         gmt makecpt -Fr -C$TOPO_CPT_DEF -T$MINZ/$MAXZ/${TOPO_CPT_DEF_STEP}  ${VERBOSE} > topotmp.cpt
         mv topotmp.cpt $TOPO_CPT
@@ -4641,7 +4640,7 @@ for cptfile in ${cpts[@]} ; do
         if [[ $GDIFFZ -eq 1 ]]; then
           BATHYXINC=2
         else
-          BATHYXINC=$(echo "($MAXZ - $MINZ) / 6 / 1000" | bc -l | awk '{ print int($1/0.1)*0.1}')
+          BATHYXINC=$(echo "($MAXZ - $MINZ) / 6 / 1000" | bc -l | gawk  '{ print int($1/0.1)*0.1}')
         fi
         GDIFFZ=$(echo "($MAXZ - $MINZ) < 1000" | bc) # Scale range is lower than 1 km
         # Set the interval value for the legend scale based on the range of the data
@@ -4747,9 +4746,9 @@ else
   echo "0 0" | gmt psxy -Sc0.001i -Gwhite -W0p -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -X$PLOTSHIFTX -Y$PLOTSHIFTY $OVERLAY -K $VERBOSE  >> map.ps
 fi
 
-MAP_PS_DIM=$(gmt psconvert base_fake.ps -Te -A0.01i -V 2> >(grep Width) | awk -F'[ []' '{print $10, $17}')
-MAP_PS_WIDTH_IN=$(echo $MAP_PS_DIM | awk '{print $1/2.54}')
-MAP_PS_HEIGHT_IN=$(echo $MAP_PS_DIM | awk '{print $2/2.54}')
+MAP_PS_DIM=$(gmt psconvert base_fake.ps -Te -A0.01i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+MAP_PS_WIDTH_IN=$(echo $MAP_PS_DIM | gawk  '{print $1/2.54}')
+MAP_PS_HEIGHT_IN=$(echo $MAP_PS_DIM | gawk  '{print $2/2.54}')
 # echo "Map dimensions (cm) are W: $MAP_PS_WIDTH_IN, H: $MAP_PS_HEIGHT_IN"
 
 ######
@@ -4763,30 +4762,30 @@ for plot in ${plots[@]} ; do
 	case $plot in
     caxes)
       if [[ $axescmtthrustflag -eq 1 ]]; then
-        [[ $axestflag -eq 1 ]] && awk < t_axes_thrust.txt -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >> map.ps
-        [[ $axespflag -eq 1 ]] && awk < p_axes_thrust.txt -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >> map.ps
-        [[ $axesnflag -eq 1 ]] && awk < n_axes_thrust.txt -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >> map.ps
+        [[ $axestflag -eq 1 ]] && gawk  < t_axes_thrust.txt -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >> map.ps
+        [[ $axespflag -eq 1 ]] && gawk  < p_axes_thrust.txt -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >> map.ps
+        [[ $axesnflag -eq 1 ]] && gawk  < n_axes_thrust.txt -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >> map.ps
       fi
       if [[ $axescmtnormalflag -eq 1 ]]; then
-        [[ $axestflag -eq 1 ]] && awk < t_axes_normal.txt  -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >> map.ps
-        [[ $axespflag -eq 1 ]] && awk < p_axes_normal.txt  -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >> map.ps
-        [[ $axesnflag -eq 1 ]] && awk < n_axes_normal.txt -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >> map.ps
+        [[ $axestflag -eq 1 ]] && gawk  < t_axes_normal.txt  -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >> map.ps
+        [[ $axespflag -eq 1 ]] && gawk  < p_axes_normal.txt  -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >> map.ps
+        [[ $axesnflag -eq 1 ]] && gawk  < n_axes_normal.txt -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >> map.ps
       fi
       if [[ $axescmtssflag -eq 1 ]]; then
-        [[ $axestflag -eq 1 ]] && awk < t_axes_strikeslip.txt -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack  $RJOK $VERBOSE >> map.ps
-        [[ $axespflag -eq 1 ]] && awk < p_axes_strikeslip.txt  -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >> map.ps
-        [[ $axesnflag -eq 1 ]] && awk < n_axes_strikeslip.txt -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >> map.ps
+        [[ $axestflag -eq 1 ]] && gawk  < t_axes_strikeslip.txt -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack  $RJOK $VERBOSE >> map.ps
+        [[ $axespflag -eq 1 ]] && gawk  < p_axes_strikeslip.txt  -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >> map.ps
+        [[ $axesnflag -eq 1 ]] && gawk  < n_axes_strikeslip.txt -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >> map.ps
       fi
       ;;
     cities)
       info_msg "Plotting cities with minimum population ${CITIES_MINPOP}"
-      awk < $CITIES -F, -v minpop=${CITIES_MINPOP} -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON"  'BEGIN{OFS=","}($1>=minlon && $1 <= maxlon && $2 >= minlat && $2 <= maxlat && $4>=minpop) {print $1, $2, $3, $4}' | sort -n -k 3 > cities.dat
+      gawk < $CITIES -F, -v minpop=${CITIES_MINPOP} -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON"  'BEGIN{OFS=","}($1>=minlon && $1 <= maxlon && $2 >= minlat && $2 <= maxlat && $4>=minpop) {print $1, $2, $3, $4}' | sort -n -k 3 > cities.dat
 
       # Sort the cities so that dense areas plot on top of less dense areas
       # Could also do some kind of symbol scaling
-      awk < cities.dat -F, '{print $1, $2, $4}' | sort -n -k 3 | gmt psxy -S${CITIES_SYMBOL}${CITIES_SYMBOL_SIZE} -W${CITIES_SYMBOL_LINEWIDTH},${CITIES_SYMBOL_LINECOLOR} -C$POPULATION_CPT $RJOK $VERBOSE >> map.ps
+      gawk < cities.dat -F, '{print $1, $2, $4}' | sort -n -k 3 | gmt psxy -S${CITIES_SYMBOL}${CITIES_SYMBOL_SIZE} -W${CITIES_SYMBOL_LINEWIDTH},${CITIES_SYMBOL_LINECOLOR} -C$POPULATION_CPT $RJOK $VERBOSE >> map.ps
       if [[ $citieslabelflag -eq 1 ]]; then
-        awk < cities.dat -F, '{print $1, $2, $3}' | sort -n -k 3 | gmt pstext -F+f${CITIES_LABEL_FONTSIZE},${CITIES_LABEL_FONT},${CITIES_LABEL_FONTCOLOR}+jLM $RJOK $VERBOSE >> map.ps
+        gawk < cities.dat -F, '{print $1, $2, $3}' | sort -n -k 3 | gmt pstext -F+f${CITIES_LABEL_FONTSIZE},${CITIES_LABEL_FONT},${CITIES_LABEL_FONTCOLOR}+jLM $RJOK $VERBOSE >> map.ps
       fi
       ;;
 
@@ -4796,7 +4795,7 @@ for plot in ${plots[@]} ; do
       # COMEBACK: These need to be xyz with the alternative depth given...
 
       if [[ $connectalternatelocflag -eq 1 ]]; then
-        awk < cmt_thrust.txt '{
+        gawk < cmt_thrust.txt '{
           # If the event has an alternative position
           if ($12 != "none" && $13 != "none")  {
             print ">:" $1, $2, $3 ":" $12, $13, $15 >> "./cmt_alt_lines_thrust.xyz"
@@ -4807,7 +4806,7 @@ for plot in ${plots[@]} ; do
             print $1, $2, $3 >> "./cmt_alt_pts_thrust.xyz"
           }
         }'
-        awk < cmt_normal.txt '{
+        gawk < cmt_normal.txt '{
           if ($12 != "none" && $13 != "none")  {  # Some events have no alternative position depending on format
             print ">:" $1, $2, $3 ":" $12, $13, $15 >> "./cmt_alt_lines_normal.xyz"
             print $12, $13, $15 >> "./cmt_alt_pts_normal.xyz"
@@ -4817,7 +4816,7 @@ for plot in ${plots[@]} ; do
             print $1, $2, $3 >> "./cmt_alt_pts_normal.xyz"
           }
         }'
-        awk < cmt_strikeslip.txt '{
+        gawk < cmt_strikeslip.txt '{
           if ($12 != "none" && $13 != "none")  {  # Some events have no alternative position depending on format
             print ">:" $1, $2, $3 ":" $12, $13, $15 >> "./cmt_alt_lines_strikeslip.xyz"
             print $12, $13, $15 >> "./cmt_alt_pts_strikeslip.xyz"
@@ -4883,7 +4882,7 @@ for plot in ${plots[@]} ; do
       ;;
 
     countrylabels)
-      awk -F, < $COUNTRY_CODES '{ print $3, $2, $4}' | gmt pstext -F+f${COUNTRY_LABEL_FONTSIZE},${COUNTRY_LABEL_FONT},${COUNTRY_LABEL_FONTCOLOR}+jLM $RJOK ${VERBOSE} >> map.ps
+      gawk -F, < $COUNTRY_CODES '{ print $3, $2, $4}' | gmt pstext -F+f${COUNTRY_LABEL_FONTSIZE},${COUNTRY_LABEL_FONT},${COUNTRY_LABEL_FONTCOLOR}+jLM $RJOK ${VERBOSE} >> map.ps
       ;;
 
     customtopo)
@@ -4912,12 +4911,12 @@ for plot in ${plots[@]} ; do
           done
         fi
         if [[ $labeleqmagflag -eq 1 ]]; then
-          awk < cmt_orig.dat -v minmag=$labeleqminmag '($13>=minmag) {print}'  >> cmtlabel.sel
+          gawk < cmt_orig.dat -v minmag=$labeleqminmag '($13>=minmag) {print}'  >> cmtlabel.sel
         fi
 
         # 39 fields in cmt file. NR=texc NR-1=font
 
-        awk < cmtlabel.sel -v clon=$CENTERLON -v clat=$CENTERLAT -v font=$FONTSTR -v ctype=$CMTTYPE '{
+        gawk < cmtlabel.sel -v clon=$CENTERLON -v clat=$CENTERLAT -v font=$FONTSTR -v ctype=$CMTTYPE '{
           if (ctype=="ORIGIN") { lon=$8; lat=$9 } else { lon=$5; lat=$6; }
           if (lon > clon) {
             hpos="R"
@@ -4934,20 +4933,20 @@ for plot in ${plots[@]} ; do
 
         case $CMTTYPE in
           ORIGIN)
-            [[ $EQ_LABELFORMAT == "idmag" ]] && awk < cmtlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $8, $9, $(NF-1), 0, $(NF), $2, $13 }' >> cmt.labels
-            [[ $EQ_LABELFORMAT == "datemag" ]] && awk < cmtlabel_pos.sel '{ split($3,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $8, $9, $(NF-1), 0, $(NF), tmp[1], $13 }' >> cmt.labels
-            [[ $EQ_LABELFORMAT == "dateid" ]] && awk < cmtlabel_pos.sel '{ split($3,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $8, $9, $(NF-1), 0, $(NF), tmp[1], $2 }' >> cmt.labels
-            [[ $EQ_LABELFORMAT == "id" ]] && awk < cmtlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s\n", $8, $9, $(NF-1), 0, $(NF), $2   }' >> cmt.labels
-            [[ $EQ_LABELFORMAT == "date" ]] && awk < cmtlabel_pos.sel '{ split($3,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s\n",  $8, $9, $(NF-1), 0, $(NF), tmp[1] }' >> cmt.labels
-            [[ $EQ_LABELFORMAT == "mag" ]] && awk < cmtlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%0.1f\n",  $8, $9, $(NF-1), 0, $(NF), $13  }' >> cmt.labels
+            [[ $EQ_LABELFORMAT == "idmag" ]] && gawk  < cmtlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $8, $9, $(NF-1), 0, $(NF), $2, $13 }' >> cmt.labels
+            [[ $EQ_LABELFORMAT == "datemag" ]] && gawk  < cmtlabel_pos.sel '{ split($3,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $8, $9, $(NF-1), 0, $(NF), tmp[1], $13 }' >> cmt.labels
+            [[ $EQ_LABELFORMAT == "dateid" ]] && gawk  < cmtlabel_pos.sel '{ split($3,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $8, $9, $(NF-1), 0, $(NF), tmp[1], $2 }' >> cmt.labels
+            [[ $EQ_LABELFORMAT == "id" ]] && gawk  < cmtlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s\n", $8, $9, $(NF-1), 0, $(NF), $2   }' >> cmt.labels
+            [[ $EQ_LABELFORMAT == "date" ]] && gawk  < cmtlabel_pos.sel '{ split($3,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s\n",  $8, $9, $(NF-1), 0, $(NF), tmp[1] }' >> cmt.labels
+            [[ $EQ_LABELFORMAT == "mag" ]] && gawk  < cmtlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%0.1f\n",  $8, $9, $(NF-1), 0, $(NF), $13  }' >> cmt.labels
             ;;
           CENTROID)
-            [[ $EQ_LABELFORMAT == "idmag"   ]] && awk < cmtlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $5, $6, $(NF-1), 0, $(NF), $2, $13 }' >> cmt.labels
-            [[ $EQ_LABELFORMAT == "datemag" ]] && awk < cmtlabel_pos.sel '{ split($3,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $5, $6, $(NF-1), 0, $(NF), tmp[1], $13 }' >> cmt.labels
-            [[ $EQ_LABELFORMAT == "dateid"   ]] && awk < cmtlabel_pos.sel '{ split($3,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $5, $6, $(NF-1), 0, $(NF), tmp[1], $2 }' >> cmt.labels
-            [[ $EQ_LABELFORMAT == "id"   ]] && awk < cmtlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s\n", $5, $6, $(NF-1), 0, $(NF), $2   }' >> cmt.labels
-            [[ $EQ_LABELFORMAT == "date"   ]] && awk < cmtlabel_pos.sel '{ split($3,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s\n",  $5, $6, $(NF-1), 0, $(NF), tmp[1] }' >> cmt.labels
-            [[ $EQ_LABELFORMAT == "mag"   ]] && awk < cmtlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%0.1f\n",  $5, $6, $(NF-1), 0, $(NF), $13  }' >> cmt.labels
+            [[ $EQ_LABELFORMAT == "idmag"   ]] && gawk  < cmtlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $5, $6, $(NF-1), 0, $(NF), $2, $13 }' >> cmt.labels
+            [[ $EQ_LABELFORMAT == "datemag" ]] && gawk  < cmtlabel_pos.sel '{ split($3,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $5, $6, $(NF-1), 0, $(NF), tmp[1], $13 }' >> cmt.labels
+            [[ $EQ_LABELFORMAT == "dateid"   ]] && gawk  < cmtlabel_pos.sel '{ split($3,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $5, $6, $(NF-1), 0, $(NF), tmp[1], $2 }' >> cmt.labels
+            [[ $EQ_LABELFORMAT == "id"   ]] && gawk  < cmtlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s\n", $5, $6, $(NF-1), 0, $(NF), $2   }' >> cmt.labels
+            [[ $EQ_LABELFORMAT == "date"   ]] && gawk  < cmtlabel_pos.sel '{ split($3,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s\n",  $5, $6, $(NF-1), 0, $(NF), tmp[1] }' >> cmt.labels
+            [[ $EQ_LABELFORMAT == "mag"   ]] && gawk  < cmtlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%0.1f\n",  $5, $6, $(NF-1), 0, $(NF), $13  }' >> cmt.labels
             ;;
         esac
         uniq -u cmt.labels | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite -F+f+a+j -W0.5p,black $RJOK $VERBOSE >> map.ps
@@ -4960,10 +4959,10 @@ for plot in ${plots[@]} ; do
           done
         fi
         if [[ $labeleqmagflag -eq 1 ]]; then
-          awk < eqs.txt -v minmag=$labeleqminmag '($4>=minmag) {print}'  >> eqlabel.sel
+          gawk < eqs.txt -v minmag=$labeleqminmag '($4>=minmag) {print}'  >> eqlabel.sel
         fi
 
-        awk < eqlabel.sel -v clon=$CENTERLON -v clat=$CENTERLAT -v font=$FONTSTR '{
+        gawk < eqlabel.sel -v clon=$CENTERLON -v clat=$CENTERLAT -v font=$FONTSTR '{
           if ($1 > clon) {
             hpos="R"
           } else {
@@ -4977,12 +4976,12 @@ for plot in ${plots[@]} ; do
           print $0, font, vpos hpos
         }' > eqlabel_pos.sel
 
-        [[ $EQ_LABELFORMAT == "idmag"   ]] && awk < eqlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $1, $2, $8, 0, $9, $6, $4  }' >> eq.labels
-        [[ $EQ_LABELFORMAT == "datemag" ]] && awk < eqlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $1, $2, $8, 0, $9, tmp[1], $4 }' >> eq.labels
-        [[ $EQ_LABELFORMAT == "dateid"   ]] && awk < eqlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $1, $2, $8, 0, $9, tmp[1], $6 }' >> eq.labels
-        [[ $EQ_LABELFORMAT == "id"   ]] && awk < eqlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $8, 0, $9, $6  }' >> eq.labels
-        [[ $EQ_LABELFORMAT == "date"   ]] && awk < eqlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $8, 0, $9, tmp[1] }' >> eq.labels
-        [[ $EQ_LABELFORMAT == "mag"   ]] && awk < eqlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%0.1f\n", $1, $2, $8, 0, $9, $4  }' >> eq.labels
+        [[ $EQ_LABELFORMAT == "idmag"   ]] && gawk  < eqlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $1, $2, $8, 0, $9, $6, $4  }' >> eq.labels
+        [[ $EQ_LABELFORMAT == "datemag" ]] && gawk  < eqlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $1, $2, $8, 0, $9, tmp[1], $4 }' >> eq.labels
+        [[ $EQ_LABELFORMAT == "dateid"   ]] && gawk  < eqlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $1, $2, $8, 0, $9, tmp[1], $6 }' >> eq.labels
+        [[ $EQ_LABELFORMAT == "id"   ]] && gawk  < eqlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $8, 0, $9, $6  }' >> eq.labels
+        [[ $EQ_LABELFORMAT == "date"   ]] && gawk  < eqlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $8, 0, $9, tmp[1] }' >> eq.labels
+        [[ $EQ_LABELFORMAT == "mag"   ]] && gawk  < eqlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%0.1f\n", $1, $2, $8, 0, $9, $4  }' >> eq.labels
         uniq -u eq.labels | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite  -F+f+a+j -W0.5p,black $RJOK $VERBOSE >> map.ps
       fi
       ;;
@@ -4996,7 +4995,7 @@ for plot in ${plots[@]} ; do
       info_msg "Plotting extra GPS dataset $EXTRAGPS"
       gmt psvelo $EXTRAGPS -W${EXTRAGPS_LINEWIDTH},${EXTRAGPS_LINECOLOR} -G${EXTRAGPS_FILLCOLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
       # Generate XY data for reference
-      awk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' $EXTRAGPS > extragps.xy
+      gawk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' $EXTRAGPS > extragps.xy
       ;;
 
     euler)
@@ -5010,12 +5009,12 @@ for plot in ${plots[@]} ; do
 
       if [[ $euleratgpsflag -eq 1 ]]; then    # If we are looking at GPS data (-wg)
         if [[ $plotgps -eq 1 ]]; then         # If the GPS data are regional
-          cat $GPS_FILE | awk '{print $2, $1}' > eulergrid.txt   # lon lat -> lat lon
+          cat $GPS_FILE | gawk  '{print $2, $1}' > eulergrid.txt   # lon lat -> lat lon
           cat $GPS_FILE > gps.obs
         fi
         if [[ $tdefnodeflag -eq 1 ]]; then    # If the GPS data are from a TDEFNODE model
-          awk '{ if ($5==1 && $6==1) print $8, $9, $12, $17, $15, $20, $27, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.obs   # lon lat order
-          awk '{ if ($5==1 && $6==1) print $9, $8 }' ${TDPATH}${TDMODEL}.vsum > eulergrid.txt  # lat lon order
+          gawk '{ if ($5==1 && $6==1) print $8, $9, $12, $17, $15, $20, $27, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.obs   # lon lat order
+          gawk '{ if ($5==1 && $6==1) print $9, $8 }' ${TDPATH}${TDMODEL}.vsum > eulergrid.txt  # lat lon order
           cat ${TDMODEL}.obs > gps.obs
         fi
       else
@@ -5023,19 +5022,19 @@ for plot in ${plots[@]} ; do
       fi
 
       if [[ $eulervecflag -eq 1 ]]; then   # If we specified our own Euler Pole on the command line
-        awk -f $EULERVEC_AWK -v eLat_d1=$eulerlat -v eLon_d1=$eulerlon -v eV1=$euleromega -v eLat_d2=0 -v eLon_d2=0 -v eV2=0 eulergrid.txt > gridvelocities.txt
+        gawk -f $EULERVEC_AWK -v eLat_d1=$eulerlat -v eLon_d1=$eulerlon -v eV1=$euleromega -v eLat_d2=0 -v eLon_d2=0 -v eV2=0 eulergrid.txt > gridvelocities.txt
       fi
       if [[ $twoeulerflag -eq 1 ]]; then   # If we specified two plates (moving plate vs ref plate) via command line
-        lat1=`grep "^$eulerplate1\s" < polesextract.txt | awk '{print $2}'`
-      	lon1=`grep "^$eulerplate1\s" < polesextract.txt | awk '{print $3}'`
-      	rate1=`grep "^$eulerplate1\s" < polesextract.txt | awk '{print $4}'`
+        lat1=`grep "^$eulerplate1\s" < polesextract.txt | gawk  '{print $2}'`
+      	lon1=`grep "^$eulerplate1\s" < polesextract.txt | gawk  '{print $3}'`
+      	rate1=`grep "^$eulerplate1\s" < polesextract.txt | gawk  '{print $4}'`
 
-        lat2=`grep "^$eulerplate2\s" < polesextract.txt | awk '{print $2}'`
-      	lon2=`grep "^$eulerplate2\s" < polesextract.txt | awk '{print $3}'`
-      	rate2=`grep "^$eulerplate2\s" < polesextract.txt | awk '{print $4}'`
+        lat2=`grep "^$eulerplate2\s" < polesextract.txt | gawk  '{print $2}'`
+      	lon2=`grep "^$eulerplate2\s" < polesextract.txt | gawk  '{print $3}'`
+      	rate2=`grep "^$eulerplate2\s" < polesextract.txt | gawk  '{print $4}'`
         [[ $narrateflag -eq 1 ]] && echo Plotting velocities of $eulerplate1 [ $lat1 $lon1 $rate1 ] relative to $eulerplate2 [ $lat2 $lon2 $rate2 ]
         # Should add some sanity checks here?
-        awk -f $EULERVEC_AWK -v eLat_d1=$lat1 -v eLon_d1=$lon1 -v eV1=$rate1 -v eLat_d2=$lat2 -v eLon_d2=$lon2 -v eV2=$rate2 eulergrid.txt > gridvelocities.txt
+        gawk -f $EULERVEC_AWK -v eLat_d1=$lat1 -v eLon_d1=$lon1 -v eV1=$rate1 -v eLat_d2=$lat2 -v eLon_d2=$lon2 -v eV2=$rate2 eulergrid.txt > gridvelocities.txt
       fi
 
       # gridvelocities.txt needs to be multiplied by 100 to return mm/yr which is what GPS files are in
@@ -5043,15 +5042,15 @@ for plot in ${plots[@]} ; do
       # If we are plotting only the residuals of GPS velocities vs. estimated site velocity from Euler pole (gridvelocities.txt)
       if [[ $ploteulerobsresflag -eq 1 ]]; then
          info_msg "plotting residuals of block motion and gps velocities"
-         paste gps.obs gridvelocities.txt | awk '{print $1, $2, $10-$3, $11-$4, 0, 0, 1, $8 }' > gpsblockres.txt   # lon lat order, mm/yr
+         paste gps.obs gridvelocities.txt | gawk  '{print $1, $2, $10-$3, $11-$4, 0, 0, 1, $8 }' > gpsblockres.txt   # lon lat order, mm/yr
          # Scale at print is OK
-         awk -v gpsscalefac=$(echo "$VELSCALE * $WRESSCALE" | bc -l) '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' gpsblockres.txt > grideulerres.pvec
+         gawk -v gpsscalefac=$(echo "$VELSCALE * $WRESSCALE" | bc -l) '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' gpsblockres.txt > grideulerres.pvec
          gmt psxy -SV$ARROWFMT -W0p,green -Ggreen grideulerres.pvec $RJOK $VERBOSE >> map.ps  # Plot the residuals
       fi
 
-      paste -d ' ' eulergrid.txt gridvelocities.txt | awk '{print $2, $1, $3, $4, 0, 0, 1, "ID"}' > gridplatevecs.txt
+      paste -d ' ' eulergrid.txt gridvelocities.txt | gawk  '{print $2, $1, $3, $4, 0, 0, 1, "ID"}' > gridplatevecs.txt
       # Scale at print is OK
-      cat gridplatevecs.txt | awk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }'  > grideuler.pvec
+      cat gridplatevecs.txt | gawk  -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }'  > grideuler.pvec
       gmt psxy -SV$ARROWFMT -W0p,red -Gred grideuler.pvec $RJOK $VERBOSE >> map.ps
       ;;
 
@@ -5081,7 +5080,7 @@ for plot in ${plots[@]} ; do
   			if [[ -e $GPS_FILE ]]; then
   				info_msg "GPS data is taken from $GPS_FILE and are plotted relative to plate $REFPLATE in that model"
 
-          awk < $GPS_FILE -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '{
+          gawk < $GPS_FILE -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '{
             if ($1>180) { lon=$1-360 } else { lon=$1 }
             if (lon >= minlon && lon <= maxlon && $2 >= minlat && $2 <= maxlat) {
               print
@@ -5089,8 +5088,8 @@ for plot in ${plots[@]} ; do
           }' > gps.txt
   				gmt psvelo gps.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -G${GPS_FILLCOLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
           # generate XY data
-          awk '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' < gps.txt > gps.xy
-          GPSMAXVEL=$(awk < gps.xy 'BEGIN{ maxv=0 } {if ($4>maxv) { maxv=$4 } } END {print maxv}')
+          gawk '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' < gps.txt > gps.xy
+          GPSMAXVEL=$(gawk < gps.xy 'BEGIN{ maxv=0 } {if ($4>maxv) { maxv=$4 } } END {print maxv}')
     		else
   				info_msg "No relevant GPS data available for given plate model"
   				GPS_FILE="None"
@@ -5109,17 +5108,17 @@ for plot in ${plots[@]} ; do
       info_msg "Plotting grid arrows"
 
       LONDIFF=$(echo "$MAXLON - $MINLON" | bc -l)
-      pwnum=$(echo "5p" | awk '{print $1+0}')
+      pwnum=$(echo "5p" | gawk  '{print $1+0}')
       POFFS=$(echo "$LONDIFF/8*1/72*$pwnum*3/2" | bc -l)
       GRIDMAXVEL=0
 
       if [[ $plotplates -eq 1 ]]; then
         for i in *_platevecs.txt; do
           # Use azimuth/velocity data in platevecs.txt to infer VN/VE
-          awk < $i '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' > ${i}.pvec
-          GRIDMAXVEL=$(awk < ${i}.pvec -v prevmax=$GRIDMAXVEL 'BEGIN {max=prevmax} {if ($4 > max) {max=$4} } END {print max}' )
+          gawk < $i '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' > ${i}.pvec
+          GRIDMAXVEL=$(gawk < ${i}.pvec -v prevmax=$GRIDMAXVEL 'BEGIN {max=prevmax} {if ($4 > max) {max=$4} } END {print max}' )
           gmt psvelo ${i} -W0p,$PLATEVEC_COLOR@$PLATEVEC_TRANS -G$PLATEVEC_COLOR@$PLATEVEC_TRANS -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
-          [[ $PLATEVEC_TEXT_PLOT -eq 1 ]] && awk < ${i}.pvec -v poff=$POFFS '($4 != 0) { print $1 - sin($3*3.14159265358979/180)*poff, $2 - cos($3*3.14159265358979/180)*poff, sprintf("%d", $4) }' | gmt pstext -F+f${PLATEVEC_TEXT_SIZE},${PLATEVEC_TEXT_FONT},${PLATEVEC_TEXT_COLOR}+jCM $RJOK $VERBOSE  >> map.ps
+          [[ $PLATEVEC_TEXT_PLOT -eq 1 ]] && gawk  < ${i}.pvec -v poff=$POFFS '($4 != 0) { print $1 - sin($3*3.14159265358979/180)*poff, $2 - cos($3*3.14159265358979/180)*poff, sprintf("%d", $4) }' | gmt pstext -F+f${PLATEVEC_TEXT_SIZE},${PLATEVEC_TEXT_FONT},${PLATEVEC_TEXT_COLOR}+jCM $RJOK $VERBOSE  >> map.ps
         done
       fi
       ;;
@@ -5193,7 +5192,7 @@ for plot in ${plots[@]} ; do
       for lat in $(seq $MINLAT $deginc $MAXLAT); do
         echo $MINLAT - $lat - $MAXLAT
         for lon in $(seq $MINLON $deginc $MAXLON); do
-          access_litho -p $lat $lon -d $LITHO1_DEPTH  -l ${LITHO1_LEVEL} 2>/dev/null | awk -v lat=$lat -v lon=$lon -v extfield=$LITHO1_FIELDNUM '{
+          access_litho -p $lat $lon -d $LITHO1_DEPTH  -l ${LITHO1_LEVEL} 2>/dev/null | gawk  -v lat=$lat -v lon=$lon -v extfield=$LITHO1_FIELDNUM '{
             print lon, lat, $(extfield)
           }' >> litho1_${LITHO1_DEPTH}.xyz
         done
@@ -5269,15 +5268,15 @@ for plot in ${plots[@]} ; do
       # Plot the profile lines with the assigned color on the map
       # echo TRACKFILE=...$TRACKFILE
 
-      k=$(wc -l < $TRACKFILE | awk '{print $1}')
+      k=$(wc -l < $TRACKFILE | gawk  '{print $1}')
       for ind in $(seq 1 $k); do
-        FIRSTWORD=$(head -n ${ind} $TRACKFILE | tail -n 1 | awk '{print $1}')
+        FIRSTWORD=$(head -n ${ind} $TRACKFILE | tail -n 1 | gawk  '{print $1}')
         # echo FIRSTWORD all=${FIRSTWORD}
         # if [[ ${FIRSTWORD:0:1} != "#" && ${FIRSTWORD:0:1} != "$" && ${FIRSTWORD:0:1} != "%" && ${FIRSTWORD:0:1} != "^" && ${FIRSTWORD:0:1} != "@"  && ${FIRSTWORD:0:1} != ":"  && ${FIRSTWORD:0:1} != ">" ]]; then
 
         if [[ ${FIRSTWORD:0:1} == "P" ]]; then
           # echo FIRSTWORD=${FIRSTWORD}
-          COLOR=$(head -n ${ind} $TRACKFILE | tail -n 1 | awk '{print $3}')
+          COLOR=$(head -n ${ind} $TRACKFILE | tail -n 1 | gawk  '{print $3}')
           # echo $FIRSTWORD $ind $k
           head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | gmt psxy $RJOK -W${PROFILE_TRACK_WIDTH},${COLOR} >> map.ps
           # info_msg "is it this"
@@ -5322,8 +5321,8 @@ for plot in ${plots[@]} ; do
           echo ">" >> end_profile_lines.txt
           # echo "${p[0]} ${p[1]}" | gmt vector -Tt${p[2]}/${p[3]}k > endpoint1.txt
           # echo "${p[0]} ${p[1]}" | gmt vector -Tt${ANTIAZ}/${p[3]}k > endpoint2.txt
-          gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${p[3]}k -L0/${p[3]} | tail -n 1 | awk '{print $1, $2}' > endpoint1.txt
-          gmt project -C${p[0]}/${p[1]} -A${ANTIAZ} -Q -G${p[3]}k -L0/${p[3]} | tail -n 1 | awk '{print $1, $2}' > endpoint2.txt
+          gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${p[3]}k -L0/${p[3]} | tail -n 1 | gawk  '{print $1, $2}' > endpoint1.txt
+          gmt project -C${p[0]}/${p[1]} -A${ANTIAZ} -Q -G${p[3]}k -L0/${p[3]} | tail -n 1 | gawk  '{print $1, $2}' > endpoint2.txt
           cat endpoint1.txt | gmt vector -Tt${FOREAZ}/${SUBWIDTH}d >> end_profile_lines.txt
           cat endpoint1.txt >> end_profile_lines.txt
           echo "${p[0]} ${p[1]}" >> end_profile_lines.txt
@@ -5338,8 +5337,8 @@ for plot in ${plots[@]} ; do
           FOREAZ=$(echo "${p[2]} + 90" | bc -l)
           SUBWIDTH=$(echo "${p[3]}/110 * 0.1" | bc -l)
           echo ">" >>  start_profile_lines.txt
-          gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${p[3]}k -L0/${p[3]} | tail -n 1 | awk '{print $1, $2}' > startpoint1.txt
-          gmt project -C${p[0]}/${p[1]} -A${ANTIAZ} -Q -G${p[3]}k -L0/${p[3]} | tail -n 1 | awk '{print $1, $2}' > startpoint2.txt
+          gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${p[3]}k -L0/${p[3]} | tail -n 1 | gawk  '{print $1, $2}' > startpoint1.txt
+          gmt project -C${p[0]}/${p[1]} -A${ANTIAZ} -Q -G${p[3]}k -L0/${p[3]} | tail -n 1 | gawk  '{print $1, $2}' > startpoint2.txt
           # echo "${p[0]} ${p[1]}" | gmt vector -Tt${p[2]}/${p[3]}d >  startpoint1.txt
           # echo "${p[0]} ${p[1]}" | gmt vector -Tt${ANTIAZ}/${p[3]}d >  startpoint2.txt
           cat  startpoint1.txt | gmt vector -Tt${FOREAZ}/${SUBWIDTH}d >>  start_profile_lines.txt
@@ -5362,8 +5361,8 @@ for plot in ${plots[@]} ; do
           FOREAZ2=$(echo "${p[2]} - 90" | bc -l)
           SUBWIDTH=$(echo "${p[3]}/110 * 0.1" | bc -l)
           echo ">" >>  mid_profile_lines.txt
-          gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${p[3]}k -L0/${p[3]} | tail -n 1 | awk '{print $1, $2}' >  midpoint1.txt
-          gmt project -C${p[0]}/${p[1]} -A${ANTIAZ} -Q -G${p[3]}k -L0/${p[3]} | tail -n 1 | awk '{print $1, $2}' > midpoint2.txt
+          gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${p[3]}k -L0/${p[3]} | tail -n 1 | gawk  '{print $1, $2}' >  midpoint1.txt
+          gmt project -C${p[0]}/${p[1]} -A${ANTIAZ} -Q -G${p[3]}k -L0/${p[3]} | tail -n 1 | gawk  '{print $1, $2}' > midpoint2.txt
 
           # echo "${p[0]} ${p[1]}" | gmt vector -Tt${p[2]}/${p[3]}d >  midpoint1.txt
           # echo "${p[0]} ${p[1]}" | gmt vector -Tt${ANTIAZ}/${p[3]}d >  midpoint2.txt
@@ -5388,7 +5387,7 @@ for plot in ${plots[@]} ; do
       fi
 
       # This is used to offset the profile name so it doesn't overlap the track line
-      PTEXT_OFFSET=$(echo ${PROFILE_TRACK_WIDTH} | awk '{ print ($1+0)*2 "p" }')
+      PTEXT_OFFSET=$(echo ${PROFILE_TRACK_WIDTH} | gawk  '{ print ($1+0)*2 "p" }')
 
       while read d; do
         p=($(echo $d))
@@ -5407,7 +5406,7 @@ for plot in ${plots[@]} ; do
       # This should probably be changed to obliquity
       # Plot the azimuth of relative plate motion across the boundary
       # azdiffpts_len.txt should be replaced with id_pts_euler.txt
-      [[ $plotplates -eq 1 ]] && awk < azdiffpts_len.txt -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '{
+      [[ $plotplates -eq 1 ]] && gawk  < azdiffpts_len.txt -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '{
         if ($1 != minlon && $1 != maxlon && $2 != minlat && $2 != maxlat) {
           print $1, $2, $3
         }
@@ -5415,9 +5414,9 @@ for plot in ${plots[@]} ; do
 
       mkdir az_histogram
       cd az_histogram
-        awk < ../azdiffpts_len.txt '{print $3, $4}' | gmt pshistogram -C$CPTDIR"cycleaz.cpt" -JX5i/2i -R-180/180/0/1 -Z0+w -T2 -W0.1p -I -Ve > azdiff_hist_range.txt
-        ADR4=$(awk < azdiff_hist_range.txt '{print $4*1.1}')
-        awk < ../azdiffpts_len.txt '{print $3, $4}' | gmt pshistogram -C$CPTDIR"cycleaz.cpt" -JX5i/2i -R-180/180/0/$ADR4 -BNESW+t"$POLESRC $MINLON/$MAXLON/$MINLAT/$MAXLAT" -Bxa30f10 -Byaf -Z0+w -T2 -W0.1p > ../az_histogram.ps
+        gawk < ../azdiffpts_len.txt '{print $3, $4}' | gmt pshistogram -C$CPTDIR"cycleaz.cpt" -JX5i/2i -R-180/180/0/1 -Z0+w -T2 -W0.1p -I -Ve > azdiff_hist_range.txt
+        ADR4=$(gawk < azdiff_hist_range.txt '{print $4*1.1}')
+        gawk < ../azdiffpts_len.txt '{print $3, $4}' | gmt pshistogram -C$CPTDIR"cycleaz.cpt" -JX5i/2i -R-180/180/0/$ADR4 -BNESW+t"$POLESRC $MINLON/$MAXLON/$MINLAT/$MAXLAT" -Bxa30f10 -Byaf -Z0+w -T2 -W0.1p > ../az_histogram.ps
       cd ..
       gmt psconvert -Tf -A0.3i az_histogram.ps
       ;;
@@ -5433,7 +5432,7 @@ for plot in ${plots[@]} ; do
       info_msg "velscale=$VELSCALE"
       MINVV=0.15
 
-        awk -v cutoff=$PDIFFCUTOFF 'BEGIN {dist=0;lastx=9999;lasty=9999} {
+        gawk -v cutoff=$PDIFFCUTOFF 'BEGIN {dist=0;lastx=9999;lasty=9999} {
           # If we haven not seen this point before
           if (seenx[$1,$2] == 0) {
               seenx[$1,$2]=1
@@ -5451,7 +5450,7 @@ for plot in ${plots[@]} ; do
             }
           }' < paz1normal.txt > paz1normal_cutoff.txt
 
-        awk -v cutoff=$PDIFFCUTOFF 'BEGIN {dist=0;lastx=9999;lasty=9999} {
+        gawk -v cutoff=$PDIFFCUTOFF 'BEGIN {dist=0;lastx=9999;lasty=9999} {
           # If we haven not seen this point before
           if (seenx[$1,$2] == 0) {
               seenx[$1,$2]=1
@@ -5469,7 +5468,7 @@ for plot in ${plots[@]} ; do
             }
           }' < paz1thrust.txt > paz1thrust_cutoff.txt
 
-          awk -v cutoff=$PDIFFCUTOFF 'BEGIN {dist=0;lastx=9999;lasty=9999} {
+          gawk -v cutoff=$PDIFFCUTOFF 'BEGIN {dist=0;lastx=9999;lasty=9999} {
             # If we haven not seen this point before
             if (seenx[$1,$2] == 0) {
                 seenx[$1,$2]=1
@@ -5487,7 +5486,7 @@ for plot in ${plots[@]} ; do
               }
             }' < paz1ss1.txt > paz1ss1_cutoff.txt
 
-            awk -v cutoff=$PDIFFCUTOFF 'BEGIN {dist=0;lastx=9999;lasty=9999} {
+            gawk -v cutoff=$PDIFFCUTOFF 'BEGIN {dist=0;lastx=9999;lasty=9999} {
               # If we haven not seen this point before
               if (seenx[$1,$2] == 0) {
                   seenx[$1,$2]=1
@@ -5509,19 +5508,19 @@ for plot in ${plots[@]} ; do
         # Set a minimum scale for vectors to avoid improper plotting of arrowheads
 
         LONDIFF=$(echo "$MAXLON - $MINLON" | bc -l)
-        pwnum=$(echo $PLATELINE_WIDTH | awk '{print $1+0}')
+        pwnum=$(echo $PLATELINE_WIDTH | gawk  '{print $1+0}')
         POFFS=$(echo "$LONDIFF/8*1/72*$pwnum*3/2" | bc -l)
 
         # Old formatting works but isn't exactly great
 
         # We plot the half-velocities across the plate boundaries instead of full relative velocity for each plate
 
-        awk < paz1normal_cutoff.txt -v poff=$POFFS -v minv=$MINVV -v gpsscalefac=$VELSCALE '{ if ($4<minv && $4 != 0) {print $1 + sin($3*3.14159265358979/180)*poff, $2 + cos($3*3.14159265358979/180)*poff, $3, $4*gpsscalefac/2} else {print $1 + sin($3*3.14159265358979/180)*poff, $2 + cos($3*3.14159265358979/180)*poff, $3, $4*gpsscalefac/2}}' | gmt psxy -SV"${PVFORMAT}" -W0p,$PLATEARROW_COLOR@$PLATEARROW_TRANS -G$PLATEARROW_COLOR@$PLATEARROW_TRANS $RJOK $VERBOSE >> map.ps
-        awk < paz1thrust_cutoff.txt -v poff=$POFFS -v minv=$MINVV -v gpsscalefac=$VELSCALE '{ if ($4<minv && $4 != 0) {print $1 - sin($3*3.14159265358979/180)*poff, $2 - cos($3*3.14159265358979/180)*poff, $3, $4*gpsscalefac/2} else {print $1 - sin($3*3.14159265358979/180)*poff, $2 - cos($3*3.14159265358979/180)*poff, $3, $4*gpsscalefac/2}}' | gmt psxy -SVh"${PVFORMAT}" -W0p,$PLATEARROW_COLOR@$PLATEARROW_TRANS -G$PLATEARROW_COLOR@$PLATEARROW_TRANS $RJOK $VERBOSE >> map.ps
+        gawk < paz1normal_cutoff.txt -v poff=$POFFS -v minv=$MINVV -v gpsscalefac=$VELSCALE '{ if ($4<minv && $4 != 0) {print $1 + sin($3*3.14159265358979/180)*poff, $2 + cos($3*3.14159265358979/180)*poff, $3, $4*gpsscalefac/2} else {print $1 + sin($3*3.14159265358979/180)*poff, $2 + cos($3*3.14159265358979/180)*poff, $3, $4*gpsscalefac/2}}' | gmt psxy -SV"${PVFORMAT}" -W0p,$PLATEARROW_COLOR@$PLATEARROW_TRANS -G$PLATEARROW_COLOR@$PLATEARROW_TRANS $RJOK $VERBOSE >> map.ps
+        gawk < paz1thrust_cutoff.txt -v poff=$POFFS -v minv=$MINVV -v gpsscalefac=$VELSCALE '{ if ($4<minv && $4 != 0) {print $1 - sin($3*3.14159265358979/180)*poff, $2 - cos($3*3.14159265358979/180)*poff, $3, $4*gpsscalefac/2} else {print $1 - sin($3*3.14159265358979/180)*poff, $2 - cos($3*3.14159265358979/180)*poff, $3, $4*gpsscalefac/2}}' | gmt psxy -SVh"${PVFORMAT}" -W0p,$PLATEARROW_COLOR@$PLATEARROW_TRANS -G$PLATEARROW_COLOR@$PLATEARROW_TRANS $RJOK $VERBOSE >> map.ps
 
         # Shift symbols based on azimuth of line segment to make nice strike-slip half symbols
-        awk < paz1ss1_cutoff.txt -v poff=$POFFS -v gpsscalefac=$VELSCALE '{ if ($4!=0) { print $1 + cos($3*3.14159265358979/180)*poff, $2 - sin($3*3.14159265358979/180)*poff, $3, 0.1/2}}' | gmt psxy -SV"${PVHEAD}"+r+jb+m+a33+h0 -W0p,red@$PLATEARROW_TRANS -Gred@$PLATEARROW_TRANS $RJOK $VERBOSE >> map.ps
-        awk < paz1ss2_cutoff.txt -v poff=$POFFS -v gpsscalefac=$VELSCALE '{ if ($4!=0) { print $1 - cos($3*3.14159265358979/180)*poff, $2 - sin($3*3.14159265358979/180)*poff, $3, 0.1/2 }}' | gmt psxy -SV"${PVHEAD}"+l+jb+m+a33+h0 -W0p,yellow@$PLATEARROW_TRANS -Gyellow@$PLATEARROW_TRANS $RJOK $VERBOSE >> map.ps
+        gawk < paz1ss1_cutoff.txt -v poff=$POFFS -v gpsscalefac=$VELSCALE '{ if ($4!=0) { print $1 + cos($3*3.14159265358979/180)*poff, $2 - sin($3*3.14159265358979/180)*poff, $3, 0.1/2}}' | gmt psxy -SV"${PVHEAD}"+r+jb+m+a33+h0 -W0p,red@$PLATEARROW_TRANS -Gred@$PLATEARROW_TRANS $RJOK $VERBOSE >> map.ps
+        gawk < paz1ss2_cutoff.txt -v poff=$POFFS -v gpsscalefac=$VELSCALE '{ if ($4!=0) { print $1 - cos($3*3.14159265358979/180)*poff, $2 - sin($3*3.14159265358979/180)*poff, $3, 0.1/2 }}' | gmt psxy -SV"${PVHEAD}"+l+jb+m+a33+h0 -W0p,yellow@$PLATEARROW_TRANS -Gyellow@$PLATEARROW_TRANS $RJOK $VERBOSE >> map.ps
       ;;
 
     plateedge)
@@ -5536,7 +5535,7 @@ for plot in ${plots[@]} ; do
 
       # Label the plates if we calculated the centroid locations
       # Remove the trailing _N from all plate labels
-      [[ $plotplates -eq 1 ]] && awk < map_labels.txt -F, '{print $1, $2, substr($3, 1, length($3)-2)}' | gmt pstext -C0.1+t -F+f$PLATELABEL_SIZE,Helvetica,$PLATELABEL_COLOR+jCB $RJOK $VERBOSE  >> map.ps
+      [[ $plotplates -eq 1 ]] && gawk  < map_labels.txt -F, '{print $1, $2, substr($3, 1, length($3)-2)}' | gmt pstext -C0.1+t -F+f$PLATELABEL_SIZE,Helvetica,$PLATELABEL_COLOR+jCB $RJOK $VERBOSE  >> map.ps
       ;;
 
     platerelvel)
@@ -5554,7 +5553,7 @@ for plot in ${plots[@]} ; do
 
       # Plot small circles and little arrows for plate rotations
       for i in *_smallcirc_platevecs.txt; do
-        cat $i | awk -v scalefac=0.01 '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, scalefac; else print $1, $2, az+360, scalefac; }'  > ${i}.pvec
+        cat $i | gawk  -v scalefac=0.01 '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, scalefac; else print $1, $2, az+360, scalefac; }'  > ${i}.pvec
         gmt psxy -SV0.0/0.12/0.06 -: -W0p,$PLATEVEC_COLOR@70 -G$PLATEVEC_COLOR@70 ${i}.pvec -t70 $RJOK $VERBOSE >> map.ps
       done
       for i in *smallcircles_clip; do
@@ -5574,15 +5573,15 @@ for plot in ${plots[@]} ; do
       for i in *.pole; do
         LEAD=${i%.pole*}
         info_msg "Calculating $LEAD velocity raster"
-        awk < $i '{print $2, $1}' > pvdir/pole.xy
-        POLERATE=$(awk < $i '{print $3}')
+        gawk < $i '{print $2, $1}' > pvdir/pole.xy
+        POLERATE=$(gawk < $i '{print $3}')
         cd pvdir
         cat "../$LEAD.pldat" | sed '1d' > plate.xy
         # # Determine the extent of the polygon within the map extent
-        pl_max_x=$(grep "^[-*0-9]" plate.xy | sort -n -k 1 | tail -n 1 | awk -v mx=$MAXLON '{print ($1>mx)?mx:$1}')
-        pl_min_x=$(grep "^[-*0-9]" plate.xy | sort -n -k 1 | head -n 1 | awk -v mx=$MINLON '{print ($1<mx)?mx:$1}')
-        pl_max_y=$(grep "^[-*0-9]" plate.xy | sort -n -k 2 | tail -n 1 | awk -v mx=$MAXLAT '{print ($2>mx)?mx:$2}')
-        pl_min_y=$(grep "^[-*0-9]" plate.xy | sort -n -k 2 | head -n 1 | awk -v mx=$MINLAT '{print ($2<mx)?mx:$2}')
+        pl_max_x=$(grep "^[-*0-9]" plate.xy | sort -n -k 1 | tail -n 1 | gawk  -v mx=$MAXLON '{print ($1>mx)?mx:$1}')
+        pl_min_x=$(grep "^[-*0-9]" plate.xy | sort -n -k 1 | head -n 1 | gawk  -v mx=$MINLON '{print ($1<mx)?mx:$1}')
+        pl_max_y=$(grep "^[-*0-9]" plate.xy | sort -n -k 2 | tail -n 1 | gawk  -v mx=$MAXLAT '{print ($2>mx)?mx:$2}')
+        pl_min_y=$(grep "^[-*0-9]" plate.xy | sort -n -k 2 | head -n 1 | gawk  -v mx=$MINLAT '{print ($2<mx)?mx:$2}')
         info_msg "Polygon region $pl_min_x/$pl_max_x/$pl_min_y/$pl_max_y"
         # this approach requires a final GMT grdblend command
         # echo platevelres=$PLATEVELRES
@@ -5591,20 +5590,20 @@ for plot in ${plots[@]} ; do
         info_msg "Calculating $LEAD masked raster"
         gmt grdmath -fg ${VERBOSE} "$LEAD"_velraster.nc mask.nc MUL = "$LEAD"_masked.nc
         zrange=$(grid_zrange ${LEAD}_velraster.nc -C -Vn)
-        MINZ=$(echo $zrange | awk '{print $1}')
-        MAXZ=$(echo $zrange | awk '{print $2}')
-        MAXV_I=$(echo $MAXZ | awk -v max=$MAXV_I '{ if ($1 > max) { print $1 } else { print max } }')
-        MINV_I=$(echo $MINZ | awk -v min=$MINV_I '{ if ($1 < min) { print $1 } else { print min } }')
+        MINZ=$(echo $zrange | gawk  '{print $1}')
+        MAXZ=$(echo $zrange | gawk  '{print $2}')
+        MAXV_I=$(echo $MAXZ | gawk  -v max=$MAXV_I '{ if ($1 > max) { print $1 } else { print max } }')
+        MINV_I=$(echo $MINZ | gawk  -v min=$MINV_I '{ if ($1 < min) { print $1 } else { print min } }')
         # unverified code above...
-        # MAXV_I=$(gmt grdinfo ${LEAD}_velraster.nc 2>/dev/null | grep "z_max" | awk -v max=$MAXV_I '{ if ($5 > max) { print $5 } else { print max } }')
-        # MINV_I=$(gmt grdinfo ${LEAD}_velraster.nc 2>/dev/null | grep "z_max" | awk -v min=$MINV_I '{ if ($3 < min) { print $3 } else { print min } }')
+        # MAXV_I=$(gmt grdinfo ${LEAD}_velraster.nc 2>/dev/null | grep "z_max" | gawk  -v max=$MAXV_I '{ if ($5 > max) { print $5 } else { print max } }')
+        # MINV_I=$(gmt grdinfo ${LEAD}_velraster.nc 2>/dev/null | grep "z_max" | gawk  -v min=$MINV_I '{ if ($3 < min) { print $3 } else { print min } }')
         # # gmt grdedit -fg -A -R$pl_min_x/$pl_max_x/$pl_min_y/$pl_max_y "$LEAD"_masked.nc -G"$LEAD"_masked_edit.nc
         # echo "${LEAD}_masked_edit.nc -R$pl_min_x/$pl_max_x/$pl_min_y/$pl_max_y 1" >> grdblend.cmd
         cd ../
       done
       info_msg "Merging velocity rasters"
 
-      PVRESNUM=$(echo "" | awk -v v=$PLATEVELRES 'END {print v+0}')
+      PVRESNUM=$(echo "" | gawk  -v v=$PLATEVELRES 'END {print v+0}')
       info_msg "gdal_merge.py -o plate_velocities.nc -of NetCDF -ps $PVRESNUM $PVRESNUM -ul_lr $MINLON $MAXLAT $MAXLON $MINLAT *_masked.nc"
       cd pvdir
         gdal_merge.py -o plate_velocities.nc -q -of NetCDF -ps $PVRESNUM $PVRESNUM -ul_lr $MINLON $MAXLAT $MAXLON $MINLAT *_masked.nc
@@ -5623,8 +5622,8 @@ for plot in ${plots[@]} ; do
       # This isn't working because I can't seem to read the max values from this raster this way or with gdalinfo
       if [[ $rescaleplatevecsflag -eq 1 ]]; then
         echo MINV_I MAXV_I $MINV_I $MAXV_I
-        MINV=$(echo $MINV_I | awk '{ print int($1/10)*10 }')
-        MAXV=$(echo $MAXV_I | awk '{ print int($1/10)*10 +10 }')
+        MINV=$(echo $MINV_I | gawk  '{ print int($1/10)*10 }')
+        MAXV=$(echo $MAXV_I | gawk  '{ print int($1/10)*10 +10 }')
         echo MINV MAXV $MINV $MAXV
 
         gmt makecpt -C$CPTDIR"platevel_one.cpt" -T0/$MAXV -Z > $PLATEVEL_CPT
@@ -5684,7 +5683,7 @@ for plot in ${plots[@]} ; do
     #   info_msg "Plotting rake of N1 nodal planes"
     #   # Plot the rake of the N1 nodal plane
     #   # lonc latc depth str1 dip1 rake1 str2 dip2 rake2 M lon lat ID
-    #   awk < $CMTFILE '($6 > 45 && $6 < 135) { print $1, $2, $4-($6-180) }' | awk '{ if ($3 > 180) { print $1, $2, $3-360;} else {print $1,$2,$3} }' > eqaz1.txt
+    #   gawk < $CMTFILE '($6 > 45 && $6 < 135) { print $1, $2, $4-($6-180) }' | gawk  '{ if ($3 > 180) { print $1, $2, $3-360;} else {print $1,$2,$3} }' > eqaz1.txt
     #   gmt psxy -C$CPTDIR"cycleaz.cpt" -St${RAKE1SCALE}/0 eqaz1.txt $RJOK $VERBOSE >> map.ps
     #   ;;
     #
@@ -5712,7 +5711,7 @@ for plot in ${plots[@]} ; do
 
         for i in $(seq 1 $numslab2inregion); do
           clipfile=$(echo ${SLAB2_CONTOURDIR}${slab2inregion[$i]}_contours.in | sed 's/clp/dep/')
-          awk < $clipfile '{
+          gawk < $clipfile '{
             if ($1 == ">") {
               print $1, "-Z" 0-$2
             } else {
@@ -5732,7 +5731,7 @@ for plot in ${plots[@]} ; do
     slipvecs)
       info_msg "Slip vectors"
       # Plot a file containing slip vector azimuths
-      awk < ${SVDATAFILE} '($1 != "end") {print $1, $2, $3, 0.2}' | gmt psxy -SV0.05i+jc -W1.5p,red $RJOK $VERBOSE >> map.ps
+      gawk < ${SVDATAFILE} '($1 != "end") {print $1, $2, $3, 0.2}' | gmt psxy -SV0.05i+jc -W1.5p,red $RJOK $VERBOSE >> map.ps
       ;;
 
 		srcmod)
@@ -5754,12 +5753,12 @@ for plot in ${plots[@]} ; do
 				info_msg "Building SRCMOD FSP location file"
 				comeback=$(pwd)
 				cd ${SRCMODFSPFOLDER}
-				eval "grep -H 'Loc  :' *" | awk -F: '{print $1, $3 }' | awk '{print $7 "	" $4 "	" $1}' > $SRCMODFSPLOCATIONS
+				eval "grep -H 'Loc  :' *" | gawk  -F: '{print $1, $3 }' | gawk  '{print $7 "	" $4 "	" $1}' > $SRCMODFSPLOCATIONS
 				cd $comeback
 			fi
 
 			info_msg "Identifying SRCMOD results falling within the AOI"
-			awk < $SRCMODFSPLOCATIONS -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '($1 < maxlon-1 && $1 > minlon+1 && $2 < maxlat-1 && $2 > minlat+1) {print $3}' > srcmod_eqs.txt
+		gawk < $SRCMODFSPLOCATIONS -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '($1 < maxlon-1 && $1 > minlon+1 && $2 < maxlat-1 && $2 > minlat+1) {print $3}' > srcmod_eqs.txt
 			[[ $narrateflag -eq 1 ]] && cat srcmod_eqs.txt
 
 			SLIPRESOL=300
@@ -5782,7 +5781,7 @@ for plot in ${plots[@]} ; do
 			i=0
 			while [[ $i -lt ${#v[@]} ]]; do
 				info_msg "Plotting points from EQ ${v[$i]}"
-				grep "^[^%;]" "$SRCMODFSPFOLDER"${v[$i]} | awk '{print $2, $1, $6}' > temp1.xyz
+				grep "^[^%;]" "$SRCMODFSPFOLDER"${v[$i]} | gawk  '{print $2, $1, $6}' > temp1.xyz
 				gmt blockmean temp1.xyz -I"$LONKM"km $VERBOSE -R > temp.xyz
 				gmt triangulate temp.xyz -I"$LONKM"km -Gtemp.nc -R $VERBOSE
 				gmt grdmath $VERBOSE temp.nc ISNAN 0 temp.nc IFELSE = slip2.nc
@@ -5804,13 +5803,13 @@ for plot in ${plots[@]} ; do
 
 		tdefnode)
 			info_msg "TDEFNODE folder is at $TDPATH"
-			TDMODEL=$(echo $TDPATH | xargs -n 1 basename | awk -F. '{print $1}')
+			TDMODEL=$(echo $TDPATH | xargs -n 1 basename | gawk  -F. '{print $1}')
 			info_msg "$TDMODEL"
 
       if [[ ${TDSTRING} =~ .*a.* ]]; then
         # BLOCK LABELS
         info_msg "TDEFNODE block labels"
-        awk < ${TDPATH}${TDMODEL}_blocks.out '{ print $2,$3,$1 }' | gmt pstext -F+f8,Helvetica,orange+jBL $RJOK $VERBOSE >> map.ps
+        gawk < ${TDPATH}${TDMODEL}_blocks.out '{ print $2,$3,$1 }' | gmt pstext -F+f8,Helvetica,orange+jBL $RJOK $VERBOSE >> map.ps
       fi
       if [[ ${TDSTRING} =~ .*b.* ]]; then
         # BLOCKS ############
@@ -5822,25 +5821,25 @@ for plot in ${plots[@]} ; do
         # Faults, nodes, etc.
         # Find the number of faults in the model
         info_msg "TDEFNODE faults, nodes, etc"
-        numfaults=$(awk 'BEGIN {min=0} { if ($1 == ">" && $3 > min) { min = $3} } END { print min }' ${TDPATH}${TDMODEL}_flt_atr.gmt)
+        numfaults=$(gawk 'BEGIN {min=0} { if ($1 == ">" && $3 > min) { min = $3} } END { print min }' ${TDPATH}${TDMODEL}_flt_atr.gmt)
         gmt makecpt -Ccategorical -T0/$numfaults/1 $VERBOSE > faultblock.cpt
-        awk '{ if ($1 ==">") printf "%s %s%f\n",$1,$2,$3; else print $1,$2 }' ${TDPATH}${TDMODEL}_flt_atr.gmt | gmt psxy -L -Cfaultblock.cpt $RJOK $VERBOSE >> map.ps
+        gawk '{ if ($1 ==">") printf "%s %s%f\n",$1,$2,$3; else print $1,$2 }' ${TDPATH}${TDMODEL}_flt_atr.gmt | gmt psxy -L -Cfaultblock.cpt $RJOK $VERBOSE >> map.ps
         gmt psxy ${TDPATH}${TDMODEL}_blk3.gmt -Wfatter,red,solid $RJOK $VERBOSE >> map.ps
         gmt psxy ${TDPATH}${TDMODEL}_blk3.gmt -Wthickest,black,solid $RJOK $VERBOSE >> map.ps
         #gmt psxy ${TDPATH}${TDMODEL}_blk.gmt -L -R -J -Wthicker,black,solid -O -K $VERBOSE  >> map.ps
-        awk '{if ($4==1) print $7, $8, $2}' ${TDPATH}${TDMODEL}.nod | gmt pstext -F+f10p,Helvetica,lightblue $RJOK $VERBOSE >> map.ps
-        awk '{print $7, $8}' ${TDPATH}${TDMODEL}.nod | gmt psxy -Sc.02i -Gblack $RJOK $VERBOSE >> map.ps
+        gawk '{if ($4==1) print $7, $8, $2}' ${TDPATH}${TDMODEL}.nod | gmt pstext -F+f10p,Helvetica,lightblue $RJOK $VERBOSE >> map.ps
+        gawk '{print $7, $8}' ${TDPATH}${TDMODEL}.nod | gmt psxy -Sc.02i -Gblack $RJOK $VERBOSE >> map.ps
       fi
 			# if [[ ${TDSTRING} =~ .*l.* ]]; then
       #   # Coupling. Not sure this is the best way, but it seems to work...
       #   info_msg "TDEFNODE coupling"
 			# 	gmt makecpt -Cseis -Do -I -T0/1/0.01 -N > $SLIPRATE_DEF_CPT
-			# 	awk '{ if ($1 ==">") print $1 $2 $5; else print $1, $2 }' ${TDPATH}${TDMODEL}_flt_atr.gmt | gmt psxy -L -C$SLIPRATE_DEF_CPT $RJOK $VERBOSE >> map.ps
+			# gawk '{ if ($1 ==">") print $1 $2 $5; else print $1, $2 }' ${TDPATH}${TDMODEL}_flt_atr.gmt | gmt psxy -L -C$SLIPRATE_DEF_CPT $RJOK $VERBOSE >> map.ps
 			# fi
       if [[ ${TDSTRING} =~ .*l.* || ${TDSTRING} =~ .*c.* ]]; then
         # Plot a dashed line along the contour of coupling = 0
         info_msg "TDEFNODE coupling"
-        awk '{
+        gawk '{
           if ($1 ==">") {
             carat=$1
             faultid=$3
@@ -5861,14 +5860,14 @@ for plot in ${plots[@]} ; do
         }' ${TDPATH}${TDMODEL}_flt_atr.gmt > tdsrd_faultids.xyz
 
         if [[ $tdeffaultlistflag -eq 1 ]]; then
-          echo $FAULTIDLIST | awk '{
+          echo $FAULTIDLIST | gawk  '{
             n=split($0,groups,":");
             for(i=1; i<=n; i++) {
                print groups[i]
             }
           }' | tr ',' ' ' > faultid_groups.txt
         else # Extract all fault IDs as Group 1 if we don't specify faults/groups
-          awk < tdsrd_faultids.xyz '{
+          gawk < tdsrd_faultids.xyz '{
             seen[$1]++
             } END {
               for (key in seen) {
@@ -5880,7 +5879,7 @@ for plot in ${plots[@]} ; do
         groupd=1
         while read p; do
           echo "Processing fault group $groupd"
-          awk < tdsrd_faultids.xyz -v idstr="$p" 'BEGIN {
+          gawk < tdsrd_faultids.xyz -v idstr="$p" 'BEGIN {
               split(idstr,idarray," ")
               for (i in idarray) {
                 idcheck[idarray[i]]
@@ -5916,19 +5915,19 @@ for plot in ${plots[@]} ; do
 				# FAULTS ############
         info_msg "TDEFNODE faults"
 				gmt psxy ${TDPATH}${TDMODEL}_blk0.gmt -R -J -W1p,red -O -K $VERBOSE >> map.ps 2>/dev/null
-				awk < ${TDPATH}${TDMODEL}_blk0.gmt '{ if ($1 == ">") print $3,$4, $5 " (" $2 ")" }' | gmt pstext -F+f8,Helvetica,black+jBL $RJOK $VERBOSE >> map.ps
+			gawk < ${TDPATH}${TDMODEL}_blk0.gmt '{ if ($1 == ">") print $3,$4, $5 " (" $2 ")" }' | gmt pstext -F+f8,Helvetica,black+jBL $RJOK $VERBOSE >> map.ps
 
 				# PSUEDOFAULTS ############
 				gmt psxy ${TDPATH}${TDMODEL}_blk1.gmt -R -J -W1p,green -O -K $VERBOSE >> map.ps 2>/dev/null
-				awk < ${TDPATH}${TDMODEL}_blk1.gmt '{ if ($1 == ">") print $3,$4,$5 }' | gmt pstext -F+f8,Helvetica,brown+jBL $RJOK $VERBOSE >> map.ps
+			gawk < ${TDPATH}${TDMODEL}_blk1.gmt '{ if ($1 == ">") print $3,$4,$5 }' | gmt pstext -F+f8,Helvetica,brown+jBL $RJOK $VERBOSE >> map.ps
 			fi
 
 			if [[ ${TDSTRING} =~ .*s.* ]]; then
 				# SLIP VECTORS ######
         legendwords+=("slipvectors")
         info_msg "TDEFNODE slip vectors (observed and predicted)"
-				awk < ${TDPATH}${TDMODEL}.svs -v size=$SVBIG '(NR > 1) {print $1, $2, $3, size}' > ${TDMODEL}.svobs
-				awk < ${TDPATH}${TDMODEL}.svs -v size=$SVSMALL '(NR > 1) {print $1, $2, $5, size}' > ${TDMODEL}.svcalc
+			gawk < ${TDPATH}${TDMODEL}.svs -v size=$SVBIG '(NR > 1) {print $1, $2, $3, size}' > ${TDMODEL}.svobs
+			gawk < ${TDPATH}${TDMODEL}.svs -v size=$SVSMALL '(NR > 1) {print $1, $2, $5, size}' > ${TDMODEL}.svcalc
 				gmt psxy -SV"${PVHEAD}"+jc -W"${SVBIGW}",black ${TDMODEL}.svobs $RJOK $VERBOSE >> map.ps
 				gmt psxy -SV"${PVHEAD}"+jc -W"${SVSMALLW}",lightgreen ${TDMODEL}.svcalc $RJOK $VERBOSE >> map.ps
 			fi
@@ -5940,9 +5939,9 @@ for plot in ${plots[@]} ; do
         # gmt psvelo $GPS_FILE -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -G${GPS_FILLCOLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
         info_msg "TDEFNODE observed GPS velocities"
         legendwords+=("TDEFobsgps")
-				echo "" | awk '{ if ($5==1 && $6==1) print $8, $9, $12, $17, $15, $20, $27, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.obs
+				echo "" | gawk  '{ if ($5==1 && $6==1) print $8, $9, $12, $17, $15, $20, $27, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.obs
 				gmt psvelo ${TDMODEL}.obs -W${TD_OGPS_LINEWIDTH},${TD_OGPS_LINECOLOR} -G${TD_OGPS_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
-        # awk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.obs > ${TDMODEL}.xyobs
+        # gawk  -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.obs > ${TDMODEL}.xyobs
         # gmt psxy -SV$ARROWFMT -W0.25p,white -Gblack ${TDMODEL}.xyobs $RJOK $VERBOSE >> map.ps
 			fi
 
@@ -5950,12 +5949,12 @@ for plot in ${plots[@]} ; do
 				# calculated vectors  UPDATE TO PSVELO
         info_msg "TDEFNODE modeled GPS velocities"
         legendwords+=("TDEFcalcgps")
-				awk '{ if ($5==1 && $6==1) print $8, $9, $13, $18, $15, $20, $27, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.vec
+			gawk '{ if ($5==1 && $6==1) print $8, $9, $13, $18, $15, $20, $27, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.vec
         gmt psvelo ${TDMODEL}.vec -W${TD_VGPS_LINEWIDTH},${TD_VGPS_LINECOLOR} -D0 -G${TD_VGPS_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
 
         #  Generate AZ/VEL data
-        echo "" | awk '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' ${TDMODEL}.vec > ${TDMODEL}.xyvec
-        # awk '(sqrt($3*$3+$4*$4) <= 5) { print $1, $2 }' ${TDMODEL}.vec > ${TDMODEL}_smallcalc.xyvec
+        echo "" | gawk  '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' ${TDMODEL}.vec > ${TDMODEL}.xyvec
+        # gawk  '(sqrt($3*$3+$4*$4) <= 5) { print $1, $2 }' ${TDMODEL}.vec > ${TDMODEL}_smallcalc.xyvec
         # gmt psxy -SV$ARROWFMT -W0.25p,black -Gwhite ${TDMODEL}.xyvec $RJOK $VERBOSE >> map.ps
         # gmt psxy -SC$SMALLRES -W0.25p,black -Gwhite ${TDMODEL}_smallcalc.xyvec $RJOK $VERBOSE >> map.ps
 			fi
@@ -5964,14 +5963,14 @@ for plot in ${plots[@]} ; do
         legendwords+=("TDEFresidgps")
 				#residual vectors UPDATE TO PSVELO
         info_msg "TDEFNODE residual GPS velocities"
-				awk '{ if ($5==1 && $6==1) print $8, $9, $14, $19, $15, $20, $27, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.res
+			gawk '{ if ($5==1 && $6==1) print $8, $9, $14, $19, $15, $20, $27, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.res
         # gmt psvelo ${TDMODEL}.res -W${TD_VGPS_LINEWIDTH},${TD_VGPS_LINECOLOR} -G${TD_VGPS_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
         gmt psvelo ${TDMODEL}.obs -W${TD_OGPS_LINEWIDTH},${TD_OGPS_LINECOLOR} -G${TD_OGPS_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
 
         #  Generate AZ/VEL data
-        echo "" | awk '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.res > ${TDMODEL}.xyres
+        echo "" | gawk  '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.res > ${TDMODEL}.xyres
         # gmt psxy -SV$ARROWFMT -W0.1p,black -Ggreen ${TDMODEL}.xyres $RJOK $VERBOSE >> map.ps
-        # awk '(sqrt($3*$3+$4*$4) <= 5) { print $1, $2 }' ${TDMODEL}.res > ${TDMODEL}_smallres.xyvec
+        # gawk  '(sqrt($3*$3+$4*$4) <= 5) { print $1, $2 }' ${TDMODEL}.res > ${TDMODEL}_smallres.xyvec
         # gmt psxy -SC$SMALLRES -W0.25p,black -Ggreen ${TDMODEL}_smallres.xyvec $RJOK $VERBOSE >> map.ps
 			fi
 
@@ -5980,15 +5979,15 @@ for plot in ${plots[@]} ; do
         # CONVERT TO PSVELO ONLY
         info_msg "TDEFNODE fault midpoint slip rates - all "
         legendwords+=("TDEFsliprates")
-				awk '{ print $1, $2, $3, $4, $5, $6, $7, $8 }' ${TDPATH}${TDMODEL}_mid.vec > ${TDMODEL}.midvec
+			gawk '{ print $1, $2, $3, $4, $5, $6, $7, $8 }' ${TDPATH}${TDMODEL}_mid.vec > ${TDMODEL}.midvec
         # gmt psvelo ${TDMODEL}.midvec -W${SLIP_LINEWIDTH},${SLIP_LINECOLOR} -G${SLIP_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
         gmt psvelo ${TDMODEL}.midvec -W${SLIP_LINEWIDTH},${SLIP_LINECOLOR} -G${SLIP_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
 
         # Generate AZ/VEL data
-        awk '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' ${TDMODEL}.midvec > ${TDMODEL}.xymidvec
+        gawk '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' ${TDMODEL}.midvec > ${TDMODEL}.xymidvec
 
         # Label
-        awk '{ printf "%f %f %.1f\n", $1, $2, sqrt($3*$3+$4*$4) }' ${TDMODEL}.midvec > ${TDMODEL}.fsliplabel
+        gawk '{ printf "%f %f %.1f\n", $1, $2, sqrt($3*$3+$4*$4) }' ${TDMODEL}.midvec > ${TDMODEL}.fsliplabel
 
 		  	gmt pstext -F+f"${SLIP_FONTSIZE}","${SLIP_FONT}","${SLIP_FONTCOLOR}"+jBM $RJOK ${TDMODEL}.fsliplabel $VERBOSE >> map.ps
 			fi
@@ -5998,7 +5997,7 @@ for plot in ${plots[@]} ; do
         info_msg "TDEFNODE fault midpoint slip rates - near cutoff = ${SLIP_DIST} degrees"
         legendwords+=("TDEFsliprates")
 
-        awk -v cutoff=${SLIP_DIST} 'BEGIN {dist=0;lastx=9999;lasty=9999} {
+        gawk -v cutoff=${SLIP_DIST} 'BEGIN {dist=0;lastx=9999;lasty=9999} {
             newdist = sqrt(($1-lastx)*($1-lastx)+($2-lasty)*($2-lasty));
             if (newdist > cutoff) {
               lastx=$1
@@ -6008,14 +6007,14 @@ for plot in ${plots[@]} ; do
         }' < ${TDPATH}${TDMODEL}_mid.vec > ${TDMODEL}.midvecsel
         gmt psvelo ${TDMODEL}.midvecsel -W${SLIP_LINEWIDTH},${SLIP_LINECOLOR} -G${SLIP_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
         # Generate AZ/VEL data
-        awk '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' ${TDMODEL}.midvecsel > ${TDMODEL}.xymidvecsel
-        awk '{ printf "%f %f %.1f\n", $1, $2, sqrt($3*$3+$4*$4) }' ${TDMODEL}.midvecsel > ${TDMODEL}.fsliplabelsel
+        gawk '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' ${TDMODEL}.midvecsel > ${TDMODEL}.xymidvecsel
+        gawk '{ printf "%f %f %.1f\n", $1, $2, sqrt($3*$3+$4*$4) }' ${TDMODEL}.midvecsel > ${TDMODEL}.fsliplabelsel
         gmt pstext -F+f${SLIP_FONTSIZE},${SLIP_FONT},${SLIP_FONTCOLOR}+jCM $RJOK ${TDMODEL}.fsliplabelsel $VERBOSE >> map.ps
       fi
       if [[ ${TDSTRING} =~ .*y.* ]]; then
         # Fault segment midpoint slip rates, text on fault only, only plot when the "distance" between the point and the last point is larger than a set value
         info_msg "TDEFNODE fault midpoint slip rates, label only - near cutoff = 2"
-        awk -v cutoff=${SLIP_DIST} 'BEGIN {dist=0;lastx=9999;lasty=9999} {
+        gawk -v cutoff=${SLIP_DIST} 'BEGIN {dist=0;lastx=9999;lasty=9999} {
             newdist = sqrt(($1-lastx)*($1-lastx)+($2-lasty)*($2-lasty));
             if (newdist > cutoff) {
               lastx=$1
@@ -6023,7 +6022,7 @@ for plot in ${plots[@]} ; do
               print $1, $2, $3, $4, $5, $6, $7, $8
             }
         }' < ${TDPATH}${TDMODEL}_mid.vec > ${TDMODEL}.midvecsel
-        awk '{ printf "%f %f %.1f\n", $1, $2, sqrt($3*$3+$4*$4) }' ${TDMODEL}.midvecsel > ${TDMODEL}.fsliplabelsel
+        gawk '{ printf "%f %f %.1f\n", $1, $2, sqrt($3*$3+$4*$4) }' ${TDMODEL}.midvecsel > ${TDMODEL}.fsliplabelsel
         gmt pstext -F+f6,Helvetica-Bold,white+jCM $RJOK ${TDMODEL}.fsliplabelsel $VERBOSE >> map.ps
       fi
       if [[ ${TDSTRING} =~ .*e.* ]]; then
@@ -6031,8 +6030,8 @@ for plot in ${plots[@]} ; do
         info_msg "TDEFNODE elastic component of velocity"
         legendwords+=("TDEFelasticvelocity")
 
-        awk '{ if ($5==1 && $6==1) print $8, $9, $28, $29, 0, 0, 1, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.elastic
-        awk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.elastic > ${TDMODEL}.xyelastic
+        gawk '{ if ($5==1 && $6==1) print $8, $9, $28, $29, 0, 0, 1, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.elastic
+        gawk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.elastic > ${TDMODEL}.xyelastic
         gmt psxy -SV$ARROWFMT -W0.1p,black -Gred ${TDMODEL}.xyelastic  $RJOK $VERBOSE >> map.ps
       fi
       if [[ ${TDSTRING} =~ .*t.* ]]; then
@@ -6040,8 +6039,8 @@ for plot in ${plots[@]} ; do
         info_msg "TDEFNODE block rotation component of velocity"
         legendwords+=("TDEFrotationvelocity")
 
-        awk '{ if ($5==1 && $6==1) print $8, $9, $38, $39, 0, 0, 1, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.block
-        awk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.block > ${TDMODEL}.xyblock
+        gawk '{ if ($5==1 && $6==1) print $8, $9, $38, $39, 0, 0, 1, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.block
+        gawk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.block > ${TDMODEL}.xyblock
         gmt psxy -SV$ARROWFMT -W0.1p,black -Ggreen ${TDMODEL}.xyblock $RJOK $VERBOSE >> map.ps
       fi
 			;;
@@ -6054,7 +6053,7 @@ for plot in ${plots[@]} ; do
           # gdaldem is a bit funny about coloring around the hinge, so do some magic to make
           # the color from land not bleed to the hinge elevation.
           CPTHINGE=0
-          awk < $TOPO_CPT -v hinge=$CPTHINGE '{
+          gawk < $TOPO_CPT -v hinge=$CPTHINGE '{
             if ($1 != "B" && $1 != "F" && $1 != "N" ) {
               if (count==1) {
                 print $1+0.01, $2
@@ -6072,7 +6071,7 @@ for plot in ${plots[@]} ; do
             }
             }' | tr '/' ' ' > topocolor.dat
         else
-          awk < $TOPO_CPT '{ print $1, $2 }' | tr '/' ' ' > topocolor.dat
+          gawk < $TOPO_CPT '{ print $1, $2 }' | tr '/' ' ' > topocolor.dat
         fi
 
         # Calculate the color stretch
@@ -6280,7 +6279,7 @@ if [[ $makelegendflag -eq 1 ]]; then
 
   velboxflag=0
   [[ $barplotcount -eq 0 ]] && LEGEND_WIDTH=0.01
-  LEG2_X=$(echo "$LEGENDX $LEGEND_WIDTH 0.1i" | awk '{print $1+$2+$3 }' )
+  LEG2_X=$(echo "$LEGENDX $LEGEND_WIDTH 0.1i" | gawk  '{print $1+$2+$3 }' )
   LEG2_Y=${MAP_PS_HEIGHT_IN}
 
   # The non-colobar plots come next. pslegend can't handle a lot of things well,
@@ -6294,24 +6293,24 @@ if [[ $makelegendflag -eq 1 ]]; then
   count=0
   # Keep track of the largest width we have used and make next column not overlap it.
   NEXTX=0
-  GPS_ELLIPSE_TEXT=$(awk -v c=0.95 'BEGIN{print c*100 "%" }')
+  GPS_ELLIPSE_TEXT=$(gawk -v c=0.95 'BEGIN{print c*100 "%" }')
 
   for plot in ${plots[@]} ; do
   	case $plot in
       cmt)
-        MEXP_6=$(echo 6.0 | awk -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
+        MEXP_6=$(echo 6.0 | gawk  -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
                   mwmod = ($1^str)/(sref^(str-1))
                   a=sprintf("%E", 10^((mwmod + 10.7)*3/2))
                   split(a,b,"+")
                   split(a,c,"E")
                   print c[1], b[2] }')
-        MEXP_7=$(echo 7.0 | awk -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
+        MEXP_7=$(echo 7.0 | gawk  -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
                   mwmod = ($1^str)/(sref^(str-1))
                   a=sprintf("%E", 10^((mwmod + 10.7)*3/2))
                   split(a,b,"+")
                   split(a,c,"E")
                   print c[1], b[2] }')
-        MEXP_8=$(echo 8.0 | awk -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
+        MEXP_8=$(echo 8.0 | gawk  -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
                   mwmod = ($1^str)/(sref^(str-1))
                   a=sprintf("%E", 10^((mwmod + 10.7)*3/2))
                   split(a,b,"+")
@@ -6321,76 +6320,76 @@ if [[ $makelegendflag -eq 1 ]]; then
         if [[ $CMTLETTER == "c" ]]; then
           echo "$CENTERLON $CENTERLAT 15 322 39 -73 121 53 -104 $MEXP_6 126.020000 13.120000 C021576A" | gmt psmeca -E"${CMT_NORMALCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtnormalflag -eq 1 ]]; then
-            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 220 0.99" | awk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 342 0.23" | awk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 129 0.96" | awk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 220 0.99" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 342 0.23" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 129 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
           fi
           echo "$CENTERLON $CENTERLAT N/6.0" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> mecaleg.ps
           echo "$CENTERLON $CENTERLAT 14 92 82 2 1 88 172 $MEXP_7 125.780000 8.270000 B082783A" | gmt psmeca -E"${CMT_SSCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.35i -Y-0.15i ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtssflag -eq 1 ]]; then
-            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 316 0.999" | awk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 47 0.96" | awk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 167 0.14" | awk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 316 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 47 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 167 0.14" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
           fi
           echo "$CENTERLON $CENTERLAT SS/7.0" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> mecaleg.ps
           echo "$CENTERLON $CENTERLAT 33 321 35 92 138 55 89 $MEXP_8 123.750000 7.070000 M081676B" | gmt psmeca -E"${CMT_THRUSTCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.35i -Y-0.15i -R -J -O -K ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtthrustflag -eq 1 ]]; then
-            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 42 0.17" | awk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 229 0.999" | awk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 139 0.96" | awk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 42 0.17" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 229 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 139 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
           fi
           echo "$CENTERLON $CENTERLAT R/8.0" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O >> mecaleg.ps
         fi
         if [[ $CMTLETTER == "m" ]]; then
           echo "$CENTERLON $CENTERLAT 10 -3.19 1.95 1.24 -0.968 -0.425 $MEXP_6 0 0 " | gmt psmeca -E"${CMT_NORMALCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtnormalflag -eq 1 ]]; then
-            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 220 0.99" | awk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 342 0.23" | awk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 129 0.96" | awk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 220 0.99" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 342 0.23" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 129 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
           fi
           echo "$CENTERLON $CENTERLAT N/6.0" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> mecaleg.ps
           echo "$CENTERLON $CENTERLAT 10 0.12 -1.42 1.3 0.143 -0.189 $MEXP_7 0 0 " | gmt psmeca -E"${CMT_SSCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.35i -Y-0.15i ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtssflag -eq 1 ]]; then
-            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 316 0.999" | awk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 47 0.96" | awk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 167 0.14" | awk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 316 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 47 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 167 0.14" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
           fi
           echo "$CENTERLON $CENTERLAT SS/7.0" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> mecaleg.ps
           echo "$CENTERLON $CENTERLAT 15 2.12 -1.15 -0.97 0.54 -0.603 $MEXP_8 0 0 2016-12-08T17:38:46" | gmt psmeca -E"${CMT_THRUSTCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.35i -Y-0.15i -R -J -O -K ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtthrustflag -eq 1 ]]; then
-            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 42 0.17" | awk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 229 0.999" | awk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 139 0.96" | awk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 42 0.17" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 229 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 139 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
           fi
           echo "$CENTERLON $CENTERLAT R/8.0" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O >> mecaleg.ps
         fi
 
-        PS_DIM=$(gmt psconvert mecaleg.ps -Te -A0.05i -V 2> >(grep Width) | awk -F'[ []' '{print $10, $17}')
-        PS_WIDTH_IN=$(echo $PS_DIM | awk '{print $1/2.54}')
-        PS_HEIGHT_IN=$(echo $PS_DIM | awk '{print $2/2.54}')
+        PS_DIM=$(gmt psconvert mecaleg.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+        PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+        PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
         gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i mecaleg.eps $RJOK ${VERBOSE} >> $LEGMAP
         LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
         count=$count+1
-        NEXTX=$(echo $PS_WIDTH_IN $NEXTX | awk '{if ($1>$2) { print $1 } else { print $2 } }')
+        NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
         ;;
 
       eqlabel)
 
-        [[ $EQ_LABELFORMAT == "idmag"   ]]  && echo "$CENTERLON $CENTERLAT ID Mw" | awk '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'      > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "datemag" ]]  && echo "$CENTERLON $CENTERLAT DATE Mw" | awk '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "dateid"  ]]  && echo "$CENTERLON $CENTERLAT DATE ID" | awk '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "id"      ]]  && echo "$CENTERLON $CENTERLAT ID" | awk '{ printf "%s %s %s\n", $1, $2, $3 }'                 > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "date"    ]]  && echo "$CENTERLON $CENTERLAT DATE" | awk '{ printf "%s %s %s\n", $1, $2, $3 }'               > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "mag"     ]]  && echo "$CENTERLON $CENTERLAT Mw" | awk '{ printf "%s %s %s\n", $1, $2, $3 }'                 > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "idmag"   ]]  && echo "$CENTERLON $CENTERLAT ID Mw" | gawk  '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'      > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "datemag" ]]  && echo "$CENTERLON $CENTERLAT DATE Mw" | gawk  '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "dateid"  ]]  && echo "$CENTERLON $CENTERLAT DATE ID" | gawk  '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "id"      ]]  && echo "$CENTERLON $CENTERLAT ID" | gawk  '{ printf "%s %s %s\n", $1, $2, $3 }'                 > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "date"    ]]  && echo "$CENTERLON $CENTERLAT DATE" | gawk  '{ printf "%s %s %s\n", $1, $2, $3 }'               > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "mag"     ]]  && echo "$CENTERLON $CENTERLAT Mw" | gawk  '{ printf "%s %s %s\n", $1, $2, $3 }'                 > eqlabel.legend.txt
 
         cat eqlabel.legend.txt | gmt pstext -Gwhite -W0.5p,black -F+f${EQ_LABEL_FONTSIZE},${EQ_LABEL_FONT},${EQ_LABEL_FONTCOLOR}+j${EQ_LABEL_JUST} -R -J -O $VERBOSE >> eqlabel.ps
-        PS_DIM=$(gmt psconvert eqlabel.ps -Te -A0.05i -V 2> >(grep Width) | awk -F'[ []' '{print $10, $17}')
-        PS_WIDTH_IN=$(echo $PS_DIM | awk '{print $1/2.54}')
-        PS_HEIGHT_IN=$(echo $PS_DIM | awk '{print $2/2.54}')
+        PS_DIM=$(gmt psconvert eqlabel.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+        PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+        PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
         gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i eqlabel.eps $RJOK ${VERBOSE} >> $LEGMAP
         LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
         count=$count+1
-        NEXTX=$(echo $PS_WIDTH_IN $NEXTX | awk '{if ($1>$2) { print $1 } else { print $2 } }')
+        NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
         ;;
 
       grid)
@@ -6402,13 +6401,13 @@ if [[ $makelegendflag -eq 1 ]]; then
           echo "$CENTERLON $CENTERLAT $GRIDMAXVEL_INT 0 0 0 0 0 ID" | gmt psvelo -W0p,$PLATEVEC_COLOR@$PLATEVEC_TRANS -G$PLATEVEC_COLOR@$PLATEVEC_TRANS -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> velarrow.ps 2>/dev/null
         fi
         echo "$CENTERLON $CENTERLAT Plate velocity ($GRIDMAXVEL_INT mm/yr)" | gmt pstext -F+f6p,Helvetica,black+jLB $VERBOSE -J -R -Y0.1i -O >> velarrow.ps
-        PS_DIM=$(gmt psconvert velarrow.ps -Te -A0.05i -V 2> >(grep Width) | awk -F'[ []' '{print $10, $17}')
-        PS_WIDTH_IN=$(echo $PS_DIM | awk '{print $1/2.54}')
-        PS_HEIGHT_IN=$(echo $PS_DIM | awk '{print $2/2.54}')
+        PS_DIM=$(gmt psconvert velarrow.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+        PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+        PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
         gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i velarrow.eps $RJOK ${VERBOSE} >> $LEGMAP
         LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
         count=$count+1
-        NEXTX=$(echo $PS_WIDTH_IN $NEXTX | awk '{if ($1>$2) { print $1 } else { print $2 } }')
+        NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
         ;;
 
       gps)
@@ -6416,13 +6415,13 @@ if [[ $makelegendflag -eq 1 ]]; then
         echo "$CENTERLON $CENTERLAT $GPSMAXVEL_INT 0 5 5 0 ID" | gmt psvelo -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -G${GPS_FILLCOLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> velgps.ps 2>/dev/null
         GPSMESSAGE="GPS: $GPSMAXVEL_INT mm/yr (${GPS_ELLIPSE_TEXT})"
         echo "$CENTERLON $CENTERLAT $GPSMESSAGE" | gmt pstext -F+f6p,Helvetica,black+jLB -J -R -Y0.1i -O ${VERBOSE} >> velgps.ps
-        PS_DIM=$(gmt psconvert velgps.ps -Te -A0.05i -V 2> >(grep Width) | awk -F'[ []' '{print $10, $17}')
-        PS_WIDTH_IN=$(echo $PS_DIM | awk '{print $1/2.54}')
-        PS_HEIGHT_IN=$(echo $PS_DIM | awk '{print $2/2.54}')
+        PS_DIM=$(gmt psconvert velgps.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+        PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+        PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
         gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i velgps.eps $RJOK ${VERBOSE} >> $LEGMAP
         LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
         count=$count+1
-        NEXTX=$(echo $PS_WIDTH_IN $NEXTX | awk '{if ($1>$2) { print $1 } else { print $2 } }')
+        NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
         ;;
 
     inset)
@@ -6456,13 +6455,13 @@ if [[ $makelegendflag -eq 1 ]]; then
           echo "$CENTERLON $CENTERLAT 211 .1" | gmt psxy -SV0.05i+jb -W0.5p,gray -Ggray $RJOK $VERBOSE >> kinsv.ps
           echo "$CENTERLON $CENTERLAT 121 0.175" | gmt psxy -SV0.05i+jb -W0.5p,gray -Ggray -R -J -O $VERBOSE >> kinsv.ps
         fi
-        PS_DIM=$(gmt psconvert kinsv.ps -Te -A0.05i -V 2> >(grep Width) | awk -F'[ []' '{print $10, $17}')
-        PS_WIDTH_IN=$(echo $PS_DIM | awk '{print $1/2.54}')
-        PS_HEIGHT_IN=$(echo $PS_DIM | awk '{print $2/2.54}')
+        PS_DIM=$(gmt psconvert kinsv.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+        PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+        PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
         gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i kinsv.eps $RJOK ${VERBOSE} >> $LEGMAP
         LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
         count=$count+1
-        NEXTX=$(echo $PS_WIDTH_IN $NEXTX | awk '{if ($1>$2) { print $1 } else { print $2 } }')
+        NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
        ;;
 
       # Strike and dip of nodal planes is plotted using kinsv above
@@ -6473,21 +6472,21 @@ if [[ $makelegendflag -eq 1 ]]; then
       plate)
         # echo "$CENTERLON $CENTERLAT 90 1" | gmt psxy -SV$ARROWFMT -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -G${GPS_FILLCOLOR} $RJOK $VERBOSE >> plate.ps
         # echo "$CENTERLON $CENTERLAT Kinematics stuff" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -X0.2i -Y0.1i -O >> plate.ps
-        # PS_DIM=$(gmt psconvert plate.ps -Te -A0.05i 2> >(grep Width) | awk -F'[ []' '{print $10, $17}')
-        # PS_WIDTH_IN=$(echo $PS_DIM | awk '{print $1/2.54}')
-        # PS_HEIGHT_IN=$(echo $PS_DIM | awk '{print $2/2.54}')
+        # PS_DIM=$(gmt psconvert plate.ps -Te -A0.05i 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+        # PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+        # PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
         # gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i plate.ps $RJOK >> $LEGMAP
         # LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
         # count=$count+1
-        # NEXTX=$(echo $PS_WIDTH_IN $NEXTX | awk '{if ($1>$2) { print $1 } else { print $2 } }')
+        # NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
         ;;
 
       seis)
-        MW_4=$(echo 4.0 | awk -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{ print ($1^str)/(sref^(str-1)) }')
-        MW_5=$(echo 5.0 | awk -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{ print ($1^str)/(sref^(str-1)) }')
-        MW_6=$(echo 6.0 | awk -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{ print ($1^str)/(sref^(str-1)) }')
-        MW_7=$(echo 7.0 | awk -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{ print ($1^str)/(sref^(str-1)) }')
-        MW_8=$(echo 8.0 | awk -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{ print ($1^str)/(sref^(str-1)) }')
+        MW_4=$(echo 4.0 | gawk  -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{ print ($1^str)/(sref^(str-1)) }')
+        MW_5=$(echo 5.0 | gawk  -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{ print ($1^str)/(sref^(str-1)) }')
+        MW_6=$(echo 6.0 | gawk  -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{ print ($1^str)/(sref^(str-1)) }')
+        MW_7=$(echo 7.0 | gawk  -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{ print ($1^str)/(sref^(str-1)) }')
+        MW_8=$(echo 8.0 | gawk  -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{ print ($1^str)/(sref^(str-1)) }')
 
         OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
         gmt gmtset PROJ_LENGTH_UNIT p
@@ -6505,13 +6504,13 @@ if [[ $makelegendflag -eq 1 ]]; then
 
         gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
 
-        PS_DIM=$(gmt psconvert seissymbol.ps -Te -A0.05i -V 2> >(grep Width) | awk -F'[ []' '{print $10, $17}')
-        PS_WIDTH_IN=$(echo $PS_DIM | awk '{print $1/2.54}')
-        PS_HEIGHT_IN=$(echo $PS_DIM | awk '{print $2/2.54}')
+        PS_DIM=$(gmt psconvert seissymbol.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+        PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+        PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
         gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i seissymbol.eps $RJOK ${VERBOSE} >> $LEGMAP
         LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
         count=$count+1
-        NEXTX=$(echo $PS_WIDTH_IN $NEXTX | awk '{if ($1>$2) { print $1 } else { print $2 } }')
+        NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
         ;;
 
       srcmod)
@@ -6529,13 +6528,13 @@ if [[ $makelegendflag -eq 1 ]]; then
         echo "$CENTERLON $CENTERLAT" | gmt psxy -W0.25p,"${V_LINEW}" -G"${V_FILL}" -St"${V_SIZE}"/0 $RJOK ${VERBOSE} >> volcanoes.ps
         echo "$CENTERLON $CENTERLAT Volcano" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.1i -O >> volcanoes.ps
 
-        PS_DIM=$(gmt psconvert volcanoes.ps -Te -A0.05i -V 2> >(grep Width) | awk -F'[ []' '{print $10, $17}')
-        PS_WIDTH_IN=$(echo $PS_DIM | awk '{print $1/2.54}')
-        PS_HEIGHT_IN=$(echo $PS_DIM | awk '{print $2/2.54}')
+        PS_DIM=$(gmt psconvert volcanoes.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+        PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+        PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
         gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i volcanoes.eps $RJOK ${VERBOSE} >> $LEGMAP
         LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
         count=$count+1
-        NEXTX=$(echo $PS_WIDTH_IN $NEXTX | awk '{if ($1>$2) { print $1 } else { print $2 } }')
+        NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
         ;;
     esac
     if [[ $count -eq 3 ]]; then
@@ -6549,7 +6548,7 @@ if [[ $makelegendflag -eq 1 ]]; then
   # gmt pstext tectoplot.shortplot -F+f6p,Helvetica,black $KEEPOPEN $VERBOSE >> map.ps
   # x y fontinfo angle justify linespace parwidth parjust
   echo "> 0 0 9p Helvetica,black 0 l 0.1i ${INCH}i l" > datasourceslegend.txt
-  uniq tectoplot.shortsources | awk 'BEGIN {printf "T Data sources: "} {print}'  | tr '\n' ' ' >> datasourceslegend.txt
+  uniq tectoplot.shortsources | gawk  'BEGIN {printf "T Data sources: "} {print}'  | tr '\n' ' ' >> datasourceslegend.txt
 
   # gmt gmtset FONT_ANNOT_PRIMARY 8p,Helvetica-bold,black
   MAP_PS_HEIGHT_IN_minus=$(echo "$MAP_PS_HEIGHT_IN-11/72" | bc -l )
@@ -6607,10 +6606,10 @@ fi
 ##### MAKE OBLIQUE VIEW OF TOPOGRAPHY
 if [[ $obliqueflag -eq 1 ]]; then
   info_msg "Oblique map (${OBLIQUEAZ}/${OBLIQUEINC})"
-  PSSIZENUM=$(echo $PSSIZE | awk '{print $1+0}')
+  PSSIZENUM=$(echo $PSSIZE | gawk  '{print $1+0}')
 
   zrange=$(grid_zrange $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
-  DELTAZ_DEG=$(echo $zrange | awk -v pss=$PSSIZENUM -v ex=$OBLIQUE_VEXAG '{print ex * ($2-$1) / 111000 * pss}')
+  DELTAZ_DEG=$(echo $zrange | gawk  -v pss=$PSSIZENUM -v ex=$OBLIQUE_VEXAG '{print ex * ($2-$1) / 111000 * pss}')
 
   if [[ $gdemtopoplotflag -eq 1 ]]; then
     gmt grdview $BATHY  $NCALL -Gcolored_hillshade.tif -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JM${MINLON}/${PSSIZENUM}i -JZ${DELTAZ_DEG}i -Qi${OBLIQUERES} -p${OBLIQUEAZ}/${OBLIQUEINC} --GMT_HISTORY=false ${VERBOSE} > oblique.ps
@@ -6624,8 +6623,8 @@ fi
 ##### MAKE KML
 if [[ $kmlflag -eq 1 ]]; then
   gmt psconvert map.ps -Tt -A -W+k -E${KMLRES} ${VERBOSE}
-  ncols=$(gmt grdinfo map.tif -C ${VERBOSE} | awk '{print $10}')
-  nrows=$(gmt grdinfo map.tif -C ${VERBOSE} | awk '{print $11}')
+  ncols=$(gmt grdinfo map.tif -C ${VERBOSE} | gawk  '{print $10}')
+  nrows=$(gmt grdinfo map.tif -C ${VERBOSE} | gawk  '{print $11}')
   echo "($MAXLON - $MINLON) / $ncols" | bc -l > map.tfw
   echo "0" >> map.tfw
   echo "0" >> map.tfw
@@ -6640,19 +6639,19 @@ if [[ $caxesstereonetflag -eq 1 ]]; then
   gmt psbasemap -JA0/-89.999/3i -Rg -Bxa10fg10 -Bya10fg10 -K ${VERBOSE} > stereo.ps
   gmt makecpt -Cwysiwyg -T$MINLAT/$MAXLAT/1 > lon.cpt
   if [[ $axescmtthrustflag -eq 1 ]]; then
-    [[ $axestflag -eq 1 ]] && awk < t_axes_thrust.txt '{ print $3, -$4, $2 }' | gmt psxy -Sc0.05i -Clon.cpt -W0.25p,black -Gred -R -J -O -K ${VERBOSE} >> stereo.ps
-    [[ $axespflag -eq 1 ]] && awk < p_axes_thrust.txt '{ print $3, -$4, $2 }' | gmt psxy -Sc0.05i -Clon.cpt -W0.25p,black -Gblue -R -J -O -K ${VERBOSE} >> stereo.ps
-    [[ $axesnflag -eq 1 ]] && awk < n_axes_thrust.txt '{ print $3, -$4, $2 }' | gmt psxy -Sc0.05i -Clon.cpt -W0.25p,black -Ggreen -R -J -O -K ${VERBOSE} >> stereo.ps
+    [[ $axestflag -eq 1 ]] && gawk  < t_axes_thrust.txt '{ print $3, -$4, $2 }' | gmt psxy -Sc0.05i -Clon.cpt -W0.25p,black -Gred -R -J -O -K ${VERBOSE} >> stereo.ps
+    [[ $axespflag -eq 1 ]] && gawk  < p_axes_thrust.txt '{ print $3, -$4, $2 }' | gmt psxy -Sc0.05i -Clon.cpt -W0.25p,black -Gblue -R -J -O -K ${VERBOSE} >> stereo.ps
+    [[ $axesnflag -eq 1 ]] && gawk  < n_axes_thrust.txt '{ print $3, -$4, $2 }' | gmt psxy -Sc0.05i -Clon.cpt -W0.25p,black -Ggreen -R -J -O -K ${VERBOSE} >> stereo.ps
   fi
   if [[ $axescmtnormalflag -eq 1 ]]; then
-    [[ $axestflag -eq 1 ]] && awk < t_axes_normal.txt '{ print $3, -$4, $2 }' | gmt psxy -Ss0.05i -Clon.cpt -W0.25p,black -Gred -R -J -O -K ${VERBOSE} >> stereo.ps
-    [[ $axespflag -eq 1 ]] && awk < p_axes_normal.txt '{ print $3, -$4, $2 }' | gmt psxy -Ss0.05i -Clon.cpt -W0.25p,black -Gblue -R -J -O -K ${VERBOSE} >> stereo.ps
-    [[ $axesnflag -eq 1 ]] && awk < n_axes_normal.txt '{ print $3, -$4, $2 }' | gmt psxy -Ss0.05i -Clon.cpt -W0.25p,black -Ggreen -R -J -O -K ${VERBOSE} >> stereo.ps
+    [[ $axestflag -eq 1 ]] && gawk  < t_axes_normal.txt '{ print $3, -$4, $2 }' | gmt psxy -Ss0.05i -Clon.cpt -W0.25p,black -Gred -R -J -O -K ${VERBOSE} >> stereo.ps
+    [[ $axespflag -eq 1 ]] && gawk  < p_axes_normal.txt '{ print $3, -$4, $2 }' | gmt psxy -Ss0.05i -Clon.cpt -W0.25p,black -Gblue -R -J -O -K ${VERBOSE} >> stereo.ps
+    [[ $axesnflag -eq 1 ]] && gawk  < n_axes_normal.txt '{ print $3, -$4, $2 }' | gmt psxy -Ss0.05i -Clon.cpt -W0.25p,black -Ggreen -R -J -O -K ${VERBOSE} >> stereo.ps
   fi
   if [[ $axescmtssflag -eq 1 ]]; then
-    [[ $axestflag -eq 1 ]] && awk < t_axes_strikeslip.txt '{ print $3, -$4, $2 }' | gmt psxy -St0.05i -Clon.cpt -W0.25p,black -Gred -R -J -O -K ${VERBOSE} >> stereo.ps
-    [[ $axespflag -eq 1 ]] && awk < p_axes_strikeslip.txt '{ print $3, -$4, $2 }' | gmt psxy -St0.05i -Clon.cpt -W0.25p,black -Gblue -R -J -O -K ${VERBOSE} >> stereo.ps
-    [[ $axesnflag -eq 1 ]] && awk < n_axes_strikeslip.txt '{ print $3, -$4, $2 }' | gmt psxy -St0.05i -Clon.cpt -W0.25p,black -Ggreen -R -J -O -K ${VERBOSE} >> stereo.ps
+    [[ $axestflag -eq 1 ]] && gawk  < t_axes_strikeslip.txt '{ print $3, -$4, $2 }' | gmt psxy -St0.05i -Clon.cpt -W0.25p,black -Gred -R -J -O -K ${VERBOSE} >> stereo.ps
+    [[ $axespflag -eq 1 ]] && gawk  < p_axes_strikeslip.txt '{ print $3, -$4, $2 }' | gmt psxy -St0.05i -Clon.cpt -W0.25p,black -Gblue -R -J -O -K ${VERBOSE} >> stereo.ps
+    [[ $axesnflag -eq 1 ]] && gawk  < n_axes_strikeslip.txt '{ print $3, -$4, $2 }' | gmt psxy -St0.05i -Clon.cpt -W0.25p,black -Ggreen -R -J -O -K ${VERBOSE} >> stereo.ps
   fi
   echo "0 0" | gmt psxy -Sc0.001i -Gwhite -R -J -O ${VERBOSE} >> stereo.ps
   gmt psconvert stereo.ps -Tf -A0.5i ${VERBOSE}

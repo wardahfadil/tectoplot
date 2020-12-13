@@ -4,7 +4,7 @@
 
 # Output is column number followed by row data in a single column
 
-awk -v window="${1}" '{
+gawk -v window="${1}" '{
     if (max_nf < NF) {
         max_nf = NF
     }
