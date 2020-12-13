@@ -10,13 +10,7 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 
 #
 
-# As of December 2020, this will install GS9.26 on OSX
-#
-#brew unlink ghostscript
-#cd /usr/local/Homebrew/Library/Taps/homebrew/homebrew-core/Formula
-#git checkout 6ec0c1a03ad789b6246bfbbf4ee0e37e9f913ee0 ghostscript.rb
-#brew install ghostscript
-#brew pin ghostscript
+
 
 # CHANGELOG
 
@@ -598,6 +592,14 @@ function print_setup() {
   ~/# brew update
   ~/# brew install gmt
   ~/# brew install gawk
+
+  As of December 2020, this will install GS9.26 on OSX
+
+  ~/# brew unlink ghostscript
+  ~/# cd /usr/local/Homebrew/Library/Taps/homebrew/homebrew-core/Formula
+  ~/# git checkout 6ec0c1a03ad789b6246bfbbf4ee0e37e9f913ee0 ghostscript.rb
+  ~/# brew install ghostscript
+  ~/# brew pin ghostscript
 
   Installing and configuring tectoplot
 
