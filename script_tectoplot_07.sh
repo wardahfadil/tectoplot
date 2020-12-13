@@ -7,8 +7,19 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 # Kyle Bradley, Nanyang Technological University (kbradley@ntu.edu.sg)
 # Prefers GS 9.26 (and no later) for transparency
 
+# As of December 2020, this will install GS9.26 on OSX
+#
+#brew unlink ghostscript
+#cd /usr/local/Homebrew/Library/Taps/homebrew/homebrew-core/Formula
+#git checkout 6ec0c1a03ad789b6246bfbbf4ee0e37e9f913ee0 ghostscript.rb
+#brew install ghostscript
+#brew pin ghostscript
+
 # CHANGELOG
 
+# December 13, 2020: Added -zcat option to select ANSS/ISC seismicity catalog
+#  Note that earthquake culling may not work well for ISC due to so many events?
+# December 12, 2020: Updated ISC earthquake scraping to download full ISC catalog in CSV format
 # December 10, 2020: Updated ANSS earthquake scraping to be faster
 # December  9, 2020: Added LITHO1.0 download and plotting on cross sections (density, Vp, Vs)
 # December  7, 2020: Updated -eqlabel options
@@ -77,6 +88,9 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 # TO DO:
 #
 # HIGHER PRIORITY:
+
+# !! Add magnitude type to seismicity catalog to allow future conversion (e.g. Wetherill et al. 2017)
+# !! Remove anthropogenic earthquakes from catalog (e.g. Wetherill et al. 2017)
 
 # Add option to adjust PROFILE_WIDTH_IN rather than max_z when plotting one-to-one?
 # Add option to decluster CMT/seismicity data before plotting to remove aftershocks?
@@ -418,6 +432,7 @@ cat <<-EOF
     -zsort           [date|depth|mag] [up|down]          sort earthquake data before plotting
     -zs              [file]                              add supplemental seismicity file [lon lat depth mag]
     -zmag            [minmag] [maxmag]                   set minimum and maximum magnitude
+    -zcat            [ANSS or ISC]                       select the scraped EQ catalog to use
 
   Seismicity/focal mechanism data control:
     -reportdates                                         print date range of seismic, focal mechanism catalogs and exit
@@ -479,7 +494,7 @@ cat <<-EOF
     -gg|--extragps   [filename]                          plot an additional GPS / psvelo format file
     -cn              [gridfile] [interval] { gmtargs }   plot contours of a gridded dataset
                                             gmtargs for -A -S and -C will replace defaults
-                                            
+
   TDEFNODE block model
     --tdefnode       [folder path] [lbsovrfet ]          plot TDEFNODE output data.
           l=locking b=blocks s=slip o=observed gps vectors v=modeled gps vectors
@@ -2713,6 +2728,7 @@ do
 
   -vc|--volc) # args: none
     plots+=("volcanoes")
+    volcanoesflag=1
     echo $VOLC_SHORT_SOURCESTRING >> tectoplot.shortsources
     echo $VOLC_SOURCESTRING >> tectoplot.sources
     ;;
@@ -2770,6 +2786,29 @@ do
     cpts+=("seisdepth")
     echo $EQ_SOURCESTRING >> tectoplot.sources
     echo $EQ_SHORT_SOURCESTRING >> tectoplot.shortsources
+    ;;
+
+  -zcat) #            [ANSS or ISC]
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-zcat]: No catalog specified. Using default $EQCATALOG"
+    else
+      EQCATNAME="${2}"
+      shift
+      info_msg "[-z]: Seismicity scale updated to $SEIZSIZE * $SEISSCALE"
+      case $EQCATNAME in
+        ISC)
+          EQCATALOG=$ISC_EQ_CATALOG
+          EQ_SOURCESTRING=$ISC_EQ_SOURCESTRING
+          EQ_SHORT_SOURCESTRING=$ISC_EQ_SHORT_SOURCESTRING
+        ;;
+        ANSS0)
+          EQCATALOG=$ANSS_EQ_CATALOG
+          EQ_SOURCESTRING=$ANSS_EQ_SOURCESTRING
+          EQ_SHORT_SOURCESTRING=$ANSS_EQ_SHORT_SOURCESTRING
+        ;;
+      esac
+    fi
+
     ;;
 
   -zmag)
@@ -3356,6 +3395,23 @@ echo $MAXLON $MAXLAT 0 >> gridcorners.txt
 echo $MAXLON $MINLAT 0 >> gridcorners.txt
 
 ################################################################################
+#####           Manage volcanoes                                           #####
+################################################################################
+
+if [[ $volcanoesflag -eq 1 ]]; then
+  gmt select $SMITHVOLC -: -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE >> volctmp.dat
+  gmt select $WHELLEYVOLC  -: -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE  >> volctmp.dat
+  gmt select $JAPANVOLC -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE  >> volctmp.dat
+  awk < volctmp.dat '{
+    printf "%s %s ", $2, $1
+    for (i=3; i<=NF; i++) {
+      printf "%s ", $(i)
+    }
+    printf("\n")
+  }' > volcanoes.dat
+fi
+
+################################################################################
 #####           Manage earthquake hypocenters                              #####
 ################################################################################
 
@@ -3460,7 +3516,7 @@ if [[ $plotseis -eq 1 ]]; then
       print epoch;
     }')
 
-    #LON LAT DEPTH MAG TIMECODE ID EPOCH
+    #LON LAT DEPTH MAG TIMECODE ID EPOCH MAGTYPE
     awk < eqs.txt -v ss=$STARTSECS -v es=$ENDSECS '{
       if (($7 >= ss) && ($7 <= es)) {
         print
@@ -5152,6 +5208,11 @@ for plot in ${plots[@]} ; do
         info_msg "Adding cmt to sprof"
         echo "C cmt.dat ${SPROFWIDTH} -1 -L0.25p,black -Z$SEISDEPTH_CPT" >> sprof.control
       fi
+      if [[ $volcanoesflag -eq 1 ]]; then
+        # We need to sample the DEM at the volcano point locations, or else use 0 for elevation.
+        info_msg "Adding volcanoes to sprof"
+        echo "X volcanoes.dat ${SPROFWIDTH} 0.001 -St0.1i -W0.1p,black -Gred" >> sprof.control
+      fi
       if [[ $plotslab2 -eq 1 ]]; then
         if [[ ! $numslab2inregion -eq 0 ]]; then
           for i in $(seq 1 $numslab2inregion); do
@@ -6023,9 +6084,7 @@ for plot in ${plots[@]} ; do
 
     volcanoes)
       info_msg "Volcanoes"
-      awk < $SMITHVOLC '(NR>1) {print $2, $1}' | gmt psxy -W0.25p,"${V_LINEW}" -G"${V_FILL}" -St"${V_SIZE}"/0  $RJOK $VERBOSE >> map.ps
-      awk < $WHELLEYVOLC '(NR>1) {print $2, $1}' | gmt psxy -W0.25p,"${V_LINEW}" -G"${V_FILL}" -St"${V_SIZE}"/0  $RJOK $VERBOSE >> map.ps
-      awk < $JAPANVOLC '{print $1, $2}' | gmt psxy -W0.25p,"${V_LINEW}" -G"${V_FILL}" -St"${V_SIZE}"/0  $RJOK $VERBOSE >> map.ps
+      gmt psxy volcanoes.dat -W0.25p,"${V_LINEW}" -G"${V_FILL}" -St"${V_SIZE}"/0  $RJOK $VERBOSE >> map.ps
       ;;
 
 	esac

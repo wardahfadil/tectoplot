@@ -18,10 +18,11 @@ Column  Data         Units
 1.      lon          (°)
 2.      lat          (°)
 3.      depth        (km)
-4.      magnitude    (Mw)
+4.      magnitude    (varies)
 5.      origin time  (YYYY-MM-DDTHH:MM:SS)
 6.      ID           (string)
 7.      epoch        (seconds)
+
 
 Example data:
 --------------------------------------------------------------------------------

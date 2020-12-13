@@ -258,12 +258,21 @@ JAPANVOLC=$DATAROOT"Smithsonian/japan_volcanoes.lonlatname"
 
 ##### Seismicity
 
-EQ_SOURCESTRING="Earthquakes: USGS/ANSS, https://earthquake.usgs.gov/earthquakes/search/"
-EQ_SHORT_SOURCESTRING="ANSS"
+ANSS_EQ_SOURCESTRING="Earthquakes: USGS/ANSS, https://earthquake.usgs.gov/earthquakes/search/"
+ANSS_EQ_SHORT_SOURCESTRING="ANSS"
 
 ANSSDIR=$DATAROOT"ANSS/"
+ANSS_EQ_CATALOG=${ANSSDIR}"anss.cat"
 
-EQCATALOG=${ANSSDIR}"anss.cat"
+
+
+# mirror:
+ISC_MIRROR="http://isc-mirror.iris.washington.edu"
+# Expects EQCATALOG, ANSSDIR to be set
+ISC_EQS_DIR=$DATAROOT"ISC_SEIS/"
+ISC_EQ_CATALOG=$ISC_EQS_DIR"isc_seis.cat"
+ISC_EQ_SOURCESTRING="ISC earthquake catalog, http://www.isc.ac.uk/iscbulletin/search/"
+ICS_EQ_SHORT_SOURCESTRING="ISC"
 
 EQSLAB2=$DATAROOT"SLAB2/"
 

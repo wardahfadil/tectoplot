@@ -41,19 +41,29 @@
 #
 # Normal profile
 # P PROFILE_ID color XOFFSET ZOFFSET LON1 LAT1 ... ... LONN LATN
-# Transverse profile
-# T PROFILE_ID color XOFFSET ZOFFSET LON1 LAT1 ... ... LONN LATN
 #
+
+# Change command characters to capital letters instead of ^ etc
+# S = swath grid (^)
+# T = track grid (:)
+# G = oblique view top grid
+# X = XYZ file ($ || >)
+# E = seismicity file (>)
+# C = CMT file (%)
+# P = profile
+
 # Focal mechanism data file
-# % CMTFILE WIDTH ZSCALE GMT_arguments
+# C CMTFILE WIDTH ZSCALE GMT_arguments
 # Earthquake (scaled) xyzm data file
-# > EQFILE SWATH_WIDTH ZSCALE GMT_arguments
+# E EQFILE SWATH_WIDTH ZSCALE GMT_arguments
 # XYZ data file
-# $ XYZFILE SWATH_WIDTH ZSCALE GMT_arguments
+# X XYZFILE SWATH_WIDTH ZSCALE GMT_arguments
 # Grid line profile
-# : GRIDFILE ZSCALE SAMPLE_SPACING GMT_arguments
+# T GRIDFILE ZSCALE SAMPLE_SPACING GMT_arguments
 # Grid swath profile
-# ^ GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING
+# S GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING
+# Top grid for oblique profile
+# G GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING
 
 # project_xyz_pts_onto_track $trackfile $xyzfile $outputfile $xoffset $zoffset $zscale
 # $1=$trackfile
@@ -357,15 +367,6 @@ buf_min_z=$(grep "^[^>]" buf_poly.txt | sort -n -k 2 | head -n 1 | awk '{printf 
 xyzfilelist=()
 xyzcommandlist=()
 
-# Change command characters to capital letters instead of ^ etc
-# S = swath grid (^)
-# T = track grid (:)
-# G = oblique view top grid
-# X = XYZ file ($ || >)
-# E = seismicity file (>)
-# C = CMT file (%)
-# P = profile
-
 # Default units are X=Y=Z=km. Use L command to update labels.
 x_axis_label="Distance (km)"
 y_axis_label="Distance (km)"
@@ -661,16 +662,17 @@ for i in $(seq 1 $k); do
         lat=$(echo $p | awk '{print $2}')
         access_litho -p $lat $lon -l ${LITHO1_LEVEL} 2>/dev/null | awk -v extfield=$LITHO1_FIELDNUM -v xoff=${XOFFSET_NUM} -v ptcnt=$ptcount -v dinc=${LITHO1_INC} '
           BEGIN {
+            widthfactor=1
             getline;
             lastz=-$1/1000
             lastval=$(extfield)
             dist=ptcnt*dinc+xoff
             print "> -Z" lastval
-            print dist-dinc*1.05/2, -6000000/1000
-            print dist+dinc*1.05/2, -6000000/1000
-            print dist+dinc*1.05/2, lastz
-            print dist-dinc*1.05/2, lastz
-            print dist-dinc*1.05/2, -6000000/1000
+            print dist-dinc*widthfactor/2, -6000000/1000
+            print dist+dinc*widthfactor/2, -6000000/1000
+            print dist+dinc*widthfactor/2, lastz
+            print dist-dinc*widthfactor/2, lastz
+            print dist-dinc*widthfactor/2, -6000000/1000
           }
           {
             # print $10>>"/dev/stderr"
@@ -679,11 +681,11 @@ for i in $(seq 1 $k); do
               # do not print empty boxes or water velocity boxes
             } else {
               print "> -Z" $(extfield)
-              print dist-dinc*1.05/2, lastz
-              print dist+dinc*1.05/2, lastz
-              print dist+dinc*1.05/2, -$1/1000
-              print dist-dinc*1.05/2, -$1/1000
-              print dist-dinc*1.05/2, lastz
+              print dist-dinc*widthfactor/2, lastz
+              print dist+dinc*widthfactor/2, lastz
+              print dist+dinc*widthfactor/2, -$1/1000
+              print dist-dinc*widthfactor/2, -$1/1000
+              print dist-dinc*widthfactor/2, lastz
             }
             if ($10 == "LID-BOTTOM") {
               print dist-dinc*1/2, -$1/1000 >> "./lab.xy"
@@ -708,15 +710,16 @@ for i in $(seq 1 $k); do
           access_litho -p $lat $lon -l ${LITHO1_LEVEL} 2>/dev/null | awk -v extfield=$LITHO1_FIELDNUM -v xoff=${XOFFSET_CROSS} -v ptcnt=$ptcount -v dinc=${LITHO1_INC} '
             BEGIN {
               getline;
+              widthfactor=1
               lastz=-$1/1000
               lastval=$(extfield)
               dist=ptcnt*dinc+xoff
               print "> -Z" lastval
-              print dist-dinc*1.05/2, -6000000/1000
-              print dist+dinc*1.05/2, -6000000/1000
-              print dist+dinc*1.05/2, lastz
-              print dist-dinc*1.05/2, lastz
-              print dist-dinc*1.05/2, -6000000/1000
+              print dist-dinc*widthfactor/2, -6000000/1000
+              print dist+dinc*widthfactor/2, -6000000/1000
+              print dist+dinc*widthfactor/2, lastz
+              print dist-dinc*widthfactor/2, lastz
+              print dist-dinc*widthfactor/2, -6000000/1000
             }
             {
               # print $10>>"/dev/stderr"
@@ -725,11 +728,11 @@ for i in $(seq 1 $k); do
                 # do not print empty boxes or water velocity boxes
               } else {
                 print "> -Z" $(extfield)
-                print dist-dinc*1.05/2, lastz
-                print dist+dinc*1.05/2, lastz
-                print dist+dinc*1.05/2, -$1/1000
-                print dist-dinc*1.05/2, -$1/1000
-                print dist-dinc*1.05/2, lastz
+                print dist-dinc*widthfactor/2, lastz
+                print dist+dinc*widthfactor/2, lastz
+                print dist+dinc*widthfactor/2, -$1/1000
+                print dist-dinc*widthfactor/2, -$1/1000
+                print dist-dinc*widthfactor/2, lastz
               }
               if ($10 == "LID-BOTTOM") {
                 print dist-dinc*1/2, -$1/1000 >> "./lab.xy"
@@ -744,15 +747,15 @@ for i in $(seq 1 $k); do
       fi
 
       # PLOT ON THE MAP PS
-      echo "gmt psxy -L ${LINEID}_litho1_poly.dat -G+z -C$LITHO1_CPT -Vn -R -J -O -K >> ${PSFILE}" >> plot.sh
+      echo "gmt psxy -L ${LINEID}_litho1_poly.dat -G+z -C$LITHO1_CPT -t${LITHO1_TRANS} -Vn -R -J -O -K >> ${PSFILE}" >> plot.sh
       echo "gmt psxy ${LINEID}_lab.xy -W0.5p,black -Vn -R -J -O -K >> ${PSFILE}" >> plot.sh
 
-      # PLOT ON THE MAP PS
-      echo "gmt psxy -L ${LINEID}_litho1_poly.dat -G+z -C$LITHO1_CPT -Vn -R -J -O -K >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+      # PLOT ON THE FLAT PROFILE PS
+      echo "gmt psxy -L ${LINEID}_litho1_poly.dat -G+z -C$LITHO1_CPT -t${LITHO1_TRANS} -Vn -R -J -O -K >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
       echo "gmt psxy ${LINEID}_lab.xy -W0.5p,black -Vn -R -J -O -K >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
       # PLOT ON THE OBLIQUE PROFILE PS
-      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -L -p ${LINEID}_litho1_poly.dat -G+z -C$LITHO1_CPT -Vn -R -J -O -K >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -L -p ${LINEID}_litho1_poly.dat -t${LITHO1_TRANS} -G+z -C$LITHO1_CPT -Vn -R -J -O -K >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p ${LINEID}_lab.xy -W0.5p,black -Vn -R -J -O -K >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
 
     fi
@@ -1084,7 +1087,7 @@ print
 }
 }' > ${LINEID}_litho1_cross_poly_xyz.dat
 EOF
-          echo "gmt psxyz -p  ${LINEID}_litho1_cross_poly_xyz.dat -L -G+z -C$LITHO1_CPT -Vn -R -J -JZ -O -K >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+          echo "gmt psxyz -p  ${LINEID}_litho1_cross_poly_xyz.dat -L -G+z -C$LITHO1_CPT -t${LITHO1_TRANS} -Vn -R -J -JZ -O -K >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
         fi
 
         # Draw the box at the end of the profile. For other view angles, should draw the other box?
@@ -1833,7 +1836,7 @@ print
 }
 }' > ${LINEID}_litho1_cross_poly_xyz.dat
 EOF
-        echo "gmt psxyz -p  ${LINEID}_litho1_cross_poly_xyz.dat -L -G+z -C$LITHO1_CPT -Vn -R -J -JZ -O -K >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        echo "gmt psxyz -p  ${LINEID}_litho1_cross_poly_xyz.dat -L -G+z -C$LITHO1_CPT -t${LITHO1_TRANS} -Vn -R -J -JZ -O -K >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
       fi
 
         cat ${LINEID}_topscript.sh >> ${LINEID}_plot_start.sh

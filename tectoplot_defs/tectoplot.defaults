@@ -244,20 +244,25 @@ FMLPEN="0p,black"            # Focal mechanism line pen, main
 EQ_LABEL_FONTSIZE=10p
 EQ_LABEL_FONT=Helvetica
 EQ_LABEL_FONTCOLOR=black
-EQ_LABEL_JUST="LB"          # Justification of event label (LB, LR, etc)
+EQ_LABEL_JUST="LB"           # Justification of event label (LB, LR, etc)
 EQ_LABEL_DISTX="0.1i"
 EQ_LABEL_DISTY="0.2i"        # Distance of label corner from event center
 EQ_LABELFORMAT="idmag"       # Possible formats: idmag datemag iddate id date mag
 
 EQ_REGION_WIDTH=5            # Width/height of buffer around an EQ used to define the region
 
+EQCATALOG=$ANSS_EQ_CATALOG
+EQ_SOURCESTRING=$ANSS_EQ_SOURCESTRING
+EQ_SHORT_SOURCESTRING=$ANSS_EQ_SHORT_SOURCESTRING
+
+
 ##### LITHO1 cross sections options
 
 LITHO1_TYPE="density"        # Currently only density is supported.
-LITHO1_INC=10                 # Spacing interval, units of km.
-LITHO1_LEVEL=7                # Tesselation level to sample (7 is highest available)
-
-LITHO1_DEPTH=100              # Depth of depth slice for LITHO1, in km
+LITHO1_INC=10                # Spacing interval, units of km.
+LITHO1_LEVEL=7               # Tesselation level to sample (7 is highest available)
+LITHO1_DEPTH=100             # Depth of depth slice for LITHO1, in km
+LITHO1_TRANS=0               # transparency of Litho1 polygons
 
 ##### Globe inset
 INSET_SIZE="1i"
