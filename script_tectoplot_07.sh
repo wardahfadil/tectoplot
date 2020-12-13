@@ -691,15 +691,17 @@ function check_and_download_dataset() {
   if [[ ! -e ${DOWNLOADFILE} ]]; then         # If the file doesn't already exist
     if [[ $DOWNLOADGETZIP =~ "yes" ]]; then   # If we need to download a ZIP file
       if [[ -e ${DOWNLOADZIP} ]]; then        # If we already have a ZIP file
-        filebytes=$(wc -c < ${DOWNLOADZIP})
-        if [[ $(echo "$filebytes == ${DOWNLOADZIP_BYTES}" | bc) -eq 1 ]]; then       # If the ZIP file is complete
-           info_msg "${DOWNLOADNAME} archive file exists and is complete"
-        else                                                      # Continue the ZIP file download
-           info_msg "Trying to resume ${DOWNLOADZIP} download. If this doesn't work, delete ${DOWNLOADZIP} and retry."
-           if ! curl --fail -L -C - ${DOWNLOAD_SOURCEURL} -o ${DOWNLOADZIP}; then
-             info_msg "Attempted resumption of ${DOWNLOAD_SOURCEURL} download failed."
-             echo "${DOWNLOADNAME}_resume" >> tectoplot.failed
-           fi
+        if [[ ! $DOWNLOADZIP_BYTES =~ "none" ]]; then  # Sometimes we don't want to check size (e.g. updated at source)
+          filebytes=$(wc -c < ${DOWNLOADZIP})
+          if [[ $(echo "$filebytes == ${DOWNLOADZIP_BYTES}" | bc) -eq 1 ]]; then       # If the ZIP file is complete
+             info_msg "${DOWNLOADNAME} archive file exists and is complete"
+          else                                                      # Continue the ZIP file download
+             info_msg "Trying to resume ${DOWNLOADZIP} download. If this doesn't work, delete ${DOWNLOADZIP} and retry."
+             if ! curl --fail -L -C - ${DOWNLOAD_SOURCEURL} -o ${DOWNLOADZIP}; then
+               info_msg "Attempted resumption of ${DOWNLOAD_SOURCEURL} download failed."
+               echo "${DOWNLOADNAME}_resume" >> tectoplot.failed
+             fi
+          fi
         fi
       fi
       if [[ ! -e ${DOWNLOADZIP} ]]; then
@@ -727,15 +729,17 @@ function check_and_download_dataset() {
     info_msg "${DOWNLOADNAME} raster ${DOWNLOADFILE} already exists."
   fi
 
-  filebytes=$(wc -c < ${DOWNLOADFILE})
-  if [[ $(echo "$filebytes == ${DOWNLOADFILE_BYTES}" | bc) -eq 1 ]]; then
-    info_msg "${DOWNLOADNAME} file size is verified."
-    [[ ${DOWNLOADGETZIP} =~ "yes" && ${DELETEZIPFLAG} -eq 1 ]] && echo "Deleting zip archive" && rm -f ${DOWNLOADZIP}
-  else
-    info_msg "File size mismatch for ${DOWNLOADFILE} ($filebytes should be $DOWNLOADFILE_BYTES). Trying to continue download."
-    if ! curl --fail -L -C - ${DOWNLOAD_SOURCEURL} -o ${DOWNLOADFILE}; then
-      info_msg "Download of ${DOWNLOAD_SOURCEURL} failed."
-      echo "${DOWNLOADNAME}" >> tectoplot.failed
+  if [[ ! $DOWNLOADFILE_BYTES =~ "none" ]]; then
+    filebytes=$(wc -c < ${DOWNLOADFILE})
+    if [[ $(echo "$filebytes == ${DOWNLOADFILE_BYTES}" | bc) -eq 1 ]]; then
+      info_msg "${DOWNLOADNAME} file size is verified."
+      [[ ${DOWNLOADGETZIP} =~ "yes" && ${DELETEZIPFLAG} -eq 1 ]] && echo "Deleting zip archive" && rm -f ${DOWNLOADZIP}
+    else
+      info_msg "File size mismatch for ${DOWNLOADFILE} ($filebytes should be $DOWNLOADFILE_BYTES). Trying to continue download."
+      if ! curl --fail -L -C - ${DOWNLOAD_SOURCEURL} -o ${DOWNLOADFILE}; then
+        info_msg "Download of ${DOWNLOAD_SOURCEURL} failed."
+        echo "${DOWNLOADNAME}" >> tectoplot.failed
+      fi
     fi
   fi
 }
@@ -1337,7 +1341,7 @@ do
     check_and_download_dataset "WGM2012-Isostatic-CPT" $WGMISOSTATIC_CPT_SOURCEURL "no" $WGMDIR $WGMISOSTATIC_CPT "none" $WGMISOSTATIC_CPT_BYTES "none"
     check_and_download_dataset "WGM2012-FreeAir-CPT" $WGMFREEAIR_CPT_SOURCEURL "no" $WGMDIR $WGMFREEAIR_CPT "none" $WGMFREEAIR_CPT_BYTES "none"
 
-    check_and_download_dataset "Geonames-Cities" $CITIES_SOURCEURL "yes" $CITIESDIR $CITIES500 $CITIESDIR"data.zip" $CITIES500_BYTES $CITIES_ZIP_BYTES
+    check_and_download_dataset "Geonames-Cities" $CITIES_SOURCEURL "yes" $CITIESDIR $CITIES500 $CITIESDIR"data.zip" "none" "none"
     info_msg "Processing cities data to correct format" && gawk  < $CITIESDIR"cities500.txt" -F'\t' '{print $6 "," $5 "," $2 "," $15}' > $CITIES
 
     check_and_download_dataset "GlobalCurieDepthMap" $GCDM_SOURCEURL "no" $GCDMDIR $GCDMDATA_ORIG "none" $GCDM_BYTES "none"
@@ -1347,8 +1351,8 @@ do
     [[ ! -d $SLAB2DIR ]] && [[ -e $SLAB2_CHECKFILE ]] && tar -xvf $SLAB2_DATADIR"Slab2Distribute_Mar2018.tar.gz" --directory $SLAB2_DATADIR
     # Change the format of the Slab2 grids so that longitudes go from -180:180
     # If we don't do this, some regions will have profiles/maps fail.
-    for slab2file in $SLAB2DIR; do
-      gmt grdedit -L $slab2file
+    for slab2file in $SLAB2DIR/*.grd; do
+      echo gmt grdedit -L $slab2file
     done
 
     check_and_download_dataset "OC_AGE" $OC_AGE_URL "no" $OC_AGE_DIR $OC_AGE "none" $OC_AGE_BYTES "none"
