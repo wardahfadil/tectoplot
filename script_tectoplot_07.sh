@@ -7,6 +7,11 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 # Kyle Bradley, Nanyang Technological University (kbradley@ntu.edu.sg)
 # Prefers GS 9.26 (and no later) for transparency
 
+# brew update
+# brew install gmt
+# brew
+
+
 # As of December 2020, this will install GS9.26 on OSX
 #
 #brew unlink ghostscript
@@ -905,17 +910,22 @@ do
     plots+=("countrylabels")
     ;;
 
-  -addpath)   # Add tectoplot source directory to ~/.profile
-      val=$(grep "tectoplot" ~/.profile | awk 'END{print NR}')
-      info_msg "[-addpath]: Backing up ~/.profile file to ${DEFDIR}".profile_old""
+  -addpath)   # Add tectoplot source directory to ~/.profile and exit
+      if [[ ! -e ~/.profile ]]; then
+        info_msg "[-addpath]: ~/.profile does not exist. Creating."
+      else
+        val=$(grep "tectoplot" ~/.profile | awk 'END{print NR}')
+        info_msg "[-addpath]: Backing up ~/.profile file to ${DEFDIR}".profile_old""
 
-      if [[ ! $val -eq 0 ]]; then
-        echo "[-addpath]: Warning: found $val lines containing tectoplot in ~/.profile. Remove manually."
+        if [[ ! $val -eq 0 ]]; then
+          echo "[-addpath]: Warning: found $val lines containing tectoplot in ~/.profile. Remove manually."
+        fi
+        cp ~/.profile ${DEFDIR}".profile_old"
       fi
-      cp ~/.profile ${DEFDIR}".profile_old"
       echo >> ~/.profile
       echo "# tectoplot " >> ~/.profile
       echo "export PATH=${TECTOPLOTDIR}:\$PATH" >> ~/.profile
+      exit
     ;;
 
   -af) # args: string string
