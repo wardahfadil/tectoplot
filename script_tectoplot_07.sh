@@ -7,10 +7,8 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 # Kyle Bradley, Nanyang Technological University (kbradley@ntu.edu.sg)
 # Prefers GS 9.26 (and no later) for transparency
 
-# brew update
-# brew install gmt
-# brew
 
+#
 
 # As of December 2020, this will install GS9.26 on OSX
 #
@@ -22,6 +20,8 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 
 # CHANGELOG
 
+# December 13, 2020: Testing installation on different machine (OSX Catalina)
+#  Updated -addpath to actually work and also check for empty ~/.profile first
 # December 13, 2020: Added -zcat option to select ANSS/ISC seismicity catalog
 #  Note that earthquake culling may not work well for ISC due to so many events?
 # December 12, 2020: Updated ISC earthquake scraping to download full ISC catalog in CSV format
@@ -592,12 +592,22 @@ function print_setup() {
 
   Installation and setup:
 
+  Prepare by installing GMT:
+
+  For a fairly clean OSX Catalina machine, you can use Homebrew.
+
+  ~/# /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  ~/# brew update
+  ~/# brew install gmt
+
+  Installing and configuring tectoplot
+
   1. First, clone into a new folder from Github, or unzip a Github ZIP file
 
   ~/# git clone https://github.com/kyleedwardbradley/tectoplot.git tectoplot
 
   2. cd into the script folder and add its path to ~/.profile, and then source
-    the ~/.profile file to update your current shell environment
+    the ~/.profile file to update your current shell environment:
 
   ~/# cd tectoplot
   ~/tectoplot/# ./tectoplot -addpath
@@ -1316,9 +1326,7 @@ do
     info_msg "Checking and updating downloaded datasets: GEBCO1 GEBCO20 EMAG2 SRTM30 WGM Geonames GCDM Slab2.0 OC_AGE LITHO1.0"
 
     check_and_download_dataset "GEBCO1" $GEBCO1_SOURCEURL "yes" $GEBCO1DIR $GEBCO1FILE $GEBCO1DIR"data.zip" $GEBCO1_BYTES $GEBCO1_ZIP_BYTES
-    check_and_download_dataset "GEBCO20" $GEBCO20_SOURCEURL "yes" $GEBCO20DIR $GEBCO20FILE $GEBCO20DIR"data.zip" $GEBCO20_BYTES $GEBCO20_ZIP_BYTES
     check_and_download_dataset "EMAG_V2" $EMAG_V2_SOURCEURL "no" $EMAG_V2_DIR $EMAG_V2 "none" $EMAG_V2_BYTES "none"
-    check_and_download_dataset "SRTM30" $SRTM30_SOURCEURL "yes" $SRTM30DIR $SRTM30FILE "none" $SRTM30_BYTES "none"
 
     check_and_download_dataset "WGM2012-Bouguer" $WGMBOUGUER_SOURCEURL "no" $WGMDIR $WGMBOUGUER "none" $WGMBOUGUER_BYTES "none"
     check_and_download_dataset "WGM2012-Isostatic" $WGMISOSTATIC_SOURCEURL "no" $WGMDIR $WGMISOSTATIC "none" $WGMISOSTATIC_BYTES "none"
@@ -1359,6 +1367,11 @@ do
         rm -f ${LITHO1_PROG}
       fi
     fi
+
+    # Save the biggest downloads for last.
+    check_and_download_dataset "GEBCO20" $GEBCO20_SOURCEURL "yes" $GEBCO20DIR $GEBCO20FILE $GEBCO20DIR"data.zip" $GEBCO20_BYTES $GEBCO20_ZIP_BYTES
+    check_and_download_dataset "SRTM30" $SRTM30_SOURCEURL "yes" $SRTM30DIR $SRTM30FILE "none" $SRTM30_BYTES "none"
+
 
     exit 0
     ;;
@@ -2327,6 +2340,7 @@ do
         echo "${datadirpath}/" > $DEFDIR"tectoplot.dataroot"
       fi
     fi
+    exit
     ;;
 
   -setopenprogram)
@@ -3050,10 +3064,11 @@ else
   fi
   info_msg "Creating temporary directory $TMP."
 fi
-mkdir "${TMP}"
 
-mv tectoplot.sources ${TMP}
-mv tectoplot.shortsources ${TMP}
+mkdir -p "${TMP}"
+
+[[ -e tectoplot.sources ]] && mv tectoplot.sources ${TMP}
+[[ -e tectoplot.sources ]] && mv tectoplot.shortsources ${TMP}
 
 cd "${TMP}"
 
