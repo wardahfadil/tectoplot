@@ -594,7 +594,7 @@ function print_setup() {
 
   For a fairly clean OSX Catalina machine, you can use Homebrew.
 
-  ~/# /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  ~/# /bin/bash -c "\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   ~/# brew update
   ~/# brew install gmt
   ~/# brew install gawk
