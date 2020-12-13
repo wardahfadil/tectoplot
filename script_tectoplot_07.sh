@@ -225,8 +225,14 @@ THISDIR=$(pwd)
 GMTREQ="6"
 RJOK="-R -J -O -K"
 
-# TECTOPLOTDIR is where the (symlink to the) script resides
-TECTOPLOTDIR=$(dirname "$0")"/"
+# TECTOPLOTDIR is where the actual script resides
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+TECTOPLOTDIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 
 echo "Running script from $TECTOPLOTDIR"
 
