@@ -4,6 +4,17 @@
 # This file will be sourced by the main tectoplot script to load various default values.
 # Assignments should be in bash format
 
+# Texture shading
+TS_FRAC=0.5
+TS_STRETCH=9
+TS_TEXTUREBLEND=0.7
+TS_GAMMA=0.3
+
+# Some control variables
+
+CLEANUP_FILES=1             # If set to 1, delete files on exit that are marked for cleanup
+DEFAULT_TMP="tempfiles_to_delete/"
+
 # The allowable intervals to be selected for plot axes
 INTERVALS_STRING="0.00001 0.0001 0.001 0.01 0.02 0.05 0.1 0.2 0.5 1 2 5 10 100 200 500 1000 2000 5000 10000 20000 50000 100000 200000 500000"
 
@@ -35,7 +46,7 @@ PROFILE_X="0"                # X axis offset of the profile relative to the curr
 PROFILE_Y="-3i"              # Y axis offset of the profile relative to the current plot origin (usually lower left corner)
 PERSPECTIVE_AZ=165           # Azimuth of perspective view of profiles, subplot pieces exported in PDFs in temp folder
 PERSPECTIVE_INC=15           # Inclination matching to above
-PERSPECTIVE_RES=1         # resolution of swath topo profile grid, in km
+PERSPECTIVE_RES=1            # resolution of swath topo profile grid, in km
 PERSPECTIVE_EXAG=2           # vertical exaggeration of topo, plot space only
 PERSPECTIVE_TOPO_HALF=""     # Set to "+l" (-msl) (or less obviously "+r") to restrict profiling to one side or the other (grdtrack)
 BUFFER_PROFILES=1            # Set to 1 to buffer profiles for plotting
@@ -161,14 +172,14 @@ PLATELINE_WIDTH="1.0p"       # plate edge width
 PLATELINE_TRANS=30           # plate edge transparency
 
 PLATEMODEL="MORVEL"          # plate motion model
-PLATEVEC_COLOR="lightblue"       # plate rotation vector, fill
+PLATEVEC_COLOR="black"       # plate rotation vector, fill
 PLATEVEC_TRANS=10            # plate rotation vector, transparency
 LATSTEPS=0.5                 # colatitude increment for small circles
 PLATELABEL_COLOR="black"     # color of plate label
 PLATELABEL_SIZE="6p"         # size of plate label
 PLATEVELRES="0.05d"          # resolution of plate velocity grid
 PLATEVEC_TEXT_SIZE="5p"      # plate velocity label size
-PLATEVEC_TEXT_COLOR="white"  # plate velocity label color
+PLATEVEC_TEXT_COLOR="black"  # plate velocity label color
 PLATEVEC_TEXT_FONT="Helvetica" # plate velocity font
 PLATEVEC_TEXT_PLOT=1         # If 1, plot text, if not, don't
 

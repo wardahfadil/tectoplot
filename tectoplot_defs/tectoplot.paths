@@ -9,9 +9,16 @@
 DATAROOT=$(head -n 1 $DEFDIR"tectoplot.dataroot")
 
 TECTOPLOT_FORMATS=$DEFDIR"tectoplot.formats"
+TECTOPLOT_HEADERS=$DEFDIR"tectoplot.headers"
 
 ##### OPENPROGRAM is the program to call from the command line to view PDF file
 OPENPROGRAM=$(head -n 1 $DEFDIR"tectoplot.pdfviewer")
+
+##### TEXTURE is the path to the texture executable
+TEXTUREDIR=${TECTOPLOTDIR}"texture_shader/"
+TEXTURE=${TEXTUREDIR}"texture"
+TEXTURE_IMAGE=${TEXTUREDIR}"texture_image"
+TEXTURE_COMPILE_SCRIPT=${TEXTUREDIR}"compile_texture.sh"
 
 ##### Directory holding tectoplot default CPTs
 CPTDIR=$TECTOPLOTDIR"CPT/"
@@ -55,8 +62,11 @@ EULERADD_AWK=$TECTOPLOTDIR"euleradd.awk"
 MPROFILE_SH_SRC=$TECTOPLOTDIR"multi_profile_tectoplot_sourced.sh"
 
 ################################################################################
-#### Data sets that we download and manage ourselves
+#### Data sets and tools that we download and manage ourselves
 #### Set DATAROOT above and then run tectoplot -getdata to validate and download these to your hard disk
+
+##### Texture shading by Leland Brown
+
 
 ##### World City Data; Format: Lon,Lat,Name,Population
 
@@ -100,7 +110,7 @@ GEBCO1_BYTES="466885748"
 GEBCO1_ZIP_BYTES="287717935"
 
 ##### LITHO1.0 (Pasyanos et al. 2014)
-LITHO1DIR=$DATAROOT"LITHO1_x/"
+LITHO1DIR=$DATAROOT"LITHO1/"
 LITHO1DIR_2=$LITHO1DIR"LITHO1.0/litho_model"   # Can't end in a forward slash
 LITHO1MODELDIR=$LITHO1DIR"LITHO1.0/litho_model/"
 LITHO1PROGDIR=$LITHO1DIR"LITHO1.0/progs/"
@@ -201,6 +211,9 @@ GMRTDIR=$DATAROOT"GMRT/"
 BESTDIR=$DATAROOT"BEST_TOPO/"
 CUSTOMEXTDIR=$DATAROOT"customDEM/"
 EARTHRELIEFDIR=$DATAROOT"EARTHRELIEF/"
+
+[[ ! -d $EARTHRELIEFDIR ]] && mkdir -p $EARTHRELIEFDIR
+
 EARTHRELIEFPREFIX="@earth_relief_"
 
 ##### Focal mechanism data
@@ -293,16 +306,17 @@ SRCMODFSPLOCATIONS=$DATAROOT"SRCMOD/srcmod2020-03-23FSP/FSPlocations.txt"
 
 ##### Plate models
 
+PLATEMODELSDIR=$TECTOPLOTDIR"platemodels/"
+
 # MORVEL56-NNR (Argus et al., 2011)
 MORVEL_SOURCESTRING="MORVEL56 NNR plate motions, Argus et al., 2011 doi:10.1111/j.1365-246X.2009.04491.x"
 MORVEL_SHORT_SOURCESTRING="MORVEL56"
 
 MORVELSRC="MORVEL56"
-MORVELPLATES=$DATAROOT"MORVEL56/boundaries/MORVEL56boundaries_fixed.dat"
-MORVELPLATEEDGES=$DATAROOT"MORVEL56/boundaries/MORVEL56boundaries.gmt"
-#MORVELPLATES=$DATAROOT"MORVEL56/boundaries/MORVEL56boundaries.gmt"
-MORVELPOLES=$DATAROOT"MORVEL56/MORVEL56NNR_poles.txt"
-MORVELMIDPOINTS=$DATAROOT"MORVEL56/MORVEL56_midpoints.txt"
+MORVELPLATES=$PLATEMODELSDIR"MORVEL56/MORVEL56boundaries_fixed.dat"
+MORVELPLATEEDGES=$PLATEMODELSDIR"MORVEL56/MORVEL56boundaries.gmt"
+MORVELPOLES=$PLATEMODELSDIR"MORVEL56/MORVEL56NNR_poles.txt"
+MORVELMIDPOINTS=$PLATEMODELSDIR"MORVEL56/MORVEL56_midpoints.txt"
 
 
 # Kreemer et al. , 2014
@@ -310,24 +324,24 @@ GSRM_SOURCESTRING="Plate motions from Kreemer et al. 2014, doi:10.1002/2014GC005
 GSRM_SHORT_SOURCESTRING="GSRM"
 
 KREEMERSRC="GSRM2014"
-GSRMDATA=$DATAROOT"Kreemer/GSRM.dat"
-KREEMERPLATES=$DATAROOT"Kreemer/kreemer_plate_polygons_fixed.dat" # kreemer_plate_polygons_fixed.dat has had polar cap and dateline plates split
-KREEMERPROC="${MORVELPLATES}.proc"
-KREEMERPOLES=$DATAROOT"Kreemer/Kreemer_Poles.txt"
-KREEMERMIDPOINTS=$DATAROOT"Kreemer/Kreemer_midpoints.txt"
-KREEMERPLATEEDGES=$DATAROOT"Kreemer/plate_polygons.gmt"
+GSRMDATA=$PLATEMODELSDIR"GSRM/GSRM.dat"
+KREEMERPLATES=$PLATEMODELSDIR"GSRM/kreemer_plate_polygons_fixed.dat"
+# kreemer_plate_polygons_fixed.dat has had polar cap and dateline plates split
+#KREEMERPROC="${MORVELPLATES}.proc" # (Not used?)
+KREEMERPOLES=$PLATEMODELSDIR"GSRM/Kreemer_Poles.txt"
+KREEMERMIDPOINTS=$PLATEMODELSDIR"GSRM/Kreemer_midpoints.txt"
+KREEMERPLATEEDGES=$PLATEMODELSDIR"GSRM/plate_polygons.gmt"
 
 # GBM (Graham et al., 2018)
 GBM_SOURCESTRING="Plate motions from Graham et al. 2018, doi:10.1029/2017GC007391"
 GBM_SHORT_SOURCESTRING="GBM"
 
 GBMSRC="GBM2018"
-#GBMPLATES=$DATAROOT"GBM/GMTData/block.180.dat"
 # The block.180_fixed.dat has had polar cap and dateline plates split and fixed
-GBMPLATES=$DATAROOT"GBM/GMTData/block.180_fixed.dat"
-GBMPOLES=$DATAROOT"GBM/GMTData/block.180.poles.dat"
-GBMMIDPOINTS=$DATAROOT"GBM/GMTData/GBM_midpoints.txt"
-GBMPLATEEDGES=$DATAROOT"GBM/GMTData/block.180.dat"
+GBMPLATES=$PLATEMODELSDIR"GBM/block.180_fixed.dat"
+GBMPOLES=$PLATEMODELSDIR"GBM/block.180.poles.dat"
+GBMMIDPOINTS=$PLATEMODELSDIR"GBM/GBM_midpoints.txt"
+GBMPLATEEDGES=$PLATEMODELSDIR"GBM/block.180.dat"
 
 # Communication cables data
 CABLES=$DATAROOT"gregs_cable_map_v1.58/Cables.gmt"

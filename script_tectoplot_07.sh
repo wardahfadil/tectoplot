@@ -7,17 +7,20 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 # Kyle Bradley, Nanyang Technological University (kbradley@ntu.edu.sg)
 # Prefers GS 9.26 (and no later) for transparency
 
-
-#
-
-
-
 # CHANGELOG
 
-# December 13, 2020: Testing installation on different machine (OSX Catalina)
+# December 19, 2020: Updated profile to include texture shading for top tile (kind of strange but seems to work...)
+# December 18, 2020: Added -tshade option to use Leland Brown's texture shading (added C code in tectoplot dir)
+# December 17, 2020: Removed buffering from profile script, as it is not needed and sqlite has annoying messages
+# December 17, 2020: Fixed -scale to accept negative lats/lons, creat EARTHRELIEF dir if it doesn't exist on load
+# December 17, 2020: Fixed LITHO1 path issue. Note that we need to recompile access_litho if its path changes after -getdata
+# December 16, 2020: Fixed issue where Slab2 was not found for AOI entirely within a slab clip polygon
+# December 15, 2020: Added -query option and data file headers in {DEFDIR}tectoplot.headers
+# December 13, 2020: Testing installation on a different machine (OSX Catalina)
 #  Updated -addpath to actually work and also check for empty ~/.profile first
+#  Changed tac to tail -r to remove a dependency
 # December 13, 2020: Added -zcat option to select ANSS/ISC seismicity catalog
-#  Note that earthquake culling may not work well for ISC due to so many events?
+#  Note that earthquake culling may not work well for ISC catalog due to so many events?
 # December 12, 2020: Updated ISC earthquake scraping to download full ISC catalog in CSV format
 # December 10, 2020: Updated ANSS earthquake scraping to be faster
 # December  9, 2020: Added LITHO1.0 download and plotting on cross sections (density, Vp, Vs)
@@ -88,8 +91,11 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 #
 # HIGHER PRIORITY:
 
-# !! Add magnitude type to seismicity catalog to allow future conversion (e.g. Wetherill et al. 2017)
-# !! Remove anthropogenic earthquakes from catalog (e.g. Wetherill et al. 2017)
+# Add GMRT/SRTM/etc to sources/shortsources (currently missing from some plots)
+
+# !! Convert from different magnitude types to Mw using scaling relationships (e.g. Wetherill et al. 2017)
+#  (This should be done on import so we don't have to manage different magnitude types)
+# !! Remove anthropogenic earthquakes from catalog? (e.g. Wetherill et al. 2017)
 
 # Add option to adjust PROFILE_WIDTH_IN rather than max_z when plotting one-to-one?
 # Add option to decluster CMT/seismicity data before plotting to remove aftershocks?
@@ -154,11 +160,14 @@ declare -a on_exit_items
 
 function cleanup_on_exit()
 {
-    for i in "${on_exit_items[@]}"
-    do
-        info_msg "rm -f $i"
-        rm -f $i
-    done
+      for i in "${on_exit_items[@]}"; do
+        if [[ $CLEANUP_FILES -eq 1 ]]; then
+          info_msg "rm -f $i"
+          rm -f $i
+        else
+          info_msg "Not cleaning up file $i"
+        fi
+      done
 }
 
 # Be sure to only cleanup files that are in the temporary directory
@@ -293,7 +302,28 @@ function print_help_header() {
 
   $TECTOPLOT_VERSION
   Kyle Bradley, Nanyang Technological University
+  www.github.com/kyleedwardbradley/tectoplot
   kbradley@ntu.edu.sg
+
+  Requires: GMT6+, gawk, perl, grep, data, sed, ls
+
+  Open-source code that is redistributed alongside tectoplot:
+   1. texture_shader (c) 2010-2013 Leland Brown, (c) 2013 Brett Casebolt
+     http://www.textureshading.com/
+   2. MatrixReal.pm  (c) 1996, 1997 Steffen Beyer, (c) 1999 by Rodolphe Ortalo,
+     (c) 2001-2016 by Jonathan Leto).
+
+  Datasets that are distributed alongside tectoplot with minor reformatting only:
+   1. Global Strain Rate Map plate polygons, Euler poles, and GPS velocities
+     C. Kreemer et al. 2014, doi:10.1002/2014GC005407
+   2. MORVEL56-NNR polygons, Euler poles
+     D. Argus et al., 2011 doi:10.1111/j.1365-246X.2009.04491.x
+   3. Global Block Model polygons, Euler poles]
+     SE Graham et al. 2018, doi:10.1029/2017GC007391
+
+  Portions of this code were inspired by or reworked from the following code:
+   Thorsten Becker (ndk2meca.awk) - Uptal Kumar (diagonalize.pl) -
+   G. Patau (IPGP) - (psmeca.c/ultimeca.c)
 
   This script uses GMT, gdal, and geod to make seismotectonic maps, cross
   sections, and oblique block diagrams. It is basically a collection of tools
@@ -322,17 +352,27 @@ cat <<-EOF
     [[opt]] if not specified will assume a default value or will not be used
 
   Data control, installation, information
-    -addpath                                             add the tectoplot source directory to your ~.profile
-    -getdata                                             download and validate builtin datasets
-    -setopenprogram                                      configure program to open PDFs
 
-    --data                                               list data sources and exit
-    --defaults                                           print default values and exit (Can edit and load using -setvars)
-    --formats                                            print information on data formats and exit
-    -h|--help                                            print this message and exit
-    -megadebug                                           turn on hyper-verbose shell debugging
-    -n|--narrate                                         echo a lot of information during processing
-    --verbose                                            set gmt -V flag for all calls
+    -addpath               add the tectoplot source directory to your ~.profile
+    -getdata               download and validate builtin datasets
+    -setopenprogram        configure program to open PDFs
+
+    --data                 list data sources and exit
+    --defaults             print default values and exit (Can edit and load using -setvars)
+    --formats              print information on data formats and exit
+    -h|--help              print this message and exit
+    -megadebug             turn on hyper-verbose shell debugging
+    -n|--narrate           echo a lot of information during processing
+    -query                 print headers for data files, print data columns in space delim/CSV format
+             If no column selecting options are given, print all columns
+             tectoplot -tm /PATH/ -query option1 option2
+             options: csv         =   print in CSV format
+                      noheader    =   don't print header line
+                      nounits     =   don't print units (e.g. longitude[degrees] -> longitude)
+                      data        =   print the data from the file
+                      1 2 3 5 ... =   print data selected by column number
+                      longitude...=   print column with field name=option
+    --verbose              set gmt -V flag for all calls
 
   Low-level control
     -gmtvars         [{VARIABLE value ...}]              set GMT internal variables
@@ -408,6 +448,7 @@ cat <<-EOF
     -clipdem                                             save terrain as dem.nc in temporary directory
     -gebcotid                                            plot GEBCO TID raster
     -gdalt           [[gamma (0-1)]] [[% HS (0-1)]]      render colored multiple hillshade using gdal
+    -tshade          [frac] [stretch]                    render colored hillshade using texture shader/gdal
 
   Additional map layers from downloadable data:
     -a|--coast       [[quality]] [[a,b]] { gmtargs }     plot coastlines [[a]] and borders [[b]]
@@ -417,7 +458,7 @@ cat <<-EOF
     -acl                                                 label country centroids
     -af              [[AFLINEWIDTH]] [[AFLINECOLOR]]     plot active fault traces
     -b|--slab2       [[layers string: c]]                plot Slab2 data; default is c
-          c: slab contours
+          c: slab contours    d: slab depth grid
     -g|--gps         [[RefPlateID]]                      plot GPS data from Kreemer 2014 / rel. to RefPlateID
     -gcdm                                                plot Global Curie Depth Map
     -litho1_depth    [type] [depth]                      plot litho1 depth slice (positive depth in km)
@@ -429,6 +470,7 @@ cat <<-EOF
     -vc|--volc                                           plot Pleistocene volcanoes
     -pp|--cities     [[min population]]                  plot cities with minimum population, color by population
     -ppl             [[min population]]                  label cities with a minimum population
+    -ean                                                 Earth at night
 
   Seismicity:
     -z|--seis        [[scale]]                           plot seismic epicenters (from scraped earthquake data)
@@ -850,8 +892,8 @@ if [[ $# -eq 0 ]]; then
   exit 1
 fi
 
-# If only one argument is given and it is '-remake', rerun command in file
-# tectoplot.last and exit
+# SPECIAL CASE 1: If only one argument is given and it is '-remake', rerun
+# the command in file tectoplot.last and exit
 if [[ $# -eq 1 && ${1} =~ "-remake" ]]; then
   info_msg "Rerunning last tectoplot command executed in this directory"
   cat tectoplot.last
@@ -859,6 +901,8 @@ if [[ $# -eq 1 && ${1} =~ "-remake" ]]; then
   exit 1
 fi
 
+# SPECIAL CASE 2: If two arguments are given and the first is -remake, then
+# use the first line in the file given as the second argument as the command
 if [[ $# -eq 2 && ${1} =~ "-remake" ]]; then
   if [[ ! -e ${2} ]]; then
     error_msg "Error: no file ${2}"
@@ -867,8 +911,158 @@ if [[ $# -eq 2 && ${1} =~ "-remake" ]]; then
   info_msg "Rerunning last tectoplot command from first line in file ${2}"
   cat tectoplot.cmd
   . tectoplot.cmd
+  exit 0
+fi
+
+# SPECIAL CASE 3: If the first argument is -query, OR if the first argument is
+# -tm|--tempdir, the second argument is a file, and the third argument is -query,
+# then process the query request and exit.
+# tectoplot -tm this_dir/ -query eqs.txt
+
+if [[ $# -ge 3 && ${1} == "-tm" && ${3} == "-query" ]]; then
+  # echo "Processing query request"
+  if [[ ! -d ${2} ]]; then
+    info_msg "[-query]: Temporary directory ${2} does not exist"
+    exit 1
+  else
+    tempdirqueryflag=1
+    cd "${2}"
+    shift
+    shift
+  fi
+fi
+
+if [[ $1 == "-query" ]]; then
+  shift
+  # echo "Entered query processing block"
+  if [[ ! $tempdirqueryflag -eq 1 ]]; then
+    if [[ ! -d ${TMP} ]]; then
+      echo "Temporary directory $TMP does not exist"
+      exit 1
+    else
+      cd ${TMP}
+    fi
+  fi
+
+  query_headerflag=1
+
+  # First argument to -query needs to be a file.
+
+  if [[ ! -e $1 ]]; then
+    echo "-query target file $1 does not exist"
+    exit 1
+  else
+    QUERYFILE=$1
+    shift
+    headerline=($(grep "^$QUERYFILE" $TECTOPLOT_HEADERS))
+    # echo ${headerline[@]}
+    if [[ ${headerline[0]} != $QUERYFILE ]]; then
+      echo "query file $QUERYFILE not found in headers file $TECTOPLOT_HEADERS"
+      exit 1
+    fi
+  fi
+
+  while [[ $# -gt 0 ]]; do
+    key="${1}"
+    case ${key} in
+      [0-9]*)
+        # echo "Detected number argument $key"
+        keylist+=("$key")
+        if [[ "${headerline[$key]}" == "" ]]; then
+          fieldlist+=("none")
+        else
+          fieldlist+=("${headerline[$key]}")
+        fi
+        ;;
+      noheader)
+        query_headerflag=0
+        ;;
+      nounits)
+        query_nounitsflag=1
+        ;;
+      csv)
+        query_csvflag=1
+        ;;
+      data)
+        query_dataflag=1
+        ;;
+      *) # should get index of field coinciding with argument
+        # echo "Other argument $key"
+        ismatched=0
+        for ((i=1; i < ${#headerline[@]}; ++i)); do
+          # This needs to exactly match the field name before [...]
+          lk=${#key}
+          # echo $key $lk ${headerline[$i]:0:$lk} ${headerline[$i]:$lk:1}
+          if [[ "${headerline[$i]:0:$lk}" == "${key}" && "${headerline[$i]:$lk:1}" == "[" ]]; then
+            # echo "Found likely index for $key at index $i"
+            keylist+=("$i")
+            fieldlist+=("${headerline[$i]}")
+            ismatched=1
+          fi
+        done
+        if [[ $ismatched -eq 0 ]]; then
+          echo "[-query]: Could not find field named $key"
+          exit 1
+        fi
+        ;;
+    esac
+    shift
+  done
+
+  if [[ ${#fieldlist[@]} -eq 0 ]]; then
+    # echo "No fields: header is"
+    fieldlist=(${headerline[@]:1})
+    # echo ${fieldlist[@]}
+  fi
+
+  if [[ $query_headerflag -eq 1 ]]; then
+    if [[ $query_nounitsflag -eq 1 ]]; then
+      if [[ $query_csvflag -eq 1 ]]; then
+        echo "${fieldlist[@]}" | sed 's/\[[^][]*\]//g' | tr ' ' ','
+      else
+        echo "${fieldlist[@]}" | sed 's/\[[^][]*\]//g'
+      fi
+    else
+      if [[ $query_csvflag -eq 1 ]]; then
+        echo "${fieldlist[@]}" | tr ' ' ','
+      else
+        echo "${fieldlist[@]}"
+      fi
+    fi
+  fi
+
+  if [[ $query_dataflag -eq 1 ]]; then
+    keystr="$(echo ${keylist[@]})"
+    awk < ${QUERYFILE} -v keys="$keystr" -v csv=$query_csvflag '
+    BEGIN {
+      if (csv==1) {
+        sep=","
+      } else {
+        sep=" "
+      }
+      numkeys=split(keys, keylist, " ")
+      if (numkeys==0) {
+        getline
+        numkeys=NF
+        for(i=1; i<=NF; i++) {
+          keylist[i]=i
+        }
+        for(i=1; i<=numkeys-1; i++) {
+          printf "%s%s", $(keylist[i]), sep
+        }
+        printf("%s\n", $(keylist[numkeys]))
+      }
+    }
+    {
+      for(i=1; i<=numkeys-1; i++) {
+        printf "%s%s", $(keylist[i]), sep
+      }
+      printf("%s\n", $(keylist[numkeys]))
+    }'
+  fi
   exit 1
 fi
+
 
 echo $COMMAND > tectoplot.last
 rm -f tectoplot.sources
@@ -1377,6 +1571,8 @@ do
     check_and_download_dataset "GEBCO20" $GEBCO20_SOURCEURL "yes" $GEBCO20DIR $GEBCO20FILE $GEBCO20DIR"data.zip" $GEBCO20_BYTES $GEBCO20_ZIP_BYTES
     check_and_download_dataset "SRTM30" $SRTM30_SOURCEURL "yes" $SRTM30DIR $SRTM30FILE "none" $SRTM30_BYTES "none"
 
+    echo "Compiling texture shading code and copying executables to tectoplot directory"
+    ${TEXTURE_COMPILE_SCRIPT} ${TEXTUREDIR}
 
     exit 0
     ;;
@@ -2360,6 +2556,7 @@ do
 
   -scale)
     # We just use this section to create the SCALECMD values
+
     if [[ ${2:0:1} == [-] || -z $2 ]]; then
       info_msg "[-scale]: No scale length specified. Using 100km"
       SCALELEN="100k"
@@ -2368,17 +2565,24 @@ do
       shift
     fi
     # Adjust position and buffering of scale bar using either letter combinations OR Lat/Lon location
-    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+
+    if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+$ ]]; then
+      SCALEREFLON="${2}"
+      shift
+      if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+$ ]]; then
+        SCALEREFLAT="${2}"
+        SCALELENLAT="${2}"
+        shift
+      else
+        info_msg "[-scale]: Only longitude and not latitude specified. Using $MAXLAT"
+        SCALEREFLAT=$MINLAT
+        SCALELENLAT=$MINLAT
+      fi
+    elif [[ ${2:0:1} == [-] || -z $2 ]]; then
       info_msg "[-scale]: No reference point given. Using upper left corner."
       SCALEREFLAT=$MAXLAT
       SCALEREFLON=$MINLON
       SCALELENLAT=$MAXLAT
-    else
-      SCALEREFLON="${2}"
-      shift
-      SCALEREFLAT="${2}"
-      shift
-      SCALELENLAT=$SCALEREFLAT
     fi
     plots+=("mapscale")
     ;;
@@ -2634,6 +2838,41 @@ do
     plots+=("slipratedeficit")
 		;;
 
+    -tshade)
+      if [[ ${2:0:1} == [-] || -z $2 ]]; then
+        info_msg "[-tshade]: No fraction value specified. Using default: ${TS_FRAC}"
+      else
+        TS_FRAC="${2}"
+        info_msg "[-tshade]: Fraction value set to ${TS_FRAC}"
+        shift
+      fi
+      if [[ ${2:0:1} == [-] || -z $2 ]]; then
+        info_msg "[-tshade]: No contrast stretch specified. Using default: ${TS_STRETCH} "
+      else
+        TS_STRETCH="${2}"
+        info_msg "[-tshade]: Gamma value set to ${TS_STRETCH}"
+        shift
+      fi
+      if [[ ${2:0:1} == [-] || -z $2 ]]; then
+        info_msg "[-tshade]: No texture blend factor specified. Using default: ${TS_TEXTUREBLEND} "
+      else
+        TS_TEXTUREBLEND="${2}"
+        info_msg "[-tshade]: Texture blend factor set to ${TS_TEXTUREBLEND}"
+        shift
+      fi
+      if [[ ${2:0:1} == [-] || -z $2 ]]; then
+        info_msg "[-tshade]: No contrast stretch specified. Using default: ${TS_GAMMA} "
+      else
+        TS_GAMMA="${2}"
+        info_msg "[-tshade]: Gamma value set to ${TS_GAMMA}"
+        shift
+      fi
+
+      tshadetopoplotflag=1
+      clipdemflag=1
+      tshadezerohingeflag=1
+      ;;
+
   -ti)
     if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+$ || $2 =~ ^[-+]?[0-9]+$ ]]; then   # first arg is a number
       ILLUM="-I+a${2}+nt1+m0"
@@ -2810,7 +3049,7 @@ do
 	-z|--seis) # args: number
 		plotseis=1
     if [[ $USEANSS_DATABASE -eq 1 ]]; then
-      info_msg "[-z]: Using ANSS database $EQCATALOG"
+      info_msg "[-z]: Using hypocenter database $EQCATALOG"
     fi
 		if [[ ${2:0:1} == [-] || -z $2 ]]; then
 			info_msg "[-z]: No scaling for seismicity specified... using default $SEISSIZE"
@@ -3051,7 +3290,7 @@ gmt gmtset PS_MEDIA 100ix100i
 OVERLAY=""
 if [[ $overplotflag -eq 1 ]]; then
    info_msg "Overplotting onto ${PLOTFILE} as copy. Ensure base ps is not closed using --keepopenps"
-   cp "${PLOTFILE}" "${THISDIR}"tmpmap.ps
+   cp "${PLOTFILE}" "${THISDIR}"/tmpmap.ps
    OVERLAY="-O"
 fi
 
@@ -3060,7 +3299,7 @@ if [[ ${TMP::1} == "/" ]]; then
   info_msg "Temporary directory path ${TMP} is an absolute path from root."
   if [[ -d $TMP ]]; then
     info_msg "Not deleting absolute path ${TMP}. Using ./tempfiles_to_delete/"
-    TMP="tempfiles_to_delete/"
+    TMP="${DEFAULT_TMP}"
   fi
 else
   if [[ -d $TMP ]]; then
@@ -3073,14 +3312,15 @@ fi
 mkdir -p "${TMP}"
 
 [[ -e tectoplot.sources ]] && mv tectoplot.sources ${TMP}
-[[ -e tectoplot.sources ]] && mv tectoplot.shortsources ${TMP}
-
-cd "${TMP}"
+[[ -e tectoplot.shortsources ]] && mv tectoplot.shortsources ${TMP}
 
 if [[ $overplotflag -eq 1 ]]; then
    info_msg "Copying basemap ps into temporary directory"
-   mv "${THISDIR}"tmpmap.ps "${TMP}map.ps"
+   mv "${THISDIR}"/tmpmap.ps "${TMP}map.ps"
 fi
+
+cd "${TMP}"
+
 
 ################################################################################
 #####          Manage grid spacing and style                               #####
@@ -3116,7 +3356,7 @@ if [[ $gridfibonacciflag -eq 1 ]]; then
       }
     }
   }' > gridfile.txt
-  gawk < gridfile.txt '{print $2 $1}' > gridswap.txt
+  gawk < gridfile.txt '{print $2, $1}' > gridswap.txt
 fi
 
 ##### MAKE LAT/LON REGULAR GRID
@@ -3200,7 +3440,9 @@ fi
 
 if [[ $plotslab2 -eq 1 ]]; then
   numslab2inregion=0
+  echo $CENTERLON $CENTERLAT > inpoint.file
   for slabcfile in $(ls -1a ${SLAB2_CLIPDIR}*.csv); do
+    # echo "Looking at file $slabcfile"
     gawk < $slabcfile '{
       if ($1 > 180) {
         print $1-360, $2
@@ -3208,10 +3450,17 @@ if [[ $plotslab2 -eq 1 ]]; then
         print $1, $2
       }
     }' > tmpslabfile.dat
-    numinregion=$(gmt select tmpslabfile.dat -R$MINLON/$MAXLON/$MINLAT/$MAXLAT ${VERBOSE} | wc -l)
+    numinregion=$(gmt select tmpslabfile.dat -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} ${VERBOSE} | wc -l)
     if [[ $numinregion -ge 1 ]]; then
       numslab2inregion=$(echo "$numslab2inregion+1" | bc)
       slab2inregion[$numslab2inregion]=$(basename -s .csv $slabcfile)
+    else
+      numinregion=$(gmt select inpoint.file -Ftmpslabfile.dat ${VERBOSE} | wc -l)
+      # echo $numinregion
+      if [[ $numinregion -eq 1 ]]; then
+        numslab2inregion=$(echo "$numslab2inregion+1" | bc)
+        slab2inregion[$numslab2inregion]=$(basename -s .csv $slabcfile)
+      fi
     fi
   done
   if [[ $numslab2inregion -eq 0 ]]; then
@@ -3447,6 +3696,7 @@ if [[ $volcanoesflag -eq 1 ]]; then
     }
     printf("\n")
   }' > volcanoes.dat
+  cleanup volctmp.dat
 fi
 
 ################################################################################
@@ -3455,39 +3705,6 @@ fi
 
 
 if [[ $plotseis -eq 1 ]]; then
-
-  # WE SHOULD REMOVE THIS CODE AS NEW EQs WONT BE ADDED TO SAVED EQS AND THE
-  # TIME TO SELECT DATA FROM THE CATALOG IS ~5 seconds currently
-
-	# # #This code downloads EQ data from ANSS catalog in the study area saves them in a file to avoid reloading
-	# EQANSSFILE=$ANSSDIR"ANSS_"$MINLAT"_"$MAXLAT"_"$MINLON"_"$MAXLON".csv"
-	# EQSAVED=$ANSSDIR"ANSS_"$MINLAT"_"$MAXLAT"_"$MINLON"_"$MAXLON".txt"
-  #
-	# QMARK="https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=1900-01-01&endtime=2020-09-14&minlatitude="$MINLAT"&maxlatitude="$MAXLAT"&minlongitude="$MINLON"&maxlongitude="$MAXLON
-  #
-  # if [[ $recalcdataflag -eq 1 ]]; then
-  #   rm -f $EQCATALOG
-  #   rm -f $EQANSSFILE
-  # fi
-
-	# if [[ -e $EQSAVED ]]; then
-	# 	info_msg "Processed earthquake data already exists and recalc flag is not set, not retrieving new data"
-  #   EQCATALOG=$EQSAVED
-	# else
-  #   if [[ $USEANSS_DATABASE -eq 1 ]]; then
-  #     info_msg "Using scraped ANSS database as source of earthquake data, may not be up to date!"
-  #     gawk < $EQCATALOG -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON"  -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG}  '{
-  #         if ($1 < maxlon && $1 > minlon && $2 < maxlat && $2 > minlat && $4 <= maxmag && $4 >= minmag ) {
-  #          print
-  #         }
-  #       }' > $EQSAVED
-  #       EQCATALOG=$EQSAVED
-  #   else
-  #     info_msg "Should download EQ data but currently not enabled"
-  # 		# info_msg "Downloading ANSS data if possible"
-  # 		# curl $QMARK > $EQANSSFILE
-  #   fi
-	# fi
 
   ##############################################################################
   # Initial select of seismicity from the catalog based on AOI and min/max depth
@@ -3554,7 +3771,6 @@ if [[ $plotseis -eq 1 ]]; then
       print epoch;
     }')
 
-    #LON LAT DEPTH MAG TIMECODE ID EPOCH MAGTYPE
     gawk < eqs.txt -v ss=$STARTSECS -v es=$ENDSECS '{
       if (($7 >= ss) && ($7 <= es)) {
         print
@@ -3669,6 +3885,9 @@ if [[ $calccmtflag -eq 1 ]]; then
   # Concatenate the data
   cat cmt_global_aoi.dat cmt_local_aoi.dat > cmt_combined_aoi.dat
 
+  # We don't usually keep the individually selected data
+  cleanup cmt_global_aoi.dat cmt_local_aoi.dat
+
   CMTFILE=$(echo "$(cd "$(dirname "cmt_combined_aoi.dat")"; pwd)/$(basename "cmt_combined_aoi.dat")")
 
   # We should now have a good combined CMT dataset in cmt_combined_aoi.dat
@@ -3692,7 +3911,7 @@ if [[ $calccmtflag -eq 1 ]]; then
             printf " %s", $(i)
           }
           printf "\n";
-        }' > cmt_aoiselect.dat
+        }' > cmt_polygonselect.dat
         ;;
       ORIGIN)
         gawk < $CMTFILE '{
@@ -3705,10 +3924,10 @@ if [[ $calccmtflag -eq 1 ]]; then
           for (i=1; i<=NF-6; i++) {
             printf " %s", $(i)
           } printf "\n";
-        }' > cmt_aoiselect.dat
+        }' > cmt_polygonselect.dat
         ;;
     esac
-    CMTFILE=$(echo "$(cd "$(dirname "cmt_aoiselect.dat")"; pwd)/$(basename "cmt_aoiselect.dat")")
+    CMTFILE=$(echo "$(cd "$(dirname "cmt_polygonselect.dat")"; pwd)/$(basename "cmt_polygonselect.dat")")
   fi
 
   info_msg "Selecting focal mechanisms and kinematic mechanisms based on magnitude constraints"
@@ -3833,12 +4052,6 @@ if [[ $calccmtflag -eq 1 ]]; then
     CMTFILE=cmt_rotated.dat
   fi
 
-# 23
-#   Tval	Taz	Tinc	Nval	Naz	Ninc	Pval	Paz	Pinc
-
-  #      1          	2	 3      4 	         5	            6             	7	         8	         9	           10	              11	         12 13	 14       exponent	     16	  17	   18	      19     	20	   21	      22	  23	 24 	25	  26 	 27	  28	  29	  30	31	      32	 33 	34	35 36	 37	 38	         39
-  # idcode	event_code	id	epoch	lon_centroid	lat_centroid	depth_centroid	lon_origin	lat_origin	depth_origin	author_centroid	author_origin	MW	mantissa	exponent	strike1	dip1	rake1	strike2	dip2	rake2	exponent	Tval	Taz	Tinc	Nval	Naz	Ninc	Pval	Paz	Pinc	exponent	Mrr	Mtt	Mpp	Mrt	Mrp	Mtp	centroid_dt
-
   ##############################################################################
   # Save focal mechanisms in a psmeca+ format based on the selected format type
 
@@ -3870,61 +4083,64 @@ if [[ $calccmtflag -eq 1 ]]; then
         altlon=$5; altlat=$6; altdepth=$7;
       }
 
-      if (fmt == "GlobalCMT") {
-        #  lon lat depth strike1 dip1 rake1 aux_strike dip2 rake2 moment altlon altlat [event_title] altdepth [timecode]
-        if (substr($1,2,1) == "T") {
-          print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, id > "cmt_thrust.txt"
-        } else if (substr($1,2,1) == "N") {
-          print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, id > "cmt_normal.txt"
-        } else {
-          print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, id > "cmt_strikeslip.txt"
-        }
-        print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, id > "cmt.dat"
+      if (lon != "none" && lat != "none") {
 
-      } else if (fmt == "MomentTensor") {
-        # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat [event_title] altdepth [timecode]
+        if (fmt == "GlobalCMT") {
+          #  lon lat depth strike1 dip1 rake1 aux_strike dip2 rake2 moment altlon altlat [event_title] altdepth [timecode]
           if (substr($1,2,1) == "T") {
-            print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, id > "cmt_thrust.txt"
+            print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, id > "cmt_thrust.txt"
           } else if (substr($1,2,1) == "N") {
-            print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, id  > "cmt_normal.txt"
+            print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, id > "cmt_normal.txt"
           } else {
-            print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, id  > "cmt_strikeslip.txt"
+            print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, id > "cmt_strikeslip.txt"
           }
-          print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, id  > "cmt.dat"
-      } else if (fmt == "TNP") {
-         # y  Best double couple defined from principal axis:
-	       # X Y depth T_value T_azim T_plunge N_value N_azim N_plunge P_value P_azim P_plunge exp [newX newY] [event_title]
-        if (substr($1,2,1) == "T") {
-          print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, id > "cmt_thrust.txt"
-        } else if (substr($1,2,1) == "N") {
-          print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, id  > "cmt_normal.txt"
-        } else {
-          print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, id  > "cmt_strikeslip.txt"
+          print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, id > "cmt.dat"
+
+        } else if (fmt == "MomentTensor") {
+          # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat [event_title] altdepth [timecode]
+            if (substr($1,2,1) == "T") {
+              print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, id > "cmt_thrust.txt"
+            } else if (substr($1,2,1) == "N") {
+              print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, id  > "cmt_normal.txt"
+            } else {
+              print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, id  > "cmt_strikeslip.txt"
+            }
+            print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, id  > "cmt.dat"
+        } else if (fmt == "TNP") {
+           # y  Best double couple defined from principal axis:
+  	       # X Y depth T_value T_azim T_plunge N_value N_azim N_plunge P_value P_azim P_plunge exp [newX newY] [event_title]
+          if (substr($1,2,1) == "T") {
+            print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, id > "cmt_thrust.txt"
+          } else if (substr($1,2,1) == "N") {
+            print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, id  > "cmt_normal.txt"
+          } else {
+            print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, id  > "cmt_strikeslip.txt"
+          }
+          print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, id   > "cmt.dat"
         }
-        print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, id   > "cmt.dat"
-      }
 
-      if (substr($1,2,1) == "T") {
-        print lon, lat, Taz, Tinc > "t_axes_thrust.txt"
-        print lon, lat, Naz, Ninc > "n_axes_thrust.txt"
-        print lon, lat, Paz, Pinc > "p_axes_thrust.txt"
-      } else if (substr($1,2,1) == "N") {
-        print lon, lat, Taz, Tinc> "t_axes_normal.txt"
-        print lon, lat, Naz, Ninc > "n_axes_normal.txt"
-        print lon, lat, Paz, Pinc > "p_axes_normal.txt"
-      } else if (substr($1,2,1) == "S") {
-        print lon, lat, Taz, Tinc > "t_axes_strikeslip.txt"
-        print lon, lat, Naz, Ninc > "n_axes_strikeslip.txt"
-        print lon, lat, Paz, Pinc > "p_axes_strikeslip.txt"
-      }
-
-      if (Mw >= minmag && Mw <= maxmag) {
         if (substr($1,2,1) == "T") {
-          print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, id > "kin_thrust.txt"
+          print lon, lat, Taz, Tinc > "t_axes_thrust.txt"
+          print lon, lat, Naz, Ninc > "n_axes_thrust.txt"
+          print lon, lat, Paz, Pinc > "p_axes_thrust.txt"
         } else if (substr($1,2,1) == "N") {
-          print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, id > "kin_normal.txt"
-        } else {
-          print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, id > "kin_strikeslip.txt"
+          print lon, lat, Taz, Tinc> "t_axes_normal.txt"
+          print lon, lat, Naz, Ninc > "n_axes_normal.txt"
+          print lon, lat, Paz, Pinc > "p_axes_normal.txt"
+        } else if (substr($1,2,1) == "S") {
+          print lon, lat, Taz, Tinc > "t_axes_strikeslip.txt"
+          print lon, lat, Naz, Ninc > "n_axes_strikeslip.txt"
+          print lon, lat, Paz, Pinc > "p_axes_strikeslip.txt"
+        }
+
+        if (Mw >= minmag && Mw <= maxmag) {
+          if (substr($1,2,1) == "T") {
+            print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, id > "kin_thrust.txt"
+          } else if (substr($1,2,1) == "N") {
+            print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, id > "kin_normal.txt"
+          } else {
+            print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, id > "kin_strikeslip.txt"
+          }
         }
       }
     }'
@@ -3985,10 +4201,10 @@ if [[ $REMOVE_EQUIVS -eq 1 && -e $CMTFILE && -e eqs.txt ]]; then
 
   paste eq_comp_sort.dat eq_comp_sort_m1.dat eq_comp_sort_m2.dat > 3comp.txt
 
-  # 1   2   3     4     5   6        7   8   9  10  11  12     13   14       15 16  17  18  19    20    21  22       23 24
-  # C LON LAT EPOCH DEPTH MAG TIMECODE  ID   C LON LAT EPOCH DEPTH MAG TIMECODE ID   C LON LAT EPOCH DEPTH MAG TIMECODE ID
-
   # We want to remove from A any A event that is close to a C event
+  # This currently only compares the events closest in time to a CMT event, so
+  # it will not remove equivalent seismicity or equivalents separated by other
+  # events in the catalog
   gawk < 3comp.txt -v secondlimit=5 -v deglimit=2 -v maglimit=0.3 'function abs(v) {return v < 0 ? -v : v} {
     if ($9 == "EQ") { # Only examine non-CMT events
       if ($14 > 7.5) {
@@ -4010,12 +4226,13 @@ if [[ $REMOVE_EQUIVS -eq 1 && -e $CMTFILE && -e eqs.txt ]]; then
   }' > eqs.txt
   after_e=$(wc -l < eqs.txt)
   info_msg "Before equivalent EQ culling: $before_e ; after culling: $after_e"
-fi
 
+  cleanup eq_comp.dat eq_comp_sort.dat eq_comp_sort_m1.dat eq_comp_sort_m2.dat 3comp.txt
+fi
 
 if [[ $REMOVE_DEFAULTDEPTHS -eq 1 && -e eqs.txt ]]; then
   info_msg "Removing earthquakes with poorly determined origin depths"
-  [[ REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && info_msg "Plotting removed events separately"
+  [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && info_msg "Plotting removed events separately"
   # Plotting in km instead of in map geographic coords.
   gawk < eqs.txt '{
     depth=$10
@@ -4741,8 +4958,8 @@ else
     fi
   fi
   # Probably not the best way to initialize these
-  echo "0 0" | gmt psxy -Sc0.001i -Gwhite -W0p -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -X$PLOTSHIFTX -Y$PLOTHIFTY $OVERLAY -K $VERBOSE  > kinsv.ps
-  echo "0 0" | gmt psxy -Sc0.001i -Gwhite -W0p -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -X$PLOTSHIFTX -Y$PLOTHIFTY $OVERLAY -K $VERBOSE  > eqlabel.ps
+  echo "0 0" | gmt psxy -Sc0.001i -Gwhite -W0p -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -X$PLOTSHIFTX -Y$PLOTSHIFTY $OVERLAY -K $VERBOSE  > kinsv.ps
+  echo "0 0" | gmt psxy -Sc0.001i -Gwhite -W0p -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -X$PLOTSHIFTX -Y$PLOTSHIFTY $OVERLAY -K $VERBOSE  > eqlabel.ps
   echo "0 0" | gmt psxy -Sc0.001i -Gwhite -W0p -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -X$PLOTSHIFTX -Y$PLOTSHIFTY $OVERLAY -K $VERBOSE  > plate.ps
   echo "0 0" | gmt psxy -Sc0.001i -Gwhite -W0p -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -X$PLOTSHIFTX -Y$PLOTSHIFTY $OVERLAY -K $VERBOSE  > mecaleg.ps
   echo "0 0" | gmt psxy -Sc0.001i -Gwhite -W0p -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -X$PLOTSHIFTX -Y$PLOTSHIFTY $OVERLAY -K $VERBOSE  > seissymbol.ps
@@ -4752,10 +4969,14 @@ else
   echo "0 0" | gmt psxy -Sc0.001i -Gwhite -W0p -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -X$PLOTSHIFTX -Y$PLOTSHIFTY $OVERLAY -K $VERBOSE  >> map.ps
 fi
 
+cleanup kinsv.ps eqlabel.ps plate.ps mecaleg.ps seissymbol.ps volcanoes.ps velarrow.ps velgps.ps
+
 MAP_PS_DIM=$(gmt psconvert base_fake.ps -Te -A0.01i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
 MAP_PS_WIDTH_IN=$(echo $MAP_PS_DIM | gawk  '{print $1/2.54}')
 MAP_PS_HEIGHT_IN=$(echo $MAP_PS_DIM | gawk  '{print $2/2.54}')
 # echo "Map dimensions (cm) are W: $MAP_PS_WIDTH_IN, H: $MAP_PS_HEIGHT_IN"
+
+cleanup base_fake.ps base_fake.eps
 
 ######
 # These variables are array indices and must be zero at start. They allow multiple
@@ -5043,8 +5264,6 @@ for plot in ${plots[@]} ; do
         gawk -f $EULERVEC_AWK -v eLat_d1=$lat1 -v eLon_d1=$lon1 -v eV1=$rate1 -v eLat_d2=$lat2 -v eLon_d2=$lon2 -v eV2=$rate2 eulergrid.txt > gridvelocities.txt
       fi
 
-      # gridvelocities.txt needs to be multiplied by 100 to return mm/yr which is what GPS files are in
-
       # If we are plotting only the residuals of GPS velocities vs. estimated site velocity from Euler pole (gridvelocities.txt)
       if [[ $ploteulerobsresflag -eq 1 ]]; then
          info_msg "plotting residuals of block motion and gps velocities"
@@ -5055,7 +5274,6 @@ for plot in ${plots[@]} ; do
       fi
 
       paste -d ' ' eulergrid.txt gridvelocities.txt | gawk  '{print $2, $1, $3, $4, 0, 0, 1, "ID"}' > gridplatevecs.txt
-      # Scale at print is OK
       cat gridplatevecs.txt | gawk  -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }'  > grideuler.pvec
       gmt psxy -SV$ARROWFMT -W0p,red -Gred grideuler.pvec $RJOK $VERBOSE >> map.ps
       ;;
@@ -5698,24 +5916,26 @@ for plot in ${plots[@]} ; do
 
     slab2)
 
-      if [[ ${SLAB2STR} =~ .*g.* ]]; then
-        info_msg "Plotting SLAB2 grids"
+      if [[ ${SLAB2STR} =~ .*d.* ]]; then
+        info_msg "Plotting SLAB2 depth grids"
         SLAB2_CONTOUR_BLACK=1
         for i in $(seq 1 $numslab2inregion); do
           gridfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')
-          gmt grdmath ${VERBOSE} $gridfile -1 MUL = tmpgrd.grd
-          gmt grdimage tmpgrd.grd -Q -t${SLAB2GRID_TRANS} -C$SEISDEPTH_CPT $RJOK $VERBOSE >> map.ps
+          if [[ -e $gridfile ]]; then
+            gmt grdmath ${VERBOSE} $gridfile -1 MUL = tmpgrd.grd
+            gmt grdimage tmpgrd.grd -Q -t${SLAB2GRID_TRANS} -C$SEISDEPTH_CPT $RJOK $VERBOSE >> map.ps
+            rm -f tmpgrd.grd
+          fi
           #COMEBACK
         done
       else
         SLAB2_CONTOUR_BLACK=0
       fi
-      rm -f tmpgrd.grd
 
 			if [[ ${SLAB2STR} =~ .*c.* ]]; then
 				info_msg "Plotting SLAB2 contours"
-
         for i in $(seq 1 $numslab2inregion); do
+          # echo "Slab contour file ${slab2inregion[$i]}"
           clipfile=$(echo ${SLAB2_CONTOURDIR}${slab2inregion[$i]}_contours.in | sed 's/clp/dep/')
           gawk < $clipfile '{
             if ($1 == ">") {
@@ -6052,6 +6272,7 @@ for plot in ${plots[@]} ; do
 			;;
 
     topo)
+      # If we are doing hillshading by the GDAL-only method
       if [[ $gdemtopoplotflag -eq 1 ]]; then
         # DEM will have been clipped already
         if [[ $gdaltzerohingeflag -eq 1 ]]; then
@@ -6111,6 +6332,67 @@ for plot in ${plots[@]} ; do
 
         gmt grdimage colored_hillshade.tif -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
 
+      elif [[ $tshadetopoplotflag -eq 1 ]]; then
+        # We are doing the texture shading version
+        if [[ $tshadezerohingeflag -eq 1 ]]; then
+          # We need to make a gdal color file that respects the CPT hinge value (usually 0)
+          # gdaldem is a bit funny about coloring around the hinge, so do some magic to make
+          # the color from land not bleed to the hinge elevation.
+          CPTHINGE=0
+          gawk < $TOPO_CPT -v hinge=$CPTHINGE '{
+            if ($1 != "B" && $1 != "F" && $1 != "N" ) {
+              if (count==1) {
+                print $1+0.01, $2
+                count=2
+              } else {
+                print $1, $2
+              }
+
+              if ($3 == hinge) {
+                if (count==0) {
+                  print $3-0.0001, $4
+                  count=1
+                }
+              }
+            }
+            }' | tr '/' ' ' > topocolor.dat
+        else
+          gawk < $TOPO_CPT '{ print $1, $2 }' | tr '/' ' ' > topocolor.dat
+        fi
+
+        # fill NaNs
+        gmt grdfill dem.nc -An -Gdem_no_nan.nc ${VERBOSE}
+        mv dem_no_nan.nc dem.nc
+
+        # Calculate the color stretch
+        gdaldem color-relief dem.nc topocolor.dat colordem.tif -q
+
+        # Calculate the texture shade
+        # Project from WGS1984 to Mercator / HDF format
+        gdalwarp -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -of EHdr -ot Float32 dem.nc dem.flt -q
+
+        # texture the DEM. Pipe output to /dev/null to silence the program
+        ${TEXTURE} ${TS_FRAC} dem.flt texture.flt -mercator ${MINLAT} ${MAXLAT} > /dev/null 2>&1
+        # make the image. Pipe output to /dev/null to silence the program
+        ${TEXTURE_IMAGE} +${TS_STRETCH} texture.flt texture_merc.tif > /dev/null 2>&1
+        # project back to WGS1984
+        gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear texture_merc.tif texture_2byte.tif -q
+        # Change to 8 bit unsigned format
+        gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 texture_2byte.tif texture.tif -q
+
+        # Calculate the multidirectional hillshade
+        gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s 111120 dem.nc hs_md.tif -q
+
+        # Combine the hillshade and texture into a blended, gamma corrected image
+        gdal_calc.py --quiet -A hs_md.tif -B texture.tif --outfile=gamma_hs.tif --calc="uint8( ( ((A/255.)*(${TS_TEXTUREBLEND}) + (B/255.)*(1-${TS_TEXTUREBLEND}) ) )**(1/${TS_GAMMA}) * 255)"
+
+
+        gdal_calc.py --quiet -A gamma_hs.tif -B colordem.tif --allBands=B --calc="uint8( ( \
+                        2 * (A/255.)*(B/255.)*(A<128) + \
+                        ( 1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128) \
+                      ) * 255 )" --outfile=colored_hillshade.tif
+
+        gmt grdimage colored_hillshade.tif -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
       else
         if [[ $dontplottopoflag -eq 0 ]]; then
           gmt grdimage $BATHY ${ILLUM} -t$TOPOTRANS -C$TOPO_CPT $RJOK ${VERBOSE} >> map.ps
@@ -6662,5 +6944,8 @@ if [[ $caxesstereonetflag -eq 1 ]]; then
   echo "0 0" | gmt psxy -Sc0.001i -Gwhite -R -J -O ${VERBOSE} >> stereo.ps
   gmt psconvert stereo.ps -Tf -A0.5i ${VERBOSE}
 fi
+
+# Create header / metadata information for all files, using a control file in $DEFDIR
+
 
 exit 0

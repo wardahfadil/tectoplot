@@ -334,23 +334,23 @@ gawk < line_buffer.txt 'BEGIN{num=1} {
 
 # We could theoretically project and then buffer in meters and then reproject... ick
 
-ogr2ogr -f "OGR_GMT" buf_poly.gmt linebuffer.gmt -dialect sqlite -sql "select ST_buffer(geometry, $WIDTH_DEG) as geometry FROM linebuffer"
-
-# Return to GMT multisegment format which is easier to work with
-gawk <  buf_poly.gmt '{ if ($1 != "#") { print } }' > buf_poly.txt
-
-# The buffers are returned in line order and can be split into per-line buffers.
-
-gawk < buf_poly.txt 'BEGIN{ fn = "buf_1.txt"; n = 0 }
-{
-   if (substr($0,1,2) == ">") {
-       close (fn)
-       n++
-       fn = "buf_" n ".txt"
-   } else {
-     print > fn
-   }
-}'
+# ogr2ogr -f "OGR_GMT" buf_poly.gmt linebuffer.gmt -dialect sqlite -sql "select ST_buffer(geometry, $WIDTH_DEG) as geometry FROM linebuffer"
+#
+# # Return to GMT multisegment format which is easier to work with
+# gawk <  buf_poly.gmt '{ if ($1 != "#") { print } }' > buf_poly.txt
+#
+# # The buffers are returned in line order and can be split into per-line buffers.
+#
+# gawk < buf_poly.txt 'BEGIN{ fn = "buf_1.txt"; n = 0 }
+# {
+#    if (substr($0,1,2) == ">") {
+#        close (fn)
+#        n++
+#        fn = "buf_" n ".txt"
+#    } else {
+#      print > fn
+#    }
+# }'
 
 # gmt spatial (GMT 6.1) is producing bad buffers that are missing important points
 # gmt spatial -Sb+"${WIDTH_DEG}" line_buffer.txt > buf_poly.txt
@@ -358,10 +358,10 @@ gawk < buf_poly.txt 'BEGIN{ fn = "buf_1.txt"; n = 0 }
 # Add a degree around each buffer extreme coordinate to determine the profile area AOI.
 # This would impact very high resolution datasets of small areas and should probably be adjusted to suit.
 
-buf_max_x=$(grep "^[^>]" buf_poly.txt | sort -n -k 1 | tail -n 1 | gawk '{printf "%d", $1+1}')
-buf_min_x=$(grep "^[^>]" buf_poly.txt | sort -n -k 1 | head -n 1 | gawk '{printf "%d", $1-1}')
-buf_max_z=$(grep "^[^>]" buf_poly.txt | sort -n -k 2 | tail -n 1 | gawk '{printf "%d", $2+1}')
-buf_min_z=$(grep "^[^>]" buf_poly.txt | sort -n -k 2 | head -n 1 | gawk '{printf "%d", $2-1}')
+# buf_max_x=$(grep "^[^>]" buf_poly.txt | sort -n -k 1 | tail -n 1 | gawk '{printf "%d", $1+1}')
+# buf_min_x=$(grep "^[^>]" buf_poly.txt | sort -n -k 1 | head -n 1 | gawk '{printf "%d", $1-1}')
+# buf_max_z=$(grep "^[^>]" buf_poly.txt | sort -n -k 2 | tail -n 1 | gawk '{printf "%d", $2+1}')
+# buf_min_z=$(grep "^[^>]" buf_poly.txt | sort -n -k 2 | head -n 1 | gawk '{printf "%d", $2-1}')
 
 # echo "Buffered extent is $buf_min_x/$buf_max_x/$buf_min_z/$buf_max_z"
 
@@ -420,7 +420,7 @@ for i in $(seq 1 $k); do
     # # Cut the grid to the AOI and multiply by its ZSCALE
     # If the grid doesn't fall within the buffer AOI, there will be no result but it won't be a problem, so pipe error to /dev/null
     rm -f tmp.nc
-    gmt grdcut ${gridfilelist[$i]} -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -Gtmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
+    gmt grdcut ${gridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Gtmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
     gmt grdmath tmp.nc ${gridzscalelist[$i]} MUL = ${gridfilesellist[$i]}
   elif [[ ${FIRSTWORD:0:1} == "T" ]]; then
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print }'))
@@ -439,14 +439,11 @@ for i in $(seq 1 $k); do
     # If the grid doesn't fall within the buffer AOI, there will be no result but it won't be a problem, so pipe error to /dev/null
 
     rm -f tmp.nc
-    echo     gmt grdcut ${ptgridfilelist[$i]} -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -Gtmp.nc --GMT_HISTORY=false "-Vn 2>/dev/null"
-
-    gmt grdcut ${ptgridfilelist[$i]} -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -Gtmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
+    # echo     gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Gtmp.nc --GMT_HISTORY=false "-Vn 2>/dev/null"
+    gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Gtmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
     if [[ -e tmp.nc ]]; then
-      echo tmp.nc exists
+      # echo tmp.nc exists
       gmt grdmath tmp.nc ${ptgridzscalelist[$i]} MUL = ${ptgridfilesellist[$i]}
-    else
-      echo tmp.c does not exist...
     fi
   elif [[ ${FIRSTWORD:0:1} == "X" || ${FIRSTWORD:0:1} == "E" ]]; then        # Found an XYZ dataset
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print }'))
@@ -1018,7 +1015,7 @@ EOF
               }
             }' | tr '/' ' ' > topocolor_km.dat
           else
-            gawk < $TOPO_CPT '{ print $1*scale, $2 }' | tr '/' ' ' > topocolor_km.dat
+            gawk < $TOPO_CPT -v scale=${gridzscalelist[$i]} '{ print $1*scale, $2 }' | tr '/' ' ' > topocolor_km.dat
           fi
 
           # Calculate the color stretch
@@ -1048,13 +1045,110 @@ EOF
           # Combine the hillshade and slopeshade into a blended, gamma corrected image
           gdal_calc.py --quiet -A ${LINEID}_${grididnum[$i]}_hs_md.tif -B ${LINEID}_${grididnum[$i]}_slopeshade.tif --outfile=${LINEID}_${grididnum[$i]}_gamma_hs.tif --calc="uint8( ( ((A/255.)*(${HSSLOPEBLEND}) + (B/255.)*(1-${HSSLOPEBLEND}) ) )**(1/${HS_GAMMA}) * 255)"
 
-
           # Combine the shaded relief and color stretch using a multiply scheme
 
           gdal_calc.py --quiet -A ${LINEID}_${grididnum[$i]}_gamma_hs.tif -B ${LINEID}_${grididnum[$i]}_newgrid_colordem.tif --allBands=B --calc="uint8( ( \
                           2 * (A/255.)*(B/255.)*(A<128) + \
                           ( 1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128) \
                         ) * 255 )" --outfile=${LINEID}_${grididnum[$i]}_colored_hillshade.tif
+        elif [[ $tshadetopoplotflag -eq 1 ]]; then
+
+          echo "New approach for tshade on -mob..."
+          # We are doing the texture shading version
+          if [[ $tshadezerohingeflag -eq 1 ]]; then
+            # We need to make a gdal color file that respects the CPT hinge value (usually 0)
+            # gdaldem is a bit funny about coloring around the hinge, so do some magic to make
+            # the color from land not bleed to the hinge elevation.
+            CPTHINGE=0
+            gawk < $TOPO_CPT -v hinge=$CPTHINGE -v scale=${gridzscalelist[$i]} '{
+              if ($1 != "B" && $1 != "F" && $1 != "N" ) {
+                if (count==1) {
+                  print ($1+0.01)*scale, $2
+                  count=2
+                } else {
+                  print $1*scale, $2
+                }
+
+                if ($3 == hinge) {
+                  if (count==0) {
+                    print ($3-0.0001)*scale, $4
+                    count=1
+                  }
+                }
+              }
+            }' | tr '/' ' ' > topocolor_km.dat
+          else
+            gawk < $TOPO_CPT -v scale=${gridzscalelist[$i]} '{ print $1*scale, $2 }' | tr '/' ' ' > topocolor_km.dat
+          fi
+
+          rm -f texture.flt out_texture.tif newdem.flt newdem.hdr
+
+          # fill NaNs
+          gmt grdfill ${LINEID}_${grididnum[$i]}_newgrid.nc -An -G${LINEID}_${grididnum[$i]}_dem_no_nan.nc ${VERBOSE}
+
+          # Calculate the color stretch
+          gdaldem color-relief ${LINEID}_${grididnum[$i]}_dem_no_nan.nc topocolor_km.dat ${LINEID}_${grididnum[$i]}_newgrid_colordem.tif -q
+
+          # Calculate the texture shade
+          # Project to HDF format
+          gdal_translate -of EHdr -ot Float32 ${LINEID}_${grididnum[$i]}_dem_no_nan.nc newdem.flt -q
+
+          # Change the ULX and ULY in the .hdr file to fool texture
+          cp newdem.hdr newdem.hdr.store
+          awk < newdem.hdr '{
+            if ($1 == "ULXMAP") {
+              print "ULXMAP         1000000.00000000"
+            } else if ($1 == "ULYMAP") {
+              print "ULYMAP         1000000.00000000"
+            } else {
+              printf "%s\n", $0
+            }
+          }' > newdem.hdr.2
+          mv newdem.hdr.2 newdem.hdr
+
+          rm -f texture.flt texture.hdr
+
+          # texture the DEM. Pipe output to /dev/null to silence the program
+          ${TEXTURE} ${TS_FRAC} newdem.flt texture.flt  > /dev/null 2>&1
+          echo calling texture
+
+          # ~/Dropbox/scripts/tectoplot/texture_shader/texture 0.66 newdem.flt texture.flt
+          # Change the limits for the header
+          awk < texture.hdr '{
+            if ($1== "nrows") {
+              yval=$2/2
+            }
+            if ($1 == "xllcorner") {
+              printf "xllcorner     0\n"
+            } else if ($1 == "yllcorner") {
+              printf "yllcorner     %f\n", -(yval)
+            } else {
+              printf "%s\n", $0
+            }
+          }' > texture.hdr.2
+          mv texture.hdr.2 texture.hdr
+
+          # make the image. Pipe output to /dev/null to silence the program
+          ${TEXTURE_IMAGE} +${TS_STRETCH} texture.flt out_texture.tif > /dev/null 2>&1
+          
+          gmt grdedit -T out_texture.tif -Gtt.tif ${VERBOSE}
+
+          # Change to 8 bit unsigned format
+          gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 tt.tif ${LINEID}_${grididnum[$i]}_texture.tif -q
+
+          # Calculate the multidirectional hillshade
+          gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s 111120 ${LINEID}_${grididnum[$i]}_dem_no_nan.nc ${LINEID}_${grididnum[$i]}_hs_md.tif -q
+
+          # Combine the hillshade and texture into a blended, gamma corrected image
+          gdal_calc.py --quiet -A ${LINEID}_${grididnum[$i]}_hs_md.tif -B ${LINEID}_${grididnum[$i]}_texture.tif --outfile=${LINEID}_${grididnum[$i]}_newgrid_gamma_hs.tif --calc="uint8( ( ((A/255.)*(${TS_TEXTUREBLEND}) + (B/255.)*(1-${TS_TEXTUREBLEND}) ) )**(1/${TS_GAMMA}) * 255)"
+
+
+          gdal_calc.py --quiet -A ${LINEID}_${grididnum[$i]}_newgrid_gamma_hs.tif -B ${LINEID}_${grididnum[$i]}_newgrid_colordem.tif --allBands=B --calc="uint8( ( \
+                          2 * (A/255.)*(B/255.)*(A<128) + \
+                          ( 1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128) \
+                        ) * 255 )" --outfile=${LINEID}_${grididnum[$i]}_colored_hillshade.tif
+
+          gmt grdimage ${LINEID}_${grididnum[$i]}_colored_hillshade.tif -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
         fi
 
 ###     The following script fragment will require the following variables to be defined in the script:
@@ -1070,7 +1164,8 @@ EOF
         echo "PROFILE_DEPTH_IN=\$(echo \$PROFILE_DEPTH_RATIO \$PROFILE_WIDTH_IN | gawk '{print (\$1*(\$2+0))}' )i"  >> ${LINEID}_topscript.sh
 
         echo "yshift=\$(gawk -v height=\${PROFILE_HEIGHT_IN} -v inc=\$PERSPECTIVE_INC 'BEGIN{print cos(inc*3.1415926/180)*(height+0)}')" >> ${LINEID}_topscript.sh
-        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" --MAP_FRAME_PEN=thinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+
+        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" -X\${xshift} --MAP_FRAME_PEN=thinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
         # If we have an end-cap plot (e.g. litho1), plot that here.
         # Data needs to be plottable by psxyz
@@ -1096,12 +1191,19 @@ EOF
 
         # Draw the box at the end of the profile. For other view angles, should draw the other box?
 
-        echo "echo \"\$line_max_x \$dem_maxy \$line_max_z\" > ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
-        echo "echo \"\$line_max_x \$dem_maxy \$line_min_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
-        echo "echo \"\$line_max_x \$dem_miny \$line_min_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
-        echo "echo \"\$line_max_x \$dem_miny \$line_max_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
+        echo "if [[ \$(echo \"\${PERSPECTIVE_AZ} > 180\" | bc -l) -eq 1 ]]; then" >> ${LINEID}_topscript.sh
+          echo "echo \"\$line_min_x \$dem_maxy \$line_max_z\" > ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+          echo "echo \"\$line_min_x \$dem_maxy \$line_min_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+          echo "echo \"\$line_min_x \$dem_miny \$line_min_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+          echo "echo \"\$line_min_x \$dem_miny \$line_max_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+        echo "else" >> ${LINEID}_topscript.sh
+          echo "echo \"\$line_max_x \$dem_maxy \$line_max_z\" > ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+          echo "echo \"\$line_max_x \$dem_maxy \$line_min_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+          echo "echo \"\$line_max_x \$dem_miny \$line_min_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+          echo "echo \"\$line_max_x \$dem_miny \$line_max_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+        echo "fi" >> ${LINEID}_topscript.sh
 
-        echo "gmt psxyz ${LINEID}_rightbox.xyz -p -R -J -JZ -Wthinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        echo "gmt psxyz ${LINEID}_endbox.xyz -p -R -J -JZ -Wthinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
         echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${dem_minz} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -JZ\${ZSIZE}i -J -Bzaf -Bxaf --MAP_FRAME_PEN=thinner,black -K -O -Y\${yshift}i >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
@@ -1240,8 +1342,8 @@ EOF
       # echo "wc -l < ${xyzcullfile[$i]}"
 
       # Calculate distance from data points to the track, using only first two columns
-      gawk < ${xyzfilelist[i]} '{print $1, $2}' | gmt mapproject -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -L${LINEID}_trackfile.txt -fg -Vn | gawk '{print $3, $4, $5}' > tmp.txt
-      gawk < ${xyzfilelist[i]} '{print $1, $2}' | gmt mapproject -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -Lline_buffer.txt+p -fg -Vn | gawk '{print $4}'> tmpbuf.txt
+      gawk < ${xyzfilelist[i]} '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -L${LINEID}_trackfile.txt -fg -Vn | gawk '{print $3, $4, $5}' > tmp.txt
+      gawk < ${xyzfilelist[i]} '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Lline_buffer.txt+p -fg -Vn | gawk '{print $4}'> tmpbuf.txt
       # Paste result onto input lines and select the points that are closest to current track out of all tracks
       paste tmpbuf.txt ${xyzfilelist[i]} tmp.txt  > joinbuf.txt
 #      head joinbuf.txt
@@ -1414,7 +1516,7 @@ EOF
 
       # CMTWIDTH is e.g. 150k so in gawk we do +0
 
-      gawk < cmt_thrust.txt '{print $1, $2}' | gmt mapproject -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -Lline_buffer.txt+p -fg -Vn | gawk '{print $4, $3}' > tmpbuf.txt
+      gawk < cmt_thrust.txt '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Lline_buffer.txt+p -fg -Vn | gawk '{print $4, $3}' > tmpbuf.txt
       paste tmpbuf.txt cmt_thrust.txt | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
         if ($1==lineid && $2/1000 < (maxdist+0)) {
           for (i=3;i<=NF;++i) {
@@ -1454,7 +1556,7 @@ EOF
         mv split2.txt ${LINEID}_cmt_alt_lines_thrust_sel_P2.xyz
       fi
 
-      gawk < cmt_normal.txt '{print $1, $2}' | gmt mapproject -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -Lline_buffer.txt+p -fg -Vn | gawk '{print $4, $3}' > tmpbuf.txt
+      gawk < cmt_normal.txt '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Lline_buffer.txt+p -fg -Vn | gawk '{print $4, $3}' > tmpbuf.txt
       paste tmpbuf.txt cmt_normal.txt | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
         if ($1==lineid && $2/1000 < (maxdist+0)) {
           for (i=3;i<=NF;++i) {
@@ -1492,7 +1594,7 @@ EOF
         mv split2.txt ${LINEID}_cmt_alt_lines_normal_sel_P2.xyz
       fi
 
-      gawk < cmt_strikeslip.txt '{print $1, $2}' | gmt mapproject -R${buf_min_x}/${buf_max_x}/${buf_min_z}/${buf_max_z} -Lline_buffer.txt+p -fg -Vn | gawk '{print $4, $3}' > tmpbuf.txt
+      gawk < cmt_strikeslip.txt '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Lline_buffer.txt+p -fg -Vn | gawk '{print $4, $3}' > tmpbuf.txt
       paste tmpbuf.txt cmt_strikeslip.txt | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
         if ($1==lineid && $2/1000 < (maxdist+0)) {
           for (i=3;i<=NF;++i) {
@@ -1704,7 +1806,6 @@ EOF
     [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gawk < xpts_${LINEID}_dist_km.txt 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+$XOFFSET_NUM, \$2; runtotal=\$1+runtotal; }' | gmt psxy -p -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
 
     if [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]]; then
-      # COMEBACK
       gawk < ${LINEID}_all_data.txt '{
           if ($1 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { km[++c]=$1; }
           if ($2 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { val[++d]=$2; }
@@ -1796,6 +1897,14 @@ EOF
       echo "PROFILE_HEIGHT_IN=${PROFILE_HEIGHT_IN}" >> ${LINEID}_plot_start.sh
       echo "PROFILE_WIDTH_IN=${PROFILE_WIDTH_IN}" >> ${LINEID}_plot_start.sh
 
+
+      echo "GUESS=\$(echo \"\$PROFILE_HEIGHT_IN \$PROFILE_WIDTH_IN\" | awk '{ print 2.5414*(\$1+0) -0.5498*(\$2+0) - 0.0017 }')" >> ${LINEID}_plot_start.sh
+      echo "if [[ \$(echo \"\${PERSPECTIVE_AZ} > 180\" | bc -l) -eq 1 ]]; then" >> ${LINEID}_plot_start.sh
+        echo "xshift=\$(gawk -v height=\${GUESS} -v az=\$PERSPECTIVE_AZ 'BEGIN{print cos((270-az)*3.1415926/180)*(height+0)}')" >> ${LINEID}_plot_start.sh
+      echo "else" >> ${LINEID}_plot_start.sh
+        echo "xshift=0" >> ${LINEID}_plot_start.sh
+      echo "fi" >> ${LINEID}_plot_start.sh
+
       echo "gmt psbasemap -py\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bxaf+l\"${x_axis_label}\" -Byaf+l\"${z_axis_label}\" -BSEW -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z --MAP_FRAME_PEN=thinner,black -K > ${LINEID}_profile.ps" >> ${LINEID}_plot_start.sh
 
       # Concatenate the cross section plotting commands onto the script
@@ -1817,7 +1926,7 @@ EOF
         echo "PROFILE_DEPTH_IN=\$(echo \$PROFILE_DEPTH_RATIO \$PROFILE_HEIGHT_IN | gawk '{print (\$1*(\$2+0))}' )i"  >> ${LINEID}_topscript.sh
 
         echo "yshift=\$(gawk -v height=\${PROFILE_HEIGHT_IN} -v inc=\$PERSPECTIVE_INC 'BEGIN{print cos(inc*3.1415926/180)*(height+0)}')" >> ${LINEID}_topscript.sh
-        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" --MAP_FRAME_PEN=thinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" -X\${xshift} --MAP_FRAME_PEN=thinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
         # Draw the box at the end of the profile. For other view angles, should draw the other box?
 
@@ -1846,13 +1955,27 @@ EOF
         cat ${LINEID}_topscript.sh >> ${LINEID}_plot_start.sh
       fi
 
-      echo "echo \"\$line_max_x \$dem_maxy \$line_max_z\" > ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
-      echo "echo \"\$line_max_x \$dem_maxy \$line_min_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
-      echo "echo \"\$line_max_x \$dem_miny \$line_min_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
-      echo "echo \"\$line_max_x \$dem_miny \$line_max_z\" >> ${LINEID}_rightbox.xyz" >> ${LINEID}_topscript.sh
+      # echo "echo \"\$line_max_x \$dem_maxy \$line_max_z\" > ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+      # echo "echo \"\$line_max_x \$dem_maxy \$line_min_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+      # echo "echo \"\$line_max_x \$dem_miny \$line_min_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+      # echo "echo \"\$line_max_x \$dem_miny \$line_max_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+
+      echo "if [[ \$(echo \"\${PERSPECTIVE_AZ} > 180\" | bc -l) -eq 1 ]]; then" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_min_x \$dem_maxy \$line_max_z\" > ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_min_x \$dem_maxy \$line_min_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_min_x \$dem_miny \$line_min_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_min_x \$dem_miny \$line_max_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+      echo "else" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_max_x \$dem_maxy \$line_max_z\" > ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_max_x \$dem_maxy \$line_min_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_max_x \$dem_miny \$line_min_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_max_x \$dem_miny \$line_max_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+      echo "fi" >> ${LINEID}_topscript.sh
+
+
 
       # NO -K
-      echo "gmt psxyz ${LINEID}_rightbox.xyz -p -R -J -JZ -Wthinner,black -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+      echo "gmt psxyz ${LINEID}_endbox.xyz -p -R -J -JZ -Wthinner,black -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
 
       echo "gmt psconvert ${LINEID}_profile.ps -A+m1i -Tf -F${LINEID}_profile" >> ${LINEID}_plot_start.sh
