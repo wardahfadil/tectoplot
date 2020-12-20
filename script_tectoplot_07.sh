@@ -420,9 +420,13 @@ cat <<-EOF
   Profiles and oblique block diagrams:
     -mprof           [control_file] [[A B X Y]]          plot multiple swath profile
                      A=width (7i) B=height (2i) X,Y=offset relative to current origin (0i -3i)
-    -sprof           [lon1] [lat1] [lon2] [lat2] [width] [res]   plot an automatic profile using data on map
-                     width has units in format, e.g. 100k and is full width of profile
-                     res is the resolution at which we resample grids to make top tile grid (e.g. 1k)
+    -sprof           [lon1] [lat1] [lon2] [lat2] [width] [res]
+                        plot an automatic profile using data plotted on map
+                        width requires unit letter, e.g. 100k, and is full width of profile
+                        res is the resolution at which we resample grids to make top tile grid (e.g. 1k)
+    -aprof           [code] [width] [res]
+                        plot an automatic profile using a letter code [A-Z]
+                        width, res are same as -sprof
     -oto             adjust vertical scale (after all other options) to set V:H ratio at 1 (no exaggeration)
     -psel            [PID1] [[PID2...]]                  only plot profiles with specified PID from control file
     -mob             [[Azimuth(deg)]] [[Inclination(deg)]] [[VExagg(factor)]] [[Resolution(m)]]
@@ -1160,6 +1164,82 @@ do
     fi
     plots+=("gemfaults")
     ;;
+
+    -aprof) # args lon1 lat1 lon2 lat2 width res
+      # Create profiles by constructing a new mprof) file with relevant data types
+      aprofflag=1
+
+      rm -f aprof_profs.txt
+
+      while [[ "${2}" == [a-zA-Z][a-zA-Z] ]]; do
+        # echo $2
+        aproflist+=("${2}")
+        echo $2 | awk -v minlon=$MINLON -v maxlon=$MAXLON -v minlat=$MINLAT -v maxlat=$MAXLAT '
+         BEGIN {
+             row[1]="AFKPU"
+             row[2]="BGLQV"
+             row[3]="CHMRW"
+             row[4]="DINSX"
+             row[5]="EJOTY"
+             difflat=maxlat-minlat
+             difflon=maxlon-minlon
+
+             newdifflon=difflon*8/10
+             newminlon=minlon+difflon*1/10
+             newmaxlon=maxlon-difflon*1/10
+
+             newdifflat=difflat*8/10
+             newminlat=minlat+difflat*1/10
+             newmaxlat=maxlat-difflat*1/10
+
+             minlon=newminlon
+             maxlon=newmaxlon
+             minlat=newminlat
+             maxlat=newmaxlat
+             difflat=newdifflat
+             difflon=newdifflon
+
+             for(i=1;i<=5;i++) {
+               for(j=1; j<=5; j++) {
+                 char=toupper(substr(row[i],j,1))
+                 lats[char]=minlat+(i-1)/4*difflat
+                 lons[char]=minlon+(j-1)/4*difflon
+                 # print char, lons[char], lats[char]
+               }
+             }
+         }
+         {
+           char1=toupper(substr($0,1,1));
+           char2=toupper(substr($0,2,1));
+           print "P P_" char1 char2, "black 0 N", lons[char1], lats[char1], lons[char2], lats[char2]
+         }' >> aprof_profs.txt
+         shift
+      done
+
+      if [[ ${2:0:1} == [-] || -z $2 ]]; then
+        info_msg "[-aprof]: No width specified. Using 100k"
+        SPROFWIDTH="100k"
+      else
+        SPROFWIDTH="${2}"
+        shift
+      fi
+
+      if [[ ${2:0:1} == [-] || -z $2 ]]; then
+        info_msg "[-aprof]: No sampling interval specified. Using 1k"
+        SPROF_RES="1k"
+      else
+        SPROF_RES="${2}"
+        shift
+      fi
+
+      clipdemflag=1
+
+      # echo "aprof profiles are ${aproflist[@]} / $SPROFWIDTH / $SPROF_RES"
+      # cat aprof_profs.txt
+      plots+=("mprof")
+
+      ;;
+
 
 	-b|--slab2) # args: none || strong
 		if [[ ${2:0:1} == [-] || -z $2 ]]; then
@@ -5437,49 +5517,58 @@ for plot in ${plots[@]} ; do
       SCALECMD="-Lg${SCALEREFLON}/${SCALEREFLAT}+c${SCALELENLAT}+w${SCALELEN}+l+at+f"
       ;;
 
+    aprof)
+      awk < ../aprof_profs.txt '{ print ">"; print $2, $3; print $4, $5 }' | gmt psxy -W1p,black $RJOK $VERBOSE >> map.ps
+    ;;
+
     mprof)
 
-    if [[ $sprofflag -eq 1 ]]; then
-      info_msg "Updating mprof to use a newly generated sprof.control file"
-      PROFILE_WIDTH_IN="7i"
-      PROFILE_HEIGHT_IN="2i"
-      PROFILE_X="0"
-      PROFILE_Y="-3i"
-      MPROFFILE="sprof.control"
+      if [[ $sprofflag -eq 1 || $aprofflag -eq 1 ]]; then
+        info_msg "Updating mprof to use a newly generated sprof.control file"
+        PROFILE_WIDTH_IN="7i"
+        PROFILE_HEIGHT_IN="2i"
+        PROFILE_X="0"
+        PROFILE_Y="-3i"
+        MPROFFILE="sprof.control"
 
-      echo "@ auto auto ${SPROF_MINELEV} ${SPROF_MAXELEV} " > sprof.control
-      if [[ $plotcustomtopo -eq 1 ]]; then
-        info_msg "Adding custom topo grid to sprof"
-        echo "S $CUSTOMGRIDFILE 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
-      elif [[ -e $BATHY ]]; then
-        info_msg "Adding topography/bathymetry from map to sprof as swath and top tile"
-        echo "S dem.nc 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
-        echo "G dem.nc 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} topo.cpt" >> sprof.control
-      fi
-      if [[ -e eqs.txt ]]; then
-        info_msg "Adding eqs to sprof"
-        echo "E eqs.txt ${SPROFWIDTH} -1 -W0.2p,black -C$SEISDEPTH_CPT" >> sprof.control
-      fi
-      if [[ -e cmt.dat ]]; then
-        info_msg "Adding cmt to sprof"
-        echo "C cmt.dat ${SPROFWIDTH} -1 -L0.25p,black -Z$SEISDEPTH_CPT" >> sprof.control
-      fi
-      if [[ $volcanoesflag -eq 1 ]]; then
-        # We need to sample the DEM at the volcano point locations, or else use 0 for elevation.
-        info_msg "Adding volcanoes to sprof"
-        echo "X volcanoes.dat ${SPROFWIDTH} 0.001 -St0.1i -W0.1p,black -Gred" >> sprof.control
-      fi
-      if [[ $plotslab2 -eq 1 ]]; then
-        if [[ ! $numslab2inregion -eq 0 ]]; then
-          for i in $(seq 1 $numslab2inregion); do
-            info_msg "Adding slab grid ${slab2inregion[$i] to sprof}"
-            gridfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')
-            echo "T $gridfile -1 5k -W1p+cl -C$SEISDEPTH_CPT" >> sprof.control
-          done
+        echo "@ auto auto ${SPROF_MINELEV} ${SPROF_MAXELEV} " > sprof.control
+        if [[ $plotcustomtopo -eq 1 ]]; then
+          info_msg "Adding custom topo grid to sprof"
+          echo "S $CUSTOMGRIDFILE 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
+        elif [[ -e $BATHY ]]; then
+          info_msg "Adding topography/bathymetry from map to sprof as swath and top tile"
+          echo "S dem.nc 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
+          echo "G dem.nc 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} topo.cpt" >> sprof.control
+        fi
+        if [[ -e eqs.txt ]]; then
+          info_msg "Adding eqs to sprof"
+          echo "E eqs.txt ${SPROFWIDTH} -1 -W0.2p,black -C$SEISDEPTH_CPT" >> sprof.control
+        fi
+        if [[ -e cmt.dat ]]; then
+          info_msg "Adding cmt to sprof"
+          echo "C cmt.dat ${SPROFWIDTH} -1 -L0.25p,black -Z$SEISDEPTH_CPT" >> sprof.control
+        fi
+        if [[ $volcanoesflag -eq 1 ]]; then
+          # We need to sample the DEM at the volcano point locations, or else use 0 for elevation.
+          info_msg "Adding volcanoes to sprof"
+          echo "X volcanoes.dat ${SPROFWIDTH} 0.001 -St0.1i -W0.1p,black -Gred" >> sprof.control
+        fi
+        if [[ $plotslab2 -eq 1 ]]; then
+          if [[ ! $numslab2inregion -eq 0 ]]; then
+            for i in $(seq 1 $numslab2inregion); do
+              info_msg "Adding slab grid ${slab2inregion[$i] to sprof}"
+              gridfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')
+              echo "T $gridfile -1 5k -W1p+cl -C$SEISDEPTH_CPT" >> sprof.control
+            done
+          fi
+        fi
+        if [[ $sprofflag -eq 1 ]]; then
+          echo "P P1 black N N ${SPROFLON1} ${SPROFLAT1} ${SPROFLON2} ${SPROFLAT2}" >> sprof.control
+        fi
+        if [[ $aprofflag -eq 1 ]]; then
+          cat ../aprof_profs.txt >> sprof.control
         fi
       fi
-      echo "P P1 black N N ${SPROFLON1} ${SPROFLAT1} ${SPROFLON2} ${SPROFLAT2}" >> sprof.control
-    fi
 
       info_msg "Drawing profile(s)"
 

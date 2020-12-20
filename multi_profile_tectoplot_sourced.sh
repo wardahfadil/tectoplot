@@ -988,6 +988,7 @@ EOF
         # Notably, any TIFF can be plotted using gridview, so this approach can be generalized...
 
         if [[ $gdemtopoplotflag -eq 1 ]]; then
+
           if [[ $gdaltzerohingeflag -eq 1 ]]; then
             # We need to make a gdal color file that respects the CPT hinge value (usually 0)
             # gdaldem is a bit funny about coloring around the hinge, so do some magic to make
@@ -1051,9 +1052,10 @@ EOF
                           2 * (A/255.)*(B/255.)*(A<128) + \
                           ( 1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128) \
                         ) * 255 )" --outfile=${LINEID}_${grididnum[$i]}_colored_hillshade.tif
+
         elif [[ $tshadetopoplotflag -eq 1 ]]; then
 
-          echo "New approach for tshade on -mob..."
+          # echo "New approach for tshade on -mob..."
           # We are doing the texture shading version
           if [[ $tshadezerohingeflag -eq 1 ]]; then
             # We need to make a gdal color file that respects the CPT hinge value (usually 0)
@@ -1086,12 +1088,17 @@ EOF
           # fill NaNs
           gmt grdfill ${LINEID}_${grididnum[$i]}_newgrid.nc -An -G${LINEID}_${grididnum[$i]}_dem_no_nan.nc ${VERBOSE}
 
+          # Flip the grid vertically
+
+          gmt grdedit -Ev ${LINEID}_${grididnum[$i]}_dem_no_nan.nc -G${LINEID}_${grididnum[$i]}_dem_no_nan_flip.nc ${VERBOSE}
+          mv ${LINEID}_${grididnum[$i]}_dem_no_nan_flip.nc ${LINEID}_${grididnum[$i]}_dem_no_nan.nc
+
           # Calculate the color stretch
-          gdaldem color-relief ${LINEID}_${grididnum[$i]}_dem_no_nan.nc topocolor_km.dat ${LINEID}_${grididnum[$i]}_newgrid_colordem.tif -q
+          gdaldem color-relief ${LINEID}_${grididnum[$i]}_dem_no_nan.nc topocolor_km.dat ${LINEID}_${grididnum[$i]}_newgrid_colordem.tif -q 2>/dev/null
 
           # Calculate the texture shade
           # Project to HDF format
-          gdal_translate -of EHdr -ot Float32 ${LINEID}_${grididnum[$i]}_dem_no_nan.nc newdem.flt -q
+          gdal_translate -of EHdr -ot Float32 ${LINEID}_${grididnum[$i]}_dem_no_nan.nc newdem.flt -q 2>/dev/null
 
           # Change the ULX and ULY in the .hdr file to fool texture
           cp newdem.hdr newdem.hdr.store
@@ -1099,7 +1106,7 @@ EOF
             if ($1 == "ULXMAP") {
               print "ULXMAP         1000000.00000000"
             } else if ($1 == "ULYMAP") {
-              print "ULYMAP         1000000.00000000"
+              print "ULYMAP         -1000000.00000000"
             } else {
               printf "%s\n", $0
             }
@@ -1110,7 +1117,6 @@ EOF
 
           # texture the DEM. Pipe output to /dev/null to silence the program
           ${TEXTURE} ${TS_FRAC} newdem.flt texture.flt  > /dev/null 2>&1
-          echo calling texture
 
           # ~/Dropbox/scripts/tectoplot/texture_shader/texture 0.66 newdem.flt texture.flt
           # Change the limits for the header
@@ -1121,23 +1127,25 @@ EOF
             if ($1 == "xllcorner") {
               printf "xllcorner     0\n"
             } else if ($1 == "yllcorner") {
-              printf "yllcorner     %f\n", -(yval)
+              printf "yllcorner     %f\n", (yval)
             } else {
               printf "%s\n", $0
             }
           }' > texture.hdr.2
-          mv texture.hdr.2 texture.hdr
+          cp texture.hdr.2 texture.hdr
 
           # make the image. Pipe output to /dev/null to silence the program
           ${TEXTURE_IMAGE} +${TS_STRETCH} texture.flt out_texture.tif > /dev/null 2>&1
-          
-          gmt grdedit -T out_texture.tif -Gtt.tif ${VERBOSE}
+
+          gmt grdedit -T out_texture.tif -Gtt_unflipped.tif ${VERBOSE}
+          gmt grdedit -Ev tt_unflipped.tif -Gtt.tif ${VERBOSE}
 
           # Change to 8 bit unsigned format
-          gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 tt.tif ${LINEID}_${grididnum[$i]}_texture.tif -q
+          # This also flips the tiff upside down for some reason. So pre-flip it above.
+          gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 tt.tif ${LINEID}_${grididnum[$i]}_texture.tif -q 2>/dev/null
 
           # Calculate the multidirectional hillshade
-          gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s 111120 ${LINEID}_${grididnum[$i]}_dem_no_nan.nc ${LINEID}_${grididnum[$i]}_hs_md.tif -q
+          gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s 111120 ${LINEID}_${grididnum[$i]}_dem_no_nan.nc ${LINEID}_${grididnum[$i]}_hs_md.tif -q 2>/dev/null
 
           # Combine the hillshade and texture into a blended, gamma corrected image
           gdal_calc.py --quiet -A ${LINEID}_${grididnum[$i]}_hs_md.tif -B ${LINEID}_${grididnum[$i]}_texture.tif --outfile=${LINEID}_${grididnum[$i]}_newgrid_gamma_hs.tif --calc="uint8( ( ((A/255.)*(${TS_TEXTUREBLEND}) + (B/255.)*(1-${TS_TEXTUREBLEND}) ) )**(1/${TS_GAMMA}) * 255)"
@@ -1148,7 +1156,8 @@ EOF
                           ( 1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128) \
                         ) * 255 )" --outfile=${LINEID}_${grididnum[$i]}_colored_hillshade.tif
 
-          gmt grdimage ${LINEID}_${grididnum[$i]}_colored_hillshade.tif -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
+          # This line being here was a copy/paste bug!
+          # gmt grdimage ${LINEID}_${grididnum[$i]}_colored_hillshade.tif -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
         fi
 
 ###     The following script fragment will require the following variables to be defined in the script:
@@ -1163,9 +1172,16 @@ EOF
         echo "PROFILE_DEPTH_RATIO=\$(echo \"(\$dem_maxy - \$dem_miny) / (\$line_max_x - \$line_min_x)\" | bc -l)"  >> ${LINEID}_topscript.sh
         echo "PROFILE_DEPTH_IN=\$(echo \$PROFILE_DEPTH_RATIO \$PROFILE_WIDTH_IN | gawk '{print (\$1*(\$2+0))}' )i"  >> ${LINEID}_topscript.sh
 
+        echo "GUESS=\$(echo \"\$PROFILE_HEIGHT_IN \$PROFILE_DEPTH_IN\" | awk '{ print (\$1+0)-(\$2+0) }')" >> ${LINEID}_topscript.sh
+        echo "if [[ \$(echo \"\${PERSPECTIVE_AZ} > 180\" | bc -l) -eq 1 ]]; then" >> ${LINEID}_topscript.sh
+        echo "  xshift=\$(gawk -v height=\${GUESS} -v az=\$PERSPECTIVE_AZ 'BEGIN{print cos((270-az)*3.1415926/180)*(height+0)}')"  >> ${LINEID}_topscript.sh
+        echo "else" >> ${LINEID}_topscript.sh
+        echo "  xshift=0" >> ${LINEID}_topscript.sh
+        echo "fi" >> ${LINEID}_topscript.sh
+
         echo "yshift=\$(gawk -v height=\${PROFILE_HEIGHT_IN} -v inc=\$PERSPECTIVE_INC 'BEGIN{print cos(inc*3.1415926/180)*(height+0)}')" >> ${LINEID}_topscript.sh
 
-        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" -X\${xshift} --MAP_FRAME_PEN=thinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" -X\${xshift}i --MAP_FRAME_PEN=thinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
         # If we have an end-cap plot (e.g. litho1), plot that here.
         # Data needs to be plottable by psxyz
@@ -1213,7 +1229,7 @@ EOF
 
         gawk < ${gridcptlist[$i]} -v sc=${gridzscalelist[$i]} '{ if ($1 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { print $1*sc "\t" $2 "\t" $3*sc "\t" $4} else {print}}' > ${LINEID}_topokm.cpt
 
-        if [[ $gdemtopoplotflag -eq 1 ]]; then
+        if [[ $gdemtopoplotflag -eq 1 || $tshadetopoplotflag -eq 1 ]]; then
           echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc  -G${LINEID}_${grididnum[$i]}_colored_hillshade.tif -p -Qi300 -R -J -JZ -O  >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
           # echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc -G${LINEID}_${grididnum[$i]}_colored_hillshade.tif -Qi300 -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -J -JZ\${ZSIZE}i -O -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_min_z} -Y\${yshift}i >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
         else
@@ -1898,7 +1914,7 @@ EOF
       echo "PROFILE_WIDTH_IN=${PROFILE_WIDTH_IN}" >> ${LINEID}_plot_start.sh
 
 
-      echo "GUESS=\$(echo \"\$PROFILE_HEIGHT_IN \$PROFILE_WIDTH_IN\" | awk '{ print 2.5414*(\$1+0) -0.5498*(\$2+0) - 0.0017 }')" >> ${LINEID}_plot_start.sh
+      echo "GUESS=\$(echo \"\$PROFILE_HEIGHT_IN \$PROFILE_WIDTH_IN\" | awk '{ print 2.5414*(\$1+0) -0.5414*(\$2+0) - 0.0000  }')" >> ${LINEID}_plot_start.sh
       echo "if [[ \$(echo \"\${PERSPECTIVE_AZ} > 180\" | bc -l) -eq 1 ]]; then" >> ${LINEID}_plot_start.sh
         echo "xshift=\$(gawk -v height=\${GUESS} -v az=\$PERSPECTIVE_AZ 'BEGIN{print cos((270-az)*3.1415926/180)*(height+0)}')" >> ${LINEID}_plot_start.sh
       echo "else" >> ${LINEID}_plot_start.sh
@@ -1925,8 +1941,15 @@ EOF
         echo "PROFILE_DEPTH_RATIO=1" >> ${LINEID}_topscript.sh
         echo "PROFILE_DEPTH_IN=\$(echo \$PROFILE_DEPTH_RATIO \$PROFILE_HEIGHT_IN | gawk '{print (\$1*(\$2+0))}' )i"  >> ${LINEID}_topscript.sh
 
+        echo "GUESS=\$(echo \"\$PROFILE_HEIGHT_IN \$PROFILE_DEPTH_IN\" | awk '{ print (\$1+0)-(\$2+0) }')" >> ${LINEID}_topscript.sh
+        echo "if [[ \$(echo \"\${PERSPECTIVE_AZ} > 180\" | bc -l) -eq 1 ]]; then" >> ${LINEID}_topscript.sh
+        echo "  xshift=\$(gawk -v height=\${GUESS} -v az=\$PERSPECTIVE_AZ 'BEGIN{print cos((270-az)*3.1415926/180)*(height+0)}')"  >> ${LINEID}_topscript.sh
+        echo "else" >> ${LINEID}_topscript.sh
+        echo "  xshift=0" >> ${LINEID}_topscript.sh
+        echo "fi" >> ${LINEID}_topscript.sh
+
         echo "yshift=\$(gawk -v height=\${PROFILE_HEIGHT_IN} -v inc=\$PERSPECTIVE_INC 'BEGIN{print cos(inc*3.1415926/180)*(height+0)}')" >> ${LINEID}_topscript.sh
-        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" -X\${xshift} --MAP_FRAME_PEN=thinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" -X\${xshift}i --MAP_FRAME_PEN=thinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
         # Draw the box at the end of the profile. For other view angles, should draw the other box?
 
