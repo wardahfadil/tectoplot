@@ -1,0 +1,62 @@
+# This file contains whitespace delimited text. The first column is the filename
+# (no whitespace please) and the remaining columns contain field[unit] codes.
+eqs.txt                 longitude[degrees] latitude[degrees] depth[km] magnitude[mw] timecode[YYYY-MM-DDTHH:MM:SS] id[string] epoch[seconds]
+eq_culled.txt           longitude[degrees] latitude[degrees] depth[km] magnitudescaled[mw] timecode[YYYY-MM-DDTHH:MM:SS] id[string] epoch[seconds]
+eqs_scaled.txt          longitude[degrees] latitude[degrees] depth[km] magnitudescaled[mw] timecode[YYYY-MM-DDTHH:MM:SS] id[string] epoch[seconds]
+removed_eqs.txt	        longitude[degrees] latitude[degrees] depth[km] magnitude[mw] timecode[YYYY-MM-DDTHH:MM:SS] id[string] epoch[seconds]
+removed_eqs_scaled.txt	longitude[degrees] latitude[degrees] depth[km] magnitudescaled[mw] timecode[YYYY-MM-DDTHH:MM:SS] id[string] epoch[seconds]
+t_axes_thrust.txt       longitude[degrees] latitude[degrees] azimuth[degrees] inclination[degrees]
+n_axes_thrust.txt       longitude[degrees] latitude[degrees] azimuth[degrees] inclination[degrees]
+p_axes_thrust.txt       longitude[degrees] latitude[degrees] azimuth[degrees] inclination[degrees]
+t_axes_normal.txt       longitude[degrees] latitude[degrees] azimuth[degrees] inclination[degrees]
+n_axes_normal.txt       longitude[degrees] latitude[degrees] azimuth[degrees] inclination[degrees]
+p_axes_normal.txt       longitude[degrees] latitude[degrees] azimuth[degrees] inclination[degrees]
+t_axes_strikeslip.txt   longitude[degrees] latitude[degrees] azimuth[degrees] inclination[degrees]
+n_axes_strikeslip.txt   longitude[degrees] latitude[degrees] azimuth[degrees] inclination[degrees]
+p_axes_strikeslip.txt   longitude[degrees] latitude[degrees] azimuth[degrees] inclination[degrees]
+cmt_orig.dat            idcode[string] event_code[string] timecode[YYYY-MM-DDTHH:MM:SS] epoch[seconds] lon_centroid[degrees] lat_centroid[degrees] depth_centroid[km] lon_origin[degrees] lat_origin[degrees] depth_origin[km] author_centroid[string] author_origin[string] magnitude[mw] mantissa[number] exponent[integer] strike1[degrees] dip1[degrees] rake1[degrees] strike2[degrees] dip2[degrees] rake2[degrees] exponent[integer] tval[number] taz[degrees] tinc[degrees] nval[number] naz[degrees] ninc[degrees] pval[number] paz[degrees] pinc[degrees] exponent[integer] mrr[number] mtt[number] mpp[number] mrt[number] mrp[number] mtp[number] centroid_dt[seconds]
+cmt_combined_aoi.dat            idcode[string] event_code[string] timecode[YYYY-MM-DDTHH:MM:SS] epoch[seconds] lon_centroid[degrees] lat_centroid[degrees] depth_centroid[km] lon_origin[degrees] lat_origin[degrees] depth_origin[km] author_centroid[string] author_origin[string] magnitude[mw] mantissa[number] exponent[integer] strike1[degrees] dip1[degrees] rake1[degrees] strike2[degrees] dip2[degrees] rake2[degrees] exponent[integer] tval[number] taz[degrees] tinc[degrees] nval[number] naz[degrees] ninc[degrees] pval[number] paz[degrees] pinc[degrees] exponent[integer] mrr[number] mtt[number] mpp[number] mrt[number] mrp[number] mtp[number] centroid_dt[seconds]
+cmt_scale.dat            idcode[string] event_code[string] timecode[YYYY-MM-DDTHH:MM:SS] epoch[seconds] lon_centroid[degrees] lat_centroid[degrees] depth_centroid[km] lon_origin[degrees] lat_origin[degrees] depth_origin[km] author_centroid[string] author_origin[string] magnitude[mw] mantissa[number] exponent[integer] strike1[degrees] dip1[degrees] rake1[degrees] strike2[degrees] dip2[degrees] rake2[degrees] exponent[integer] tval[number] taz[degrees] tinc[degrees] nval[number] naz[degrees] ninc[degrees] pval[number] paz[degrees] pinc[degrees] exponent[integer] mrr[number] mtt[number] mpp[number] mrt[number] mrp[number] mtp[number] centroid_dt[seconds]
+kin_thrust.txt          longitude[degrees] latitude[degrees] depth[km] strike1[degrees] dip1[degrees] rake1[degrees] strike2[degrees] dip2[degrees] rake2[degrees] mantissa[number] exponent[integer] altlon[degrees] altlat[degrees] event_code[string] altdepth[km]
+kin_normal.txt          longitude[degrees] latitude[degrees] depth[km] strike1[degrees] dip1[degrees] rake1[degrees] strike2[degrees] dip2[degrees] rake2[degrees] mantissa[number] exponent[integer] altlon[degrees] altlat[degrees] event_code[string] altdepth[km]
+kin_strikeslip.txt      longitude[degrees] latitude[degrees] depth[km] strike1[degrees] dip1[degrees] rake1[degrees] strike2[degrees] dip2[degrees] rake2[degrees] mantissa[number] exponent[integer] altlon[degrees] altlat[degrees] event_code[string] altdepth[km]
+kin_orig.dat            idcode[string] event_code[string] timecode[YYYY-MM-DDTHH:MM:SS] epoch[seconds] lon_centroid[degrees] lat_centroid[degrees] depth_centroid[km] lon_origin[degrees] lat_origin[degrees] depth_origin[km] author_centroid[string] author_origin[string] magnitude[mw] mantissa[number] exponent[integer] strike1[degrees] dip1[degrees] rake1[degrees] strike2[degrees] dip2[degrees] rake2[degrees] exponent[integer] tval[number] taz[degrees] tinc[degrees] nval[number] naz[degrees] ninc[degrees] pval[number] paz[degrees] pinc[degrees] exponent[integer] mrr[number] mtt[number] mpp[number] mrt[number] mrp[number] mtp[number] centroid_dt[seconds]
+gridcorners.txt         longitude[degrees] latitude[degrees] null
+clippoly.txt            longitude[degrees] latitude[degrees]
+normal_slip_vectors_np1.txt      longitude[degrees] latitude[degrees] azimuth[degrees] length[pagedist]
+normal_slip_vectors_np2.txt      longitude[degrees] latitude[degrees] azimuth[degrees] length[pagedist]
+strikeslip_slip_vectors_np1.txt  longitude[degrees] latitude[degrees] azimuth[degrees] length[pagedist]
+strikeslip_slip_vectors_np2.txt  longitude[degrees] latitude[degrees] azimuth[degrees] length[pagedist]
+thrust_gen_slip_vectors_np1.txt  longitude[degrees] latitude[degrees] azimuth[degrees] length[pagedist]
+thrust_gen_slip_vectors_np1_downdip.txt   longitude[degrees] latitude[degrees] azimuth[degrees] length[pagedist]
+thrust_gen_slip_vectors_np1_str.txt  longitude[degrees] latitude[degrees] azimuth[degrees] length[pagedist]
+thrust_gen_slip_vectors_np2.txt  longitude[degrees] latitude[degrees] azimuth[degrees] length[pagedist]
+thrust_gen_slip_vectors_np2_downdip.txt   longitude[degrees] latitude[degrees] azimuth[degrees] length[pagedist]
+thrust_gen_slip_vectors_np2_str.txt   longitude[degrees] latitude[degrees] azimuth[degrees] length[pagedist]
+volcanoes.dat           longitude[degrees] latitude[degrees] elevation[meters]
+
+
+
+# tectoplot can query a file in an output folder and report the field[unit] for a column number.
+# ~/# tectoplot -query eqs.txt 4 6 8
+# magnitude[mw] id[string] null[null]
+# tectoplot can also output fields from a file in a specified order, with or without headers:
+# ~/# tectoplot -query eqs.txt 6 4 header data
+# id[string] magnitude[mw]
+# u01a452 6.7
+# cm1242562 2.1
+# ...
+# ~/# tectoplot -query eqs.txt 6 4 header nounits data
+# id magnitude
+# u01a452 6.7
+# cm1242562 2.1
+# ...
+# ~/# tectoplot -query eqs.txt 6 4 8 header nounits csv data
+# id,magnitude
+# u01a452,6.7,null
+# cm1242562,2.1,null
+# ...
+# ~/# tectoplot -query eqs.txt latitude longitude magnitude header nounits csv data
+# latitude,longitude,magnitude
+# -111.314,33.45,6.4
+# ...
