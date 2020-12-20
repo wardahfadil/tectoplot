@@ -1155,9 +1155,6 @@ EOF
                           2 * (A/255.)*(B/255.)*(A<128) + \
                           ( 1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128) \
                         ) * 255 )" --outfile=${LINEID}_${grididnum[$i]}_colored_hillshade.tif
-
-          # This line being here was a copy/paste bug!
-          # gmt grdimage ${LINEID}_${grididnum[$i]}_colored_hillshade.tif -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
         fi
 
 ###     The following script fragment will require the following variables to be defined in the script:
