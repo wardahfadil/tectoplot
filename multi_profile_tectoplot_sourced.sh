@@ -576,7 +576,6 @@ for i in $(seq 1 $k); do
 
     THISP_AZ=$(head -n 1 az_${LINEID}_trackfile.txt | awk '{print $3}')
 
-    echo "profile Az=$THISP_AZ"
     # A hillshade of the profile will need to be adjusted by
     # az=0/360 a2=az+a+90
     # az=45
@@ -588,7 +587,6 @@ for i in $(seq 1 $k); do
       print val
     }')
 
-    echo "New HS AZ = $THISP_HS_AZ"
 
     LINETOTAL=$(wc -l < jointrack_${LINEID}.txt)
     cat jointrack_${LINEID}.txt | gawk -v width="${MAXWIDTH_KM}" -v color="${COLOR}" -v lineval="${LINETOTAL}" -v lineid=${LINEID} '
@@ -1146,7 +1144,6 @@ EOF
           # Combine the hillshade and texture into a blended, gamma corrected image
           gdal_calc.py --quiet -A ${LINEID}_${grididnum[$i]}_hs_md.tif -B ${LINEID}_${grididnum[$i]}_texture.tif --outfile=${LINEID}_${grididnum[$i]}_intensity.tif --calc="uint8( ( ((A/255.)*(${TS_TEXTUREBLEND}) + (B/255.)*(1-${TS_TEXTUREBLEND}) ) )**(1/${TS_GAMMA}) * 255)"
         else
-          echo using THISP_HS_AZ=$THISP_HS_AZ
           gdaldem color-relief ${LINEID}_${grididnum[$i]}_newgrid.nc topocolor_km.dat ${LINEID}_${grididnum[$i]}_colordem.tif -q
           gdaldem hillshade -compute_edges -az ${THISP_HS_AZ} -alt ${HS_ALT} -s 1 ${LINEID}_${grididnum[$i]}_newgrid.nc ${LINEID}_${grididnum[$i]}_intensity.tif -q
         fi
