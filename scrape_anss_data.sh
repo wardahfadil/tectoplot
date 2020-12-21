@@ -70,6 +70,7 @@ if [[ -e anss.cat ]]; then
   lastevent_timecode=${lastevent[4]}
   lastevent_epoch=${lastevent[6]}
 else
+  makenewcatalogflag=1
   lastevent_timecode="0000-00-00T00:00:00"
   lastevent_epoch=-9999999999999
 fi
@@ -188,33 +189,34 @@ for ((i=${#files[@]}-1; i>=0; i--)); do
     fi
 done
 
-if [[ -e add_to_catalog.cat ]]; then
-  sort add_to_catalog.cat -n -k 7 >> $EQCATALOG
-  echo "Added $(wc -l < add_to_catalog.cat | gawk '{print $1}') events to seismicity catalog"
-  rm -f add_to_catalog.cat
+if [[ $makenewcatalogflag -eq 1 ]]; then
+  cat anss_events_* | gawk -F, '{
+    if ($4 && $5 && $1 != "time") {
+      timecode=substr($1, 1, 19)
+      split(timecode, a, "-")
+      year=a[1]
+      month=a[2]
+      split(a[3],b,"T")
+      day=b[1]
+      split(b[2],c,":")
+      hour=c[1]
+      minute=c[2]
+      second=c[3]
+      the_time=sprintf("%i %i %i %i %i %i",year,month,day,hour,minute,int(second+0.5));
+      epoch=mktime(the_time);
+      print $3, $2, $4, $5, timecode, $12, epoch
+    }
+  }' | sort -n -k 7 > $EQCATALOG
 else
-  echo "No new events"
+  if [[ -e add_to_catalog.cat ]]; then
+    sort add_to_catalog.cat -n -k 7 >> $EQCATALOG
+    echo "Added $(wc -l < add_to_catalog.cat | gawk '{print $1}') events to seismicity catalog"
+    rm -f add_to_catalog.cat
+  else
+    echo "No new events"
+  fi
 fi
 
-#
-#
-# cat anss_events_* | gawk -F, '{
-#   if ($4 && $5 && $1 != "time") {
-#     timecode=substr($1, 1, 19)
-#     split(timecode, a, "-")
-#     year=a[1]
-#     month=a[2]
-#     split(a[3],b,"T")
-#     day=b[1]
-#     split(b[2],c,":")
-#     hour=c[1]
-#     minute=c[2]
-#     second=c[3]
-#     the_time=sprintf("%i %i %i %i %i %i",year,month,day,hour,minute,int(second+0.5));
-#     epoch=mktime(the_time);
-#     print $3, $2, $4, $5, timecode, $12, epoch
-#   }
-# }' | sort -n -k 7 > $EQCATALOG
 
 
   #

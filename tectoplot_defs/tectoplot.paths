@@ -277,8 +277,6 @@ ANSS_EQ_SHORT_SOURCESTRING="ANSS"
 ANSSDIR=$DATAROOT"ANSS/"
 ANSS_EQ_CATALOG=${ANSSDIR}"anss.cat"
 
-
-
 # mirror:
 ISC_MIRROR="http://isc-mirror.iris.washington.edu"
 # Expects EQCATALOG, ANSSDIR to be set

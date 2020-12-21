@@ -9,6 +9,7 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 
 # CHANGELOG
 
+# December 20, 2020: Added -aprof and -aprofcodes options to allow easier -sprof type profile selection
 # December 19, 2020: Updated profile to include texture shading for top tile (kind of strange but seems to work...)
 # December 18, 2020: Added -tshade option to use Leland Brown's texture shading (added C code in tectoplot dir)
 # December 17, 2020: Removed buffering from profile script, as it is not needed and sqlite has annoying messages
@@ -76,7 +77,9 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 # October   9, 2020: Update seismicity for legend plot using SEISSTRETCH
 
 # FUN FACTS:
-# You can make a Minecraft landscape in oblique perspective diagrams if you oversample the grid.
+# You can make a Minecraft landscape in oblique perspective diagrams if you
+# undersample the profile relative to the top grid.
+# tectoplot -t -aprof HX 250k 5k -mob 130 20 5 0.1
 #
 # # KNOWN BUGS:
 # tectoplot remake seems broken?
@@ -424,9 +427,10 @@ cat <<-EOF
                         plot an automatic profile using data plotted on map
                         width requires unit letter, e.g. 100k, and is full width of profile
                         res is the resolution at which we resample grids to make top tile grid (e.g. 1k)
-    -aprof           [code] [width] [res]
-                        plot an automatic profile using a letter code [A-Z]
-                        width, res are same as -sprof
+    -aprof           [code1] [[code2 ...]] [width] [res]
+                        plot an automatic profile using a code made of two letters: [A-Y][A-Y]
+                        width, res are same as -sprof (both need unit letter such as k)
+    -aprofcodes      plot the points and letters for the -aprof codes on the map
     -oto             adjust vertical scale (after all other options) to set V:H ratio at 1 (no exaggeration)
     -psel            [PID1] [[PID2...]]                  only plot profiles with specified PID from control file
     -mob             [[Azimuth(deg)]] [[Inclination(deg)]] [[VExagg(factor)]] [[Resolution(m)]]
@@ -1238,7 +1242,17 @@ do
       # cat aprof_profs.txt
       plots+=("mprof")
 
-      ;;
+    ;;
+  -aprofcodes)
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-aprofcodes]: No character string given. Plotting all codes."
+      APROFCODES="ABCDEFGHIJKLMNOPQRSTUVWXY"
+    else
+      APROFCODES="${2}"
+      shift
+    fi
+      plots+=("aprofcodes")
+    ;;
 
 
 	-b|--slab2) # args: none || strong
@@ -3352,9 +3366,7 @@ legendwords=${plots[@]}
 MSG=$(echo ">>>>>>>>> Legend order is ${legendwords[@]} <<<<<<<<<<<<<")
 [[ $narrateflag -eq 1 ]] && echo $MSG
 
-# Just make a giant page and trim it later using gmt psconvert -A+m
 
-gmt gmtset PS_MEDIA 100ix100i
 
 ################################################################################
 #####          Create and change into the temporary directory              #####
@@ -3497,8 +3509,14 @@ elif [[ $(echo "$GRIDSP > 0.2" | bc) -eq 1 ]]; then
 	GRIDSP=0.2
 elif [[ $(echo "$GRIDSP > 0.1" | bc) -eq 1 ]]; then
 	GRIDSP=0.1
+elif [[ $(echo "$GRIDSP > 0.05" | bc) -eq 1 ]]; then
+  GRIDSP=0.05
+elif [[ $(echo "$GRIDSP > 0.02" | bc) -eq 1 ]]; then
+  GRIDSP=0.02
+elif [[ $(echo "$GRIDSP > 0.01" | bc) -eq 1 ]]; then
+  GRIDSP=0.01
 else
-	GRIDSP=0.01
+	GRIDSP=0.005
 fi
 
 info_msg "updated grid spacing = $GRIDSP"
@@ -4987,11 +5005,16 @@ echo "%TECTOPLOT: ${COMMAND}" >> map.ps
 
 # Set up default look of the map. This should be shipped to a configuration file.
 
-gmt gmtset FONT_ANNOT_PRIMARY 7 FONT_LABEL 7 MAP_FRAME_WIDTH 0.15c FONT_TITLE 18p,Palatino-BoldItalic
-gmt gmtset MAP_FRAME_PEN 0.5p,black
 
 # Before we plot anything but after we have done the data processing, set any
 # GMT variables that are given on the command line using -gmtvars { A val ... }
+
+##### Set GMT parameters as defaults may vary with user
+# Just make a giant page and trim it later using gmt psconvert -A+m
+
+gmt gmtset PS_MEDIA 100ix100i PS_PAGE_ORIENTATION portrait MAP_VECTOR_SHAPE 0.5
+gmt gmtset FONT_ANNOT_PRIMARY 7 FONT_LABEL 7 MAP_FRAME_WIDTH 0.15c FONT_TITLE 18p,Palatino-BoldItalic
+gmt gmtset MAP_FRAME_PEN 0.5p,black
 
 if [[ $usecustomgmtvars -eq 1 ]]; then
   info_msg "gmt gmtset ${GMTVARS[@]}"
@@ -5517,8 +5540,50 @@ for plot in ${plots[@]} ; do
       SCALECMD="-Lg${SCALEREFLON}/${SCALEREFLAT}+c${SCALELENLAT}+w${SCALELEN}+l+at+f"
       ;;
 
-    aprof)
-      awk < ../aprof_profs.txt '{ print ">"; print $2, $3; print $4, $5 }' | gmt psxy -W1p,black $RJOK $VERBOSE >> map.ps
+    aprofcodes)
+    echo "$APROFCODES" | awk -v minlon=$MINLON -v maxlon=$MAXLON -v minlat=$MINLAT -v maxlat=$MAXLAT '
+       BEGIN {
+           row[1]="AFKPU"
+           row[2]="BGLQV"
+           row[3]="CHMRW"
+           row[4]="DINSX"
+           row[5]="EJOTY"
+           difflat=maxlat-minlat
+           difflon=maxlon-minlon
+
+           newdifflon=difflon*8/10
+           newminlon=minlon+difflon*1/10
+           newmaxlon=maxlon-difflon*1/10
+
+           newdifflat=difflat*8/10
+           newminlat=minlat+difflat*1/10
+           newmaxlat=maxlat-difflat*1/10
+
+           minlon=newminlon
+           maxlon=newmaxlon
+           minlat=newminlat
+           maxlat=newmaxlat
+           difflat=newdifflat
+           difflon=newdifflon
+
+           for(i=1;i<=5;i++) {
+             for(j=1; j<=5; j++) {
+               char=toupper(substr(row[i],j,1))
+               lats[char]=minlat+(i-1)/4*difflat
+               lons[char]=minlon+(j-1)/4*difflon
+               # print char, lons[char], lats[char]
+             }
+           }
+       }
+       {
+         for(i=1;i<=length($0);++i) {
+           char1=toupper(substr($0,i,1));
+           print lons[char1], lats[char1], char1
+         }
+       }' >> aprof_codes.txt
+
+      gmt pstext aprof_codes.txt -F+f14p,Helvetica,black $RJOK $VERBOSE >> map.ps
+      # awk < ../aprof_profs.txt '{ print ">"; print $2, $3; print $4, $5 }' | gmt psxy -W1p,black $RJOK $VERBOSE >> map.ps
     ;;
 
     mprof)
@@ -6484,6 +6549,29 @@ for plot in ${plots[@]} ; do
         gmt grdimage colored_hillshade.tif -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
       else
         if [[ $dontplottopoflag -eq 0 ]]; then
+
+          CPTHINGE=0
+          gawk < $TOPO_CPT -v hinge=$CPTHINGE '{
+            if ($1 != "B" && $1 != "F" && $1 != "N" ) {
+              if (count==1) {
+                print $1+0.01, $2, $3, $4
+                count=2
+              } else {
+                print $1, $2, $3, $4
+              }
+
+              if ($3 == hinge) {
+                if (count==0) {
+                  print $1, $2, $3-0.0001, $4
+                  count=1
+                }
+              }
+            }
+          else { print }
+          }'| tr ' ' '\t' > topo_color.cpt
+
+
+
           gmt grdimage $BATHY ${ILLUM} -t$TOPOTRANS -C$TOPO_CPT $RJOK ${VERBOSE} >> map.ps
         else
           info_msg "Plotting of topo shaded relief suppressed by -ts"
