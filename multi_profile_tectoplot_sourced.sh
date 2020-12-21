@@ -554,6 +554,8 @@ for i in $(seq 1 $k); do
     # Comes within 0.2 degrees of geod() results over large distances, while being symmetrical which geod isn't
     # We need perfect symmetry in order to create exact point pairs in adjacent polygons
 
+    # Note: this calculates the NORMAL DIRECTION to the profile and not its AZIMUTH
+
     gawk < geodin_${LINEID}_trackfile.txt 'function acos(x) { return atan2(sqrt(1-x*x), x) }
         {
             lon1 = $1*3.14159265358979/180;
@@ -569,6 +571,24 @@ for i in $(seq 1 $k); do
         }' > az_${LINEID}_trackfile.txt
 
     paste ${LINEID}_trackfile.txt az_${LINEID}_trackfile.txt > jointrack_${LINEID}.txt
+
+    # The azimuth of the profile is the azimuth of its first segment.
+
+    THISP_AZ=$(head -n 1 az_${LINEID}_trackfile.txt | awk '{print $3}')
+
+    echo "profile Az=$THISP_AZ"
+    # A hillshade of the profile will need to be adjusted by
+    # az=0/360 a2=az+a+90
+    # az=45
+    THISP_HS_AZ=$(echo $THISP_AZ $HS_AZ | awk '{
+      val=$2+(90-$1)-90;
+      while(val>360) {
+        val=val-360;
+      }
+      print val
+    }')
+
+    echo "New HS AZ = $THISP_HS_AZ"
 
     LINETOTAL=$(wc -l < jointrack_${LINEID}.txt)
     cat jointrack_${LINEID}.txt | gawk -v width="${MAXWIDTH_KM}" -v color="${COLOR}" -v lineval="${LINETOTAL}" -v lineid=${LINEID} '
@@ -987,44 +1007,52 @@ EOF
 
         # Notably, any TIFF can be plotted using gridview, so this approach can be generalized...
 
-        if [[ $gdemtopoplotflag -eq 1 ]]; then
+        # topocolor.dat will already exist at this point for all topo grids but may not if the top tile
+        # is not a topo grid.
 
-          if [[ $gdaltzerohingeflag -eq 1 ]]; then
-            # We need to make a gdal color file that respects the CPT hinge value (usually 0)
-            # gdaldem is a bit funny about coloring around the hinge, so do some magic to make
-            # the color from land not bleed to the hinge elevation.
-            CPTHINGE=0
 
-            # Need to rescale the Z values by multiplying by ${gridzscalelist[$i]}
-            # This is because CPTS are given in source data units and not scaled units.
 
-            gawk < $TOPO_CPT -v hinge=$CPTHINGE -v scale=${gridzscalelist[$i]} '{
-              if ($1 != "B" && $1 != "F" && $1 != "N" ) {
-                if (count==1) {
-                  print ($1+0.01)*scale, $2
-                  count=2
-                } else {
-                  print $1*scale, $2
-                }
 
-                if ($3 == hinge) {
-                  if (count==0) {
-                    print ($3-0.0001)*scale, $4
-                    count=1
-                  }
+
+
+        if [[ $zerohingeflag -eq 1 ]]; then
+          # We need to make a gdal color file that respects the CPT hinge value (usually 0)
+          # gdaldem is a bit funny about coloring around the hinge, so do some magic to make
+          # the color from land not bleed to the hinge elevation.
+
+          # Need to rescale the Z values by multiplying by ${gridzscalelist[$i]}
+          # This is because CPTS are given in source data units and not scaled units.
+
+          gawk < $TOPO_CPT -v hinge=$CPTHINGE -v scale=${gridzscalelist[$i]} '{
+            if ($1 != "B" && $1 != "F" && $1 != "N" ) {
+              if (count==1) {
+                print ($1+0.01)*scale, $2
+                count=2
+              } else {
+                print $1*scale, $2
+              }
+
+              if ($3 == hinge) {
+                if (count==0) {
+                  print ($3-0.0001)*scale, $4
+                  count=1
                 }
               }
-            }' | tr '/' ' ' > topocolor_km.dat
-          else
-            gawk < $TOPO_CPT -v scale=${gridzscalelist[$i]} '{ print $1*scale, $2 }' | tr '/' ' ' > topocolor_km.dat
-          fi
+            }
+          }' | tr '/' ' ' > topocolor_km.dat
+        else
+          gawk < $TOPO_CPT -v scale=${gridzscalelist[$i]} '{ print $1*scale, $2 }' | tr '/' ' ' > topocolor_km.dat
+        fi
+
+
+        if [[ $gdemtopoplotflag -eq 1 ]]; then
 
           # Calculate the color stretch
-          gdaldem color-relief ${LINEID}_${grididnum[$i]}_newgrid.nc topocolor_km.dat ${LINEID}_${grididnum[$i]}_newgrid_colordem.tif -q
+          gdaldem color-relief ${LINEID}_${grididnum[$i]}_newgrid.nc topocolor_km.dat ${LINEID}_${grididnum[$i]}_colordem.tif -q
 
           # Calculate the multidirectional hillshade
           # s factor is 1 as our DEM is in km/km/km units
-          gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s 1 ${LINEID}_${grididnum[$i]}_newgrid.nc ${LINEID}_${grididnum[$i]}_hs_md.tif -q
+          gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -az ${THISP_HS_AZ} -s 1 ${LINEID}_${grididnum[$i]}_newgrid.nc ${LINEID}_${grididnum[$i]}_hs_md.tif -q
           # gdaldem hillshade -combined -s 111120 dem.nc hs_c.tif -q
 
           # Clip the hillshade to reduce extreme bright and extreme dark areas
@@ -1044,44 +1072,12 @@ EOF
           # A hillshade is mostly gray (127) while a slope map is mostly white (255)
 
           # Combine the hillshade and slopeshade into a blended, gamma corrected image
-          gdal_calc.py --quiet -A ${LINEID}_${grididnum[$i]}_hs_md.tif -B ${LINEID}_${grididnum[$i]}_slopeshade.tif --outfile=${LINEID}_${grididnum[$i]}_gamma_hs.tif --calc="uint8( ( ((A/255.)*(${HSSLOPEBLEND}) + (B/255.)*(1-${HSSLOPEBLEND}) ) )**(1/${HS_GAMMA}) * 255)"
-
-          # Combine the shaded relief and color stretch using a multiply scheme
-
-          gdal_calc.py --quiet -A ${LINEID}_${grididnum[$i]}_gamma_hs.tif -B ${LINEID}_${grididnum[$i]}_newgrid_colordem.tif --allBands=B --calc="uint8( ( \
-                          2 * (A/255.)*(B/255.)*(A<128) + \
-                          ( 1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128) \
-                        ) * 255 )" --outfile=${LINEID}_${grididnum[$i]}_colored_hillshade.tif
+          gdal_calc.py --quiet -A ${LINEID}_${grididnum[$i]}_hs_md.tif -B ${LINEID}_${grididnum[$i]}_slopeshade.tif --outfile=${LINEID}_${grididnum[$i]}_intensity.tif --calc="uint8( ( ((A/255.)*(${HSSLOPEBLEND}) + (B/255.)*(1-${HSSLOPEBLEND}) ) )**(1/${HS_GAMMA}) * 255)"
 
         elif [[ $tshadetopoplotflag -eq 1 ]]; then
 
           # echo "New approach for tshade on -mob..."
           # We are doing the texture shading version
-          if [[ $tshadezerohingeflag -eq 1 ]]; then
-            # We need to make a gdal color file that respects the CPT hinge value (usually 0)
-            # gdaldem is a bit funny about coloring around the hinge, so do some magic to make
-            # the color from land not bleed to the hinge elevation.
-            CPTHINGE=0
-            gawk < $TOPO_CPT -v hinge=$CPTHINGE -v scale=${gridzscalelist[$i]} '{
-              if ($1 != "B" && $1 != "F" && $1 != "N" ) {
-                if (count==1) {
-                  print ($1+0.01)*scale, $2
-                  count=2
-                } else {
-                  print $1*scale, $2
-                }
-
-                if ($3 == hinge) {
-                  if (count==0) {
-                    print ($3-0.0001)*scale, $4
-                    count=1
-                  }
-                }
-              }
-            }' | tr '/' ' ' > topocolor_km.dat
-          else
-            gawk < $TOPO_CPT -v scale=${gridzscalelist[$i]} '{ print $1*scale, $2 }' | tr '/' ' ' > topocolor_km.dat
-          fi
 
           rm -f texture.flt out_texture.tif newdem.flt newdem.hdr
 
@@ -1094,7 +1090,7 @@ EOF
           mv ${LINEID}_${grididnum[$i]}_dem_no_nan_flip.nc ${LINEID}_${grididnum[$i]}_dem_no_nan.nc
 
           # Calculate the color stretch
-          gdaldem color-relief ${LINEID}_${grididnum[$i]}_dem_no_nan.nc topocolor_km.dat ${LINEID}_${grididnum[$i]}_newgrid_colordem.tif -q 2>/dev/null
+          gdaldem color-relief ${LINEID}_${grididnum[$i]}_dem_no_nan.nc topocolor_km.dat ${LINEID}_${grididnum[$i]}_colordem.tif -q 2>/dev/null
 
           # Calculate the texture shade
           # Project to HDF format
@@ -1145,17 +1141,23 @@ EOF
           gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 tt.tif ${LINEID}_${grididnum[$i]}_texture.tif -q 2>/dev/null
 
           # Calculate the multidirectional hillshade
-          gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s 111120 ${LINEID}_${grididnum[$i]}_dem_no_nan.nc ${LINEID}_${grididnum[$i]}_hs_md.tif -q 2>/dev/null
+          gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -az ${THISP_HS_AZ} -s 1 ${LINEID}_${grididnum[$i]}_dem_no_nan.nc ${LINEID}_${grididnum[$i]}_hs_md.tif -q 2>/dev/null
 
           # Combine the hillshade and texture into a blended, gamma corrected image
-          gdal_calc.py --quiet -A ${LINEID}_${grididnum[$i]}_hs_md.tif -B ${LINEID}_${grididnum[$i]}_texture.tif --outfile=${LINEID}_${grididnum[$i]}_newgrid_gamma_hs.tif --calc="uint8( ( ((A/255.)*(${TS_TEXTUREBLEND}) + (B/255.)*(1-${TS_TEXTUREBLEND}) ) )**(1/${TS_GAMMA}) * 255)"
-
-
-          gdal_calc.py --quiet -A ${LINEID}_${grididnum[$i]}_newgrid_gamma_hs.tif -B ${LINEID}_${grididnum[$i]}_newgrid_colordem.tif --allBands=B --calc="uint8( ( \
-                          2 * (A/255.)*(B/255.)*(A<128) + \
-                          ( 1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128) \
-                        ) * 255 )" --outfile=${LINEID}_${grididnum[$i]}_colored_hillshade.tif
+          gdal_calc.py --quiet -A ${LINEID}_${grididnum[$i]}_hs_md.tif -B ${LINEID}_${grididnum[$i]}_texture.tif --outfile=${LINEID}_${grididnum[$i]}_intensity.tif --calc="uint8( ( ((A/255.)*(${TS_TEXTUREBLEND}) + (B/255.)*(1-${TS_TEXTUREBLEND}) ) )**(1/${TS_GAMMA}) * 255)"
+        else
+          echo using THISP_HS_AZ=$THISP_HS_AZ
+          gdaldem color-relief ${LINEID}_${grididnum[$i]}_newgrid.nc topocolor_km.dat ${LINEID}_${grididnum[$i]}_colordem.tif -q
+          gdaldem hillshade -compute_edges -az ${THISP_HS_AZ} -alt ${HS_ALT} -s 1 ${LINEID}_${grididnum[$i]}_newgrid.nc ${LINEID}_${grididnum[$i]}_intensity.tif -q
         fi
+
+
+        gdal_calc.py --quiet -A ${LINEID}_${grididnum[$i]}_intensity.tif -B ${LINEID}_${grididnum[$i]}_colordem.tif --allBands=B --calc="uint8( ( \
+                        2 * (A/255.)*(B/255.)*(A<128) + \
+                        ( 1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128) \
+                      ) * 255 )" --outfile=${LINEID}_${grididnum[$i]}_colored_hillshade.tif
+
+
 
 ###     The following script fragment will require the following variables to be defined in the script:
 ###     PERSPECTIVE_AZ, PERSPECTIVE_INC, line_min_x, line_max_x, line_min_z, line_max_z, PROFILE_HEIGHT_IN, PROFILE_WIDTH_IN, yshift
@@ -1226,12 +1228,12 @@ EOF
 
         gawk < ${gridcptlist[$i]} -v sc=${gridzscalelist[$i]} '{ if ($1 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { print $1*sc "\t" $2 "\t" $3*sc "\t" $4} else {print}}' > ${LINEID}_topokm.cpt
 
-        if [[ $gdemtopoplotflag -eq 1 || $tshadetopoplotflag -eq 1 ]]; then
+        # if [[ $gdemtopoplotflag -eq 1 || $tshadetopoplotflag -eq 1 ]]; then
           echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc  -G${LINEID}_${grididnum[$i]}_colored_hillshade.tif -p -Qi300 -R -J -JZ -O  >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
           # echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc -G${LINEID}_${grididnum[$i]}_colored_hillshade.tif -Qi300 -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -J -JZ\${ZSIZE}i -O -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_min_z} -Y\${yshift}i >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
-        else
-          echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc -p -Qi300 -R -J -JZ -I+d -C${LINEID}_topokm.cpt -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
-        fi
+        # else
+        #   echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc -p -Qi300 -R -J -JZ -C${LINEID}_topokm.cpt -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        # fi
 ###
       fi
 

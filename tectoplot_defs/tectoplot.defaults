@@ -4,6 +4,9 @@
 # This file will be sourced by the main tectoplot script to load various default values.
 # Assignments should be in bash format
 
+ZEROHINGE=1             # Set to 1 to enforce hinge on topo CPT
+CPTHINGE=0                  # Value of the hinge (the split in color tone, set in some default CPTs)
+
 # Texture shading
 TS_FRAC=0.5
 TS_STRETCH=9
@@ -197,7 +200,8 @@ CONTOUR_MINLEN="100k"        # length of smallest contour plotted
 ##### GDAL DEM options
 HSSLOPEBLEND=0.6             # Percent of shaded relief from hillshade (rest goes to slope)
 HS_GAMMA=0.6                 # gamma factor for overlaying DEM color ramp onto slope+hs
-HS_ALT=60                    # Altitude of sun for multiple hillshade
+HS_AZ=325
+HS_ALT=40                    # Altitude of sun for multiple hillshade
 HS_VEXAG=1                   # Vertical exaggeration applied to terrain for hillshading
 
 ##### Topographic contours

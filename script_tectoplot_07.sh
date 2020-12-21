@@ -9,6 +9,7 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 
 # CHANGELOG
 
+# December 21, 2020: Solstice update (and great confluence) - defined THISP_HS_AZ to get hillshading correct on top tiles
 # December 20, 2020: Added -aprof and -aprofcodes options to allow easier -sprof type profile selection
 # December 19, 2020: Updated profile to include texture shading for top tile (kind of strange but seems to work...)
 # December 18, 2020: Added -tshade option to use Leland Brown's texture shading (added C code in tectoplot dir)
@@ -1611,7 +1612,7 @@ do
     fi
     gdemtopoplotflag=1
     clipdemflag=1
-    gdaltzerohingeflag=1
+    gdaltZEROHINGE=1
     ;;
 
   -getdata)
@@ -2770,6 +2771,7 @@ do
 			BATHYMETRY="${2}"
 			shift
 		fi
+    clipdemflag=1
 		case $BATHYMETRY in
       01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
         plottopo=1
@@ -2964,7 +2966,7 @@ do
 
       tshadetopoplotflag=1
       clipdemflag=1
-      tshadezerohingeflag=1
+      tshadeZEROHINGE=1
       ;;
 
   -ti)
@@ -3471,23 +3473,6 @@ if [[ $(echo "$REFPTLAT > $MINLAT && $REFPTLAT < $MAXLAT && $REFPTLON < $MAXLON 
   info_msg "Reference point moved to $REFPTLON $REFPTLAT"
 fi
 
-################################################################################
-#####          GMT media and map style management                          #####
-################################################################################
-
-gmt gmtset MAP_FRAME_TYPE fancy
-
-if [[ $tifflag -eq 1 ]]; then
-  gmt gmtset MAP_FRAME_TYPE inside
-fi
-
-if [[ $kmlflag -eq 1 ]]; then
-  gmt gmtset MAP_FRAME_TYPE inside
-fi
-
-gmt gmtset PS_PAGE_ORIENTATION portrait
-gmt gmtset FONT_ANNOT_PRIMARY 10 FONT_LABEL 10 MAP_FRAME_WIDTH 0.12c FONT_TITLE 18p,Palatino-BoldItalic
-gmt gmtset FORMAT_GEO_MAP=D
 
 GRIDSP=$(echo "($MAXLON - $MINLON)/6" | bc -l)
 
@@ -5003,18 +4988,36 @@ done
 
 echo "%TECTOPLOT: ${COMMAND}" >> map.ps
 
-# Set up default look of the map. This should be shipped to a configuration file.
-
-
 # Before we plot anything but after we have done the data processing, set any
 # GMT variables that are given on the command line using -gmtvars { A val ... }
 
-##### Set GMT parameters as defaults may vary with user
+################################################################################
+#####          GMT media and map style management                          #####
+################################################################################
+
+# Page options
 # Just make a giant page and trim it later using gmt psconvert -A+m
 
-gmt gmtset PS_MEDIA 100ix100i PS_PAGE_ORIENTATION portrait MAP_VECTOR_SHAPE 0.5
-gmt gmtset FONT_ANNOT_PRIMARY 7 FONT_LABEL 7 MAP_FRAME_WIDTH 0.15c FONT_TITLE 18p,Palatino-BoldItalic
-gmt gmtset MAP_FRAME_PEN 0.5p,black
+gmt gmtset PS_PAGE_ORIENTATION portrait PS_MEDIA 100ix100i
+
+# Map frame options
+
+gmt gmtset MAP_FRAME_TYPE fancy MAP_FRAME_WIDTH 0.12c MAP_FRAME_PEN 0.5p,black
+gmt gmtset FORMAT_GEO_MAP=D
+
+if [[ $tifflag -eq 1 ]]; then
+  gmt gmtset MAP_FRAME_TYPE inside
+fi
+
+if [[ $kmlflag -eq 1 ]]; then
+  gmt gmtset MAP_FRAME_TYPE inside
+fi
+
+# Font options
+gmt gmtset FONT_ANNOT_PRIMARY 10 FONT_LABEL 10 FONT_TITLE 18p,Palatino-BoldItalic
+
+# Symbol options
+gmt gmtset MAP_VECTOR_SHAPE 0.5
 
 if [[ $usecustomgmtvars -eq 1 ]]; then
   info_msg "gmt gmtset ${GMTVARS[@]}"
@@ -6426,40 +6429,72 @@ for plot in ${plots[@]} ; do
 			;;
 
     topo)
+
+      # We now do all color ramps via gdaldem and derive intensity maps from
+      # the selected procedures. We fuse them using gdal_calc.py. This gives us
+      # a more streamlined process for managing CPTs, etc.
+
+      if [[ $ZEROHINGE -eq 1 ]]; then
+        # We need to make a gdal color file that respects the CPT hinge value (usually 0)
+        # gdaldem is a bit funny about coloring around the hinge, so do some magic to make
+        # the color from land not bleed to the hinge elevation.
+        # CPTHINGE=0
+
+        gawk < $TOPO_CPT -v hinge=$CPTHINGE '{
+          if ($1 != "B" && $1 != "F" && $1 != "N" ) {
+            if (count==1) {
+              print $1+0.01, $2
+              count=2
+            } else {
+              print $1, $2
+            }
+
+            if ($3 == hinge) {
+              if (count==0) {
+                print $3-0.0001, $4
+                count=1
+              }
+            }
+          }
+          }' | tr '/' ' ' > topocolor.dat
+      else
+        gawk < $TOPO_CPT '{ print $1, $2 }' | tr '/' ' ' > topocolor.dat
+      fi
+
       # If we are doing hillshading by the GDAL-only method
       if [[ $gdemtopoplotflag -eq 1 ]]; then
         # DEM will have been clipped already
-        if [[ $gdaltzerohingeflag -eq 1 ]]; then
-          # We need to make a gdal color file that respects the CPT hinge value (usually 0)
-          # gdaldem is a bit funny about coloring around the hinge, so do some magic to make
-          # the color from land not bleed to the hinge elevation.
-          CPTHINGE=0
-          gawk < $TOPO_CPT -v hinge=$CPTHINGE '{
-            if ($1 != "B" && $1 != "F" && $1 != "N" ) {
-              if (count==1) {
-                print $1+0.01, $2
-                count=2
-              } else {
-                print $1, $2
-              }
-
-              if ($3 == hinge) {
-                if (count==0) {
-                  print $3-0.0001, $4
-                  count=1
-                }
-              }
-            }
-            }' | tr '/' ' ' > topocolor.dat
-        else
-          gawk < $TOPO_CPT '{ print $1, $2 }' | tr '/' ' ' > topocolor.dat
-        fi
+        # if [[ $gdaltZEROHINGE -eq 1 ]]; then
+        #   # We need to make a gdal color file that respects the CPT hinge value (usually 0)
+        #   # gdaldem is a bit funny about coloring around the hinge, so do some magic to make
+        #   # the color from land not bleed to the hinge elevation.
+        #   CPTHINGE=0
+        #   gawk < $TOPO_CPT -v hinge=$CPTHINGE '{
+        #     if ($1 != "B" && $1 != "F" && $1 != "N" ) {
+        #       if (count==1) {
+        #         print $1+0.01, $2
+        #         count=2
+        #       } else {
+        #         print $1, $2
+        #       }
+        #
+        #       if ($3 == hinge) {
+        #         if (count==0) {
+        #           print $3-0.0001, $4
+        #           count=1
+        #         }
+        #       }
+        #     }
+        #     }' | tr '/' ' ' > topocolor.dat
+        # else
+        #   gawk < $TOPO_CPT '{ print $1, $2 }' | tr '/' ' ' > topocolor.dat
+        # fi
 
         # Calculate the color stretch
-        gdaldem color-relief dem.nc topocolor.dat colordem.tif -q
+        # gdaldem color-relief dem.nc topocolor.dat colordem.tif -q
 
         # Calculate the multidirectional hillshade
-        gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s 111120 dem.nc hs_md.tif -q
+        gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -az ${HS_AZ} -s 111120 dem.nc hs_md.tif -q
         # gdaldem hillshade -combined -s 111120 dem.nc hs_c.tif -q
 
         # Clip the hillshade to reduce extreme bright and extreme dark areas
@@ -6474,46 +6509,11 @@ for plot in ${plots[@]} ; do
         # A hillshade is mostly gray (127) while a slope map is mostly white (255)
 
         # Combine the hillshade and slopeshade into a blended, gamma corrected image
-        gdal_calc.py --quiet -A hs_md.tif -B slopeshade.tif --outfile=gamma_hs.tif --calc="uint8( ( ((A/255.)*(${HSSLOPEBLEND}) + (B/255.)*(1-${HSSLOPEBLEND}) ) )**(1/${HS_GAMMA}) * 255)"
+        gdal_calc.py --quiet -A hs_md.tif -B slopeshade.tif --outfile=intensity.tif --calc="uint8( ( ((A/255.)*(${HSSLOPEBLEND}) + (B/255.)*(1-${HSSLOPEBLEND}) ) )**(1/${HS_GAMMA}) * 255)"
 
 
-        # Combine the shaded relief and color stretch using a multiply scheme
-
-        gdal_calc.py --quiet -A gamma_hs.tif -B colordem.tif --allBands=B --calc="uint8( ( \
-                        2 * (A/255.)*(B/255.)*(A<128) + \
-                        ( 1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128) \
-                      ) * 255 )" --outfile=colored_hillshade.tif
-
-        gmt grdimage colored_hillshade.tif -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
 
       elif [[ $tshadetopoplotflag -eq 1 ]]; then
-        # We are doing the texture shading version
-        if [[ $tshadezerohingeflag -eq 1 ]]; then
-          # We need to make a gdal color file that respects the CPT hinge value (usually 0)
-          # gdaldem is a bit funny about coloring around the hinge, so do some magic to make
-          # the color from land not bleed to the hinge elevation.
-          CPTHINGE=0
-          gawk < $TOPO_CPT -v hinge=$CPTHINGE '{
-            if ($1 != "B" && $1 != "F" && $1 != "N" ) {
-              if (count==1) {
-                print $1+0.01, $2
-                count=2
-              } else {
-                print $1, $2
-              }
-
-              if ($3 == hinge) {
-                if (count==0) {
-                  print $3-0.0001, $4
-                  count=1
-                }
-              }
-            }
-            }' | tr '/' ' ' > topocolor.dat
-        else
-          gawk < $TOPO_CPT '{ print $1, $2 }' | tr '/' ' ' > topocolor.dat
-        fi
-
         # fill NaNs
         gmt grdfill dem.nc -An -Gdem_no_nan.nc ${VERBOSE}
         mv dem_no_nan.nc dem.nc
@@ -6535,47 +6535,29 @@ for plot in ${plots[@]} ; do
         gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 texture_2byte.tif texture.tif -q
 
         # Calculate the multidirectional hillshade
-        gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s 111120 dem.nc hs_md.tif -q
+        gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -az ${HS_AZ} -s 111120 dem.nc hs_md.tif -q
 
         # Combine the hillshade and texture into a blended, gamma corrected image
-        gdal_calc.py --quiet -A hs_md.tif -B texture.tif --outfile=gamma_hs.tif --calc="uint8( ( ((A/255.)*(${TS_TEXTUREBLEND}) + (B/255.)*(1-${TS_TEXTUREBLEND}) ) )**(1/${TS_GAMMA}) * 255)"
+        gdal_calc.py --quiet -A hs_md.tif -B texture.tif --outfile=intensity.tif --calc="uint8( ( ((A/255.)*(${TS_TEXTUREBLEND}) + (B/255.)*(1-${TS_TEXTUREBLEND}) ) )**(1/${TS_GAMMA}) * 255)"
+      else
+        # make regular hillshade intensity file here
+        gdaldem hillshade -compute_edges -alt ${HS_ALT} -az ${HS_AZ} -s 111120 dem.nc intensity.tif -q
+      fi
 
+      if [[ $dontplottopoflag -eq 0 ]]; then
 
-        gdal_calc.py --quiet -A gamma_hs.tif -B colordem.tif --allBands=B --calc="uint8( ( \
+        # Combine the shaded relief and color stretch using a multiply scheme
+        # Create the color ramp
+        gdaldem color-relief dem.nc topocolor.dat colordem.tif -q
+
+        gdal_calc.py --quiet -A intensity.tif -B colordem.tif --allBands=B --calc="uint8( ( \
                         2 * (A/255.)*(B/255.)*(A<128) + \
                         ( 1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128) \
                       ) * 255 )" --outfile=colored_hillshade.tif
 
         gmt grdimage colored_hillshade.tif -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
       else
-        if [[ $dontplottopoflag -eq 0 ]]; then
-
-          CPTHINGE=0
-          gawk < $TOPO_CPT -v hinge=$CPTHINGE '{
-            if ($1 != "B" && $1 != "F" && $1 != "N" ) {
-              if (count==1) {
-                print $1+0.01, $2, $3, $4
-                count=2
-              } else {
-                print $1, $2, $3, $4
-              }
-
-              if ($3 == hinge) {
-                if (count==0) {
-                  print $1, $2, $3-0.0001, $4
-                  count=1
-                }
-              }
-            }
-          else { print }
-          }'| tr ' ' '\t' > topo_color.cpt
-
-
-
-          gmt grdimage $BATHY ${ILLUM} -t$TOPOTRANS -C$TOPO_CPT $RJOK ${VERBOSE} >> map.ps
-        else
-          info_msg "Plotting of topo shaded relief suppressed by -ts"
-        fi
+        info_msg "Plotting of topo shaded relief suppressed by -ts"
       fi
       ;;
 
