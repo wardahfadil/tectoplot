@@ -4,6 +4,11 @@
 # This file will be sourced by tectoplot. All assignments should be bash format.
 # (REQUIRES: $TECTOPLOTDIR, $DEFDIR).
 
+##### DEFAULT_TMP is the directory that is created in the folder where tectoplot
+#     was called from, where produced data files are stored.
+DEFAULT_TMP="tempfiles_to_delete/"
+TMP=${DEFAULT_TMP}
+
 ##### DATAROOT is the directory that contains all downloaded data directories.
 
 DATAROOT=$(head -n 1 $DEFDIR"tectoplot.dataroot")
@@ -137,6 +142,31 @@ OC_AGE_CPT_BYTES="1062"
 OC_AGE_SOURCESTRING="Oceanic crustal age from Seton et al., 2020, https://www.earthbyte.org/webdav/ftp/earthbyte/agegrid/2020/Grids/age.2020.1.GTS2012.1m.nc"
 OC_AGE_SHORT_SOURCESTRING="Seton2020"
 
+##### NASA Blue Marble 2004
+BLUEM_EAST="https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57752/land_shallow_topo_east.tif"
+BLUEM_EAST_NAME="BlueMarble_topo_east.tif"
+BLUEM_WEST="https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57752/land_shallow_topo_west.tif"
+BLUEM_WEST_NAME="BlueMarble_topo_west.tif"
+
+##### NASA Black Marble 2016 grayscale tiles
+BLACKM_A1="https://eoimages.gsfc.nasa.gov/images/imagerecords/144000/144897/BlackMarble_2016_A1_geo_gray.tif"
+BLACKM_A1_NAME="BlackMarble_2016_A1_geo_gray.tif"
+BLACKM_B1="https://eoimages.gsfc.nasa.gov/images/imagerecords/144000/144897/BlackMarble_2016_B1_geo_gray.tif"
+BLACKM_B1_NAME="BlackMarble_2016_B1_geo_gray.tif"
+BLACKM_C1="https://eoimages.gsfc.nasa.gov/images/imagerecords/144000/144897/BlackMarble_2016_C1_geo_gray.tif"
+BLACKM_C1_NAME="BlackMarble_2016_C1_geo_gray.tif"
+BLACKM_D1="https://eoimages.gsfc.nasa.gov/images/imagerecords/144000/144897/BlackMarble_2016_D1_geo_gray.tif"
+BLACKM_D1_NAME="BlackMarble_2016_D1_geo_gray.tif"
+BLACKM_A2="https://eoimages.gsfc.nasa.gov/images/imagerecords/144000/144897/BlackMarble_2016_A2_geo_gray.tif"
+BLACKM_A2_NAME="BlackMarble_2016_A2_geo_gray.tif"
+BLACKM_B2="https://eoimages.gsfc.nasa.gov/images/imagerecords/144000/144897/BlackMarble_2016_B2_geo_gray.tif"
+BLACKM_B2_NAME="BlackMarble_2016_B2_geo_gray.tif"
+BLACKM_C2="https://eoimages.gsfc.nasa.gov/images/imagerecords/144000/144897/BlackMarble_2016_C2_geo_gray.tif"
+BLACKM_C2_NAME="BlackMarble_2016_C2_geo_gray.tif"
+BLACKM_D2="https://eoimages.gsfc.nasa.gov/images/imagerecords/144000/144897/BlackMarble_2016_D2_geo_gray.tif"
+BLACKM_D2_NAME="BlackMarble_2016_D2_geo_gray.tif"
+
+
 ##### Crustal magnetization data
 
 MAG_SOURCESTRING="Magnetic data from EMAG2_V2 (USGW), https://catalog.data.gov/dataset/emag2-earth-magnetic-anomaly-grid-2-arc-minute-resolution"
@@ -189,6 +219,18 @@ GCDMDATA_ORIG=$GCDMDIR"gcdm.txt"
 GCDM_SOURCEURL="https://static-content.springer.com/esm/art%3A10.1038%2Fsrep45129/MediaObjects/41598_2017_BFsrep45129_MOESM71_ESM.txt"
 GCDM_BYTES="123810173"
 
+##### GMT Day and Night Imagery
+
+GMT_EARTHDIR=$DATAROOT"GMTEARTH/"
+
+GMT_EARTHNIGHT=$GMT_EARTHDIR"gmt_night_30s.tif"
+GMT_EARTHNIGHT_SOURCEURL="https://oceania.generic-mapping-tools.org/server/earth/earth_night/earth_night_30s_p.tif"
+GMT_EARTHNIGHT_BYTES="412737979"
+
+GMT_EARTHDAY=$GMT_EARTHDIR"gmt_day_30s.tif"
+GMT_EARTHDAY_SOURCEURL="https://oceania.generic-mapping-tools.org/server/earth/earth_day/earth_day_30s_p.tif"
+GMT_EARTHDAY_BYTES="229508530"
+
 ##### SLAB2.0
 SLAB2_SOURCESTRING="Slab geometries from Slab 2.0, Hayes et al. 2018, doi:10.1126/science.aat4723"
 SLAB2_SHORT_SOURCESTRING="SLAB2"
@@ -215,6 +257,13 @@ EARTHRELIEFDIR=$DATAROOT"EARTHRELIEF/"
 [[ ! -d $EARTHRELIEFDIR ]] && mkdir -p $EARTHRELIEFDIR
 
 EARTHRELIEFPREFIX="@earth_relief_"
+
+EARTHRELIEF_SHORT_SOURCESTRING="GMT/EarthRelief"
+EARTHRELIEF_SOURCESTRING="EarthRelief topo retrieved from GMT Oceania server (https://oceania.generic-mapping-tools.org)"
+
+GMRT_SHORT_SOURCESTRING="GMRT"
+GMRT_SOURCESTRING="Global Multi-Resolution Topography (https://www.gmrt.org/services/gridserverinfo.php#!/services/getGMRTGrid)"
+
 
 ##### Focal mechanism data
 
@@ -285,7 +334,12 @@ ISC_EQ_CATALOG=$ISC_EQS_DIR"isc_seis.cat"
 ISC_EQ_SOURCESTRING="ISC earthquake catalog, http://www.isc.ac.uk/iscbulletin/search/"
 ICS_EQ_SHORT_SOURCESTRING="ISC"
 
-EQSLAB2=$DATAROOT"SLAB2/"
+################################################################################
+# Earthquake catalog
+
+EQCATALOG=$ANSS_EQ_CATALOG
+EQ_SOURCESTRING=$ANSS_EQ_SOURCESTRING
+EQ_SHORT_SOURCESTRING=$ANSS_EQ_SHORT_SOURCESTRING
 
 ##### GEM Faults
 

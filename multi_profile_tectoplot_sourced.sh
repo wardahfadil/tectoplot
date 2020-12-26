@@ -1050,7 +1050,7 @@ EOF
 
           # Calculate the multidirectional hillshade
           # s factor is 1 as our DEM is in km/km/km units
-          gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -az ${THISP_HS_AZ} -s 1 ${LINEID}_${grididnum[$i]}_newgrid.nc ${LINEID}_${grididnum[$i]}_hs_md.tif -q
+          gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s 1 ${LINEID}_${grididnum[$i]}_newgrid.nc ${LINEID}_${grididnum[$i]}_hs_md.tif -q
           # gdaldem hillshade -combined -s 111120 dem.nc hs_c.tif -q
 
           # Clip the hillshade to reduce extreme bright and extreme dark areas
@@ -1139,7 +1139,7 @@ EOF
           gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 tt.tif ${LINEID}_${grididnum[$i]}_texture.tif -q 2>/dev/null
 
           # Calculate the multidirectional hillshade
-          gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -az ${THISP_HS_AZ} -s 1 ${LINEID}_${grididnum[$i]}_dem_no_nan.nc ${LINEID}_${grididnum[$i]}_hs_md.tif -q 2>/dev/null
+          gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s 1 ${LINEID}_${grididnum[$i]}_dem_no_nan.nc ${LINEID}_${grididnum[$i]}_hs_md.tif -q 2>/dev/null
 
           # Combine the hillshade and texture into a blended, gamma corrected image
           gdal_calc.py --quiet -A ${LINEID}_${grididnum[$i]}_hs_md.tif -B ${LINEID}_${grididnum[$i]}_texture.tif --outfile=${LINEID}_${grididnum[$i]}_intensity.tif --calc="uint8( ( ((A/255.)*(${TS_TEXTUREBLEND}) + (B/255.)*(1-${TS_TEXTUREBLEND}) ) )**(1/${TS_GAMMA}) * 255)"
