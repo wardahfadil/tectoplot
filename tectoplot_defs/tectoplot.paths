@@ -9,6 +9,20 @@
 DEFAULT_TMP="tempfiles_to_delete/"
 TMP=${DEFAULT_TMP}
 
+
+###### This section defines and tracks temporary subfolders and important files
+#      that will usually be saved after tectoplot runs.
+
+F_TOPO="topo/"                        # DEM data
+F_MAPELEMENTS="mapelements/"          # Miscellaneous map elements (AOI box, etc)
+F_SEIS="seismicity/"                  # Earthquake hypocenters
+F_PLATES="plates/"                    # Plate polygons, Euler poles, etc.
+F_PROFILES="profiles/"                # Profiles and oblique perspective diagrams
+F_KIN="kinematics/"                   # Focal mechanism kinematics
+F_CMT="focal_mechanisms/"             # Focal mechanisms
+F_VOLC="volcanoes/"                   # Focal mechanisms
+F_GRAV="grav/"                        # Focal mechanisms
+
 ##### DATAROOT is the directory that contains all downloaded data directories.
 
 DATAROOT=$(head -n 1 $DEFDIR"tectoplot.dataroot")
@@ -140,7 +154,7 @@ OC_AGE_CPT_URL="https://www.earthbyte.org/webdav/ftp/earthbyte/agegrid/2020/Grid
 OC_AGE_CPT_BYTES="1062"
 
 OC_AGE_SOURCESTRING="Oceanic crustal age from Seton et al., 2020, https://www.earthbyte.org/webdav/ftp/earthbyte/agegrid/2020/Grids/age.2020.1.GTS2012.1m.nc"
-OC_AGE_SHORT_SOURCESTRING="Seton2020"
+OC_AGE_SHORT_SOURCESTRING="OCA"
 
 ##### NASA Blue Marble 2004
 BLUEM_EAST="https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57752/land_shallow_topo_east.tif"
@@ -288,6 +302,8 @@ GCMT_SOURCESTRING="Focal mechanisms from GCMT, Ekström et al. 2012, doi:10.1016
 GCMT_SHORT_SOURCESTRING="GCMT"
 ISC_SOURCESTRING="Focal mechanisms from ISC catalog, http://www.isc.ac.uk/iscbulletin/search/fmechanisms/"
 ISC_SHORT_SOURCESTRING="ISC"
+GFZ_SOURCESTRING="Focal mechanisms from GFZ GEOFON catalog, https://geofon.gfz-potsdam.de/eqinfo/list.php"
+GFZ_SHORT_SOURCESTRING="GFZ"
 
 #ISC_ORIGIN=$DATAROOT"ISC/isc_nogcmt_origin.txt"
 #ISC_CENTROID=$DATAROOT"ISC/isc_nogcmt_centroid.txt"
@@ -328,11 +344,11 @@ ANSS_EQ_CATALOG=${ANSSDIR}"anss.cat"
 
 # mirror:
 ISC_MIRROR="http://isc-mirror.iris.washington.edu"
-# Expects EQCATALOG, ANSSDIR to be set
+
 ISC_EQS_DIR=$DATAROOT"ISC_SEIS/"
 ISC_EQ_CATALOG=$ISC_EQS_DIR"isc_seis.cat"
 ISC_EQ_SOURCESTRING="ISC earthquake catalog, http://www.isc.ac.uk/iscbulletin/search/"
-ICS_EQ_SHORT_SOURCESTRING="ISC"
+ISC_EQ_SHORT_SOURCESTRING="ISC"
 
 ################################################################################
 # Earthquake catalog

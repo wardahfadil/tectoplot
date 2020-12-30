@@ -1,9 +1,0 @@
-/Users/kylebradley/Dropbox/scripts/tectoplot/tectoplot -r 112 120 -12 -10 -t 10m -z -c GCMT_ORIGIN --open -setvars { REMOVE_EQUIVS 1 SEISSTRETCH 4 SCALEEQS 1 SEISSTRETCH_REFMAG 6 SEISTRANS 50 } -o cull.pdf -n
-gmt psxy -Sc0.001i -Gwhite -W0p -R112/120/-12/-10 -JQ112/7.0i -X1i -Yc -K -Ve
-gmt grdimage /Users/kylebradley/Dropbox/TectoplotData/EARTHRELIEF/10m_112_120_-12_-10.tif -I+d -t0 -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/mby3.cpt -R112/120/-12/-10 -JQ112/7.0i -O -K -Ve
-gmt psxy -Cgray -W0.25p,black -i0,1,2,3+s1 -Sc -t50 -R112/120/-12/-10 -JQ112/7.0i -O -K -Ve
-gmt psxy -C/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -i0,1,2,3+s1 -Sc -t50 -R112/120/-12/-10 -JQ112/7.0i -O -K -Ve
-gmt psmeca -Egray40 -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -Sc.07i/0 cmt_thrust.txt -L0.25p,black -R112/120/-12/-10 -JQ112/7.0i -O -K -Ve
-gmt psmeca -Ewhite -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -Sc.07i/0 cmt_normal.txt -L0.25p,black -R112/120/-12/-10 -JQ112/7.0i -O -K -Ve
-gmt psmeca -Egray80 -Z/Users/kylebradley/Dropbox/scripts/tectoplot/CPT/neis2.cpt -Sc.07i/0 cmt_strikeslip.txt -L0.25p,black -R112/120/-12/-10 -JQ112/7.0i -O -K -Ve
-gmt psbasemap -R112/120/-12/-10 -JQ112/7.0i -O -Ve -Bxa1g1 -Bya1g1 -BWESN

@@ -7,8 +7,20 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 # Kyle Bradley, Nanyang Technological University (kbradley@ntu.edu.sg)
 # Prefers GS 9.26 (and no later) for transparency
 
+# NOTE: You have to be carefull with culling earthquakes because it will remove
+#       ORIGIN seismicity in favor of CENTROID focal mechanisms which may result
+#       in non-plotting of the preserved CMT if the centroid is far away.
+
+# Current initiative: Use subdirectories in the temporary folder to segregate
+# data types.
+
 # CHANGELOG
 
+# December 29, 2020: Updated -inset and -acb to take options
+# December 28, 2020: Added aprofcode option to locate scale bar.
+# December 28, 2020: Profile width indicators were 2x too wide...! Fixed.
+# December 28, 2020: Fixes to various parts of code, added -authoryx, -alignxy
+# December 28, 2020: Fixed bug in ANSS scraper that was stopping addition of most recent events
 # December 26, 2020: Fixed some issues with BEST topography, updated example script
 # December 26, 2020: Added -author, -command options. Reset topo raster range if lon<-180, lon>180 {maybe make a function?}
 # December 22, 2020: Significant update to projection options via -RJ. Recalc AOI as needed.
@@ -90,6 +102,7 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 #
 # # KNOWN BUGS:
 # tectoplot remake seems broken?
+# -command and -aprof doesn't get along
 #
 # DREAM LEVEL:
 # Generate a map_plot.sh script that contains all GMT/etc commands needed to replicate the plot.
@@ -100,9 +113,9 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 # TO DO:
 #
 # HIGHER PRIORITY:
-
-# Add GMRT/SRTM/etc to sources/shortsources (currently missing from some plots)
-
+#
+# Litho1 end cap profile needs to go on one end or the other depending on view azimuth
+#
 # !! Convert from different magnitude types to Mw using scaling relationships (e.g. Wetherill et al. 2017)
 #  (This should be done on import so we don't have to manage different magnitude types)
 # !! Remove anthropogenic earthquakes from catalog? (e.g. Wetherill et al. 2017)
@@ -195,12 +208,12 @@ function cleanup()
 # Grid z range query function. Try to avoid querying the full grid when determining the range of Z values
 
 function grid_zrange() {
-   output=$(gmt grdinfo -C $1 -Vn)
+   output=$(gmt grdinfo -C $@)
    zmin=$(echo $output | gawk  '{print $6}')
    zmax=$(echo $output | gawk  '{print $7}')
    if [[ $(echo "$zmin == 0 && $zmax == 0" | bc) -eq 1 ]]; then
       # echo "Querying full grid as zrange is 0"
-      output=$(gmt grdinfo -C -L $1 -Vn)
+      output=$(gmt grdinfo -C -L $@)
    fi
    echo $output | gawk  '{print $6, $7}'
 }
@@ -363,8 +376,6 @@ cat <<-EOF
     [opt] is required if the flag is present
     [[opt]] if not specified will assume a default value or will not be used
 
-  Arguments that need to come first because other arguments depend on them:
-    -pss   [size]          Set PS page size in inches (8).
 
   Data control, installation, information
     -addpath               add the tectoplot source directory to your ~.profile
@@ -397,14 +408,15 @@ cat <<-EOF
     -kml                                                 output KML, frame inside
     --open           [[program]]                         open PDF file at end
     -o|--out         [filename]                          basename of output file [+.pdf, +.tif, etc added as needed]
-    --inset          [[size]]                            plot a globe with AOI polygon
+    -pss   [size]          Set PS page size in inches (8).
+    --inset          [[size]]                            plot a globe with AOI polygon.
     --legend         [[width]]                           plot legend above the map area (color bar width=2i)
     -gres            [dpi]                               set dpi of grids printed to PS file (default: grid native res)
     -command                                             print tectoplot command at bottom of page
     -author          [[author_string]]                   print author and date info at bottom of page
+    -authoryx        [yshift] [[xshift]]                 shift author info vertically by yshift and horizontally by xshift
                                                          If tectoplot.author does not exist in tectoplot_defs/, set it
                                                          author_string=reset will reset the author info
-
   Low-level control
     -gmtvars         [{VARIABLE value ...}]              set GMT internal variables
     -psr             [0-1]                               scale factor of map ofs pssize
@@ -432,8 +444,8 @@ cat <<-EOF
     -rect                                                use rectangular map frame (UTM projection only)
 
     Global projections (-180:180/-90:90) specified by word or GMT letter and optional arguments
-    -RJ              Hammer|H ; Molleweide|W ; Robinson|N  ; Winkel|R     [[Meridian]]
-                     VanderGrinten|V ; Sinusoidal|I
+    -RJ              Hammer|H ; Molleweide|W ; Robinson|N       [[Meridian]]
+                     Winkel|R ; VanderGrinten|V ; Sinusoidal|I  [[Meridian]]
                      Hemisphere|A                               [[Meridian]] [[Latitude]]
 
     Global projections with degree range, specified by word or GMT letter and optional arguments
@@ -443,6 +455,7 @@ cat <<-EOF
     -B               [{ -Betc -Betc }]                   provide custom B strings for map in GMT argument format
     -pgs             [gridline spacing]                  override map gridline spacing
     -pgo                                                 turn grid lines off
+    -pgl                                                 turn grid labels off
     -scale           [length] [lon] [lat]                plot a scale bar. length needs suffix (e.g. 100k).
 
   Plotting/control commands:
@@ -465,6 +478,7 @@ cat <<-EOF
     -msd             Use a signed distance formulation for profiling to generate DEM for display (for kinked profiles)
     -msl             Display only the left side of the profile so that the cut is exactly on-profile
     -litho1 [type]   Plot LITHO1.0 data for each profile. Allowed types are: density Vp Vs
+    -alignxy         XY file used to align profiles.
 
   Topography/bathymetry:
     -t|--topo        [[ SRTM30 | GEBCO20 | GEBCO1 | ERCODE | GMRT | BEST | custom_grid_file ]] [[cpt]]
@@ -489,7 +503,7 @@ cat <<-EOF
     -a|--coast       [[quality]] [[a,b]] { gmtargs }     plot coastlines [[a]] and borders [[b]]
                      quality = a,f,h,i,l,c
     -ac              [[LANDCOLOR]] [[SEACOLOR]]          fill coastlines/sea (requires subsequent -a command)
-    -acb                                                 plot country borders
+    -acb             [[color]] [[linewidth]] [[quality]] plot country borders (quality = a,l,f)
     -acl                                                 label country centroids
     -af              [[AFLINEWIDTH]] [[AFLINECOLOR]]     plot active fault traces
     -b|--slab2       [[layers string: c]]                plot Slab2 data; default is c
@@ -505,7 +519,6 @@ cat <<-EOF
     -vc|--volc                                           plot Pleistocene volcanoes
     -pp|--cities     [[min population]]                  plot cities with minimum population, color by population
     -ppl             [[min population]]                  label cities with a minimum population
-    -ean                                                 Earth at night
 
   Seismicity:
     -z|--seis        [[scale]]                           plot seismic epicenters (from scraped earthquake data)
@@ -620,7 +633,7 @@ Both CMT and Earthquakes: EQCUTMINDEPTH [$EQCUTMINDEPTH] - EQCUTMAXDEPTH [$EQCUT
 
 Earthquakes:    SEISSIZE [$SEISSIZE] - SEISSCALE [$SEISSCALE] - SEISSYMBOL [$SEISSYMBOL] - SEISTRANS [$SEISTRANS]
                 REMOVE_DEFAULTDEPTHS [$REMOVE_DEFAULTDEPTHS] - REMOVE_DEFAULTDEPTHS_WITHPLOT [$REMOVE_DEFAULTDEPTHS_WITHPLOT]
-                REMOVE_EQUIVS [$REMOVE_EQUIVS] - USEANSS_DATABASE [$USEANSS_DATABASE]
+                REMOVE_EQUIVS [$REMOVE_EQUIVS]
 
 CMT focal mech: CMT_NORMALCOLOR [$CMT_NORMALCOLOR] - CMT_SSCOLOR [$CMT_SSCOLOR] - CMT_THRUSTCOLOR [$CMT_THRUSTCOLOR]
                 CMTSCALE [$CMTSCALE] - CMTFORMAT [$CMTFORMAT] - CMTSCALE [$CMTSCALE] - PLOTORIGIN [$PLOTORIGIN]
@@ -875,6 +888,24 @@ function check_and_download_dataset() {
       fi
     fi
   fi
+}
+
+# This function takes a Mw magnitude (e.g. 6.2) and prints the mantissa and
+# exponent of the moment magnitude, scaled by a nonlinear stretch factor.
+
+function stretched_m0_from_mw () {
+  echo $1 | gawk  -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
+            mwmod = ($1^str)/(sref^(str-1))
+            a=sprintf("%E", 10^((mwmod + 10.7)*3/2))
+            split(a,b,"+")
+            split(a,c,"E")
+            print c[1], b[2] }'
+}
+
+# Stretch a Mw value from a Mw value
+
+function stretched_mw_from_mw () {
+  echo $1 | gawk -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print ($1^str)/(sref^(str-1))}'
 }
 
 function interval_and_subinterval_from_minmax_and_number () {
@@ -1246,6 +1277,24 @@ do
 
   -acb)
     plots+=("countryborders")
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-acb]: No border line color specified. Using $BORDER_LINECOLOR"
+    else
+      BORDER_LINECOLOR="${2}"
+      shift
+    fi
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-acb]: No border line width specified. Using $BORDER_LINEWIDTH"
+    else
+      BORDER_LINEWIDTH="${2}"
+      shift
+    fi
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-acb]: No border quality specified [a,l,f]. Using $BORDER_QUALITY"
+    else
+      BORDER_QUALITY="-D${2}"
+      shift
+    fi
     ;;
 
   -acl)
@@ -1286,78 +1335,91 @@ do
     plots+=("gemfaults")
     ;;
 
-    -aprof) # args lon1 lat1 lon2 lat2 width res
-      # Create profiles by constructing a new mprof) file with relevant data types
-      aprofflag=1
+  -alignxy)
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-alignxy]: No XY dataset specified. Not aligning profiles."
+    else
+      ALIGNXY_FILE=$(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")")
+      shift
+      if [[ ! -e $ALIGNXY_FILE ]]; then
+        info_msg "[-alignxy]: XY file $ALIGNXY_FILE does not exist."
+      else
+        info_msg "[-alignxy]: Aligning profiles to $ALIGNXY_FILE."
+        alignxyflag=1
+      fi
+    fi
+    ;;
 
-      rm -f aprof_profs.txt
+  -aprof) # args lon1 lat1 lon2 lat2 width res
+    # Create profiles by constructing a new mprof) file with relevant data types
+    aprofflag=1
 
-      while [[ "${2}" == [a-zA-Z][a-zA-Z] ]]; do
-        # echo $2
-        aproflist+=("${2}")
-        echo $2 | gawk -v minlon=$MINLON -v maxlon=$MAXLON -v minlat=$MINLAT -v maxlat=$MAXLAT '
-         BEGIN {
-             row[1]="AFKPU"
-             row[2]="BGLQV"
-             row[3]="CHMRW"
-             row[4]="DINSX"
-             row[5]="EJOTY"
-             difflat=maxlat-minlat
-             difflon=maxlon-minlon
+    while [[ "${2}" == [a-zA-Z][a-zA-Z] ]]; do
+      # echo $2
+      aproflist+=("${2}")
+      echo $2 | gawk -v minlon=$MINLON -v maxlon=$MAXLON -v minlat=$MINLAT -v maxlat=$MAXLAT '
+       BEGIN {
+           row[1]="AFKPU"
+           row[2]="BGLQV"
+           row[3]="CHMRW"
+           row[4]="DINSX"
+           row[5]="EJOTY"
+           difflat=maxlat-minlat
+           difflon=maxlon-minlon
 
-             newdifflon=difflon*8/10
-             newminlon=minlon+difflon*1/10
-             newmaxlon=maxlon-difflon*1/10
+           newdifflon=difflon*8/10
+           newminlon=minlon+difflon*1/10
+           newmaxlon=maxlon-difflon*1/10
 
-             newdifflat=difflat*8/10
-             newminlat=minlat+difflat*1/10
-             newmaxlat=maxlat-difflat*1/10
+           newdifflat=difflat*8/10
+           newminlat=minlat+difflat*1/10
+           newmaxlat=maxlat-difflat*1/10
 
-             minlon=newminlon
-             maxlon=newmaxlon
-             minlat=newminlat
-             maxlat=newmaxlat
-             difflat=newdifflat
-             difflon=newdifflon
+           minlon=newminlon
+           maxlon=newmaxlon
+           minlat=newminlat
+           maxlat=newmaxlat
+           difflat=newdifflat
+           difflon=newdifflon
 
-             for(i=1;i<=5;i++) {
-               for(j=1; j<=5; j++) {
-                 char=toupper(substr(row[i],j,1))
-                 lats[char]=minlat+(i-1)/4*difflat
-                 lons[char]=minlon+(j-1)/4*difflon
-                 # print char, lons[char], lats[char]
-               }
+           for(i=1;i<=5;i++) {
+             for(j=1; j<=5; j++) {
+               char=toupper(substr(row[i],j,1))
+               lats[char]=minlat+(i-1)/4*difflat
+               lons[char]=minlon+(j-1)/4*difflon
+               # print char, lons[char], lats[char]
              }
-         }
-         {
-           char1=toupper(substr($0,1,1));
-           char2=toupper(substr($0,2,1));
-           print "P P_" char1 char2, "black 0 N", lons[char1], lats[char1], lons[char2], lats[char2]
-         }' >> aprof_profs.txt
-         shift
-      done
+           }
+       }
+       {
+         char1=toupper(substr($0,1,1));
+         char2=toupper(substr($0,2,1));
+         print "P P_" char1 char2, "black 0 N", lons[char1], lats[char1], lons[char2], lats[char2]
+       }' >> aprof_profs.txt
+       shift
+    done
 
-      if [[ ${2:0:1} == [-] || -z $2 ]]; then
-        info_msg "[-aprof]: No width specified. Using 100k"
-        SPROFWIDTH="100k"
-      else
-        SPROFWIDTH="${2}"
-        shift
-      fi
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-aprof]: No width specified. Using 100k"
+      SPROFWIDTH="100k"
+    else
+      SPROFWIDTH="${2}"
+      shift
+    fi
 
-      if [[ ${2:0:1} == [-] || -z $2 ]]; then
-        info_msg "[-aprof]: No sampling interval specified. Using 1k"
-        SPROF_RES="1k"
-      else
-        SPROF_RES="${2}"
-        shift
-      fi
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-aprof]: No sampling interval specified. Using 1k"
+      SPROF_RES="1k"
+    else
+      SPROF_RES="${2}"
+      shift
+    fi
 
-      clipdemflag=1
+    clipdemflag=1
 
-      # echo "aprof profiles are ${aproflist[@]} / $SPROFWIDTH / $SPROF_RES"
-      # cat aprof_profs.txt
-      plots+=("mprof")
+    # echo "aprof profiles are ${aproflist[@]} / $SPROFWIDTH / $SPROF_RES"
+    # cat aprof_profs.txt
+    plots+=("mprof")
 
     ;;
   -aprofcodes)
@@ -1399,7 +1461,20 @@ do
     fi
     DATE_ID=$(date $DATE_FORMAT)
     ;;
-
+  -authoryx)
+    if [[ $2 =~ ^[+-]?[0-9]*.*[0-9]+$ ]]; then
+      AUTHOR_YSHIFT="${2}"
+      shift
+    else
+      info_msg "[-authoryx]: No Y shift indicated. Using $AUTHOR_YSHIFT (i)"
+    fi
+    if [[ $2 =~ ^[+-]?[0-9]*.*[0-9]+$ ]]; then
+      AUTHOR_XSHIFT="${2}"
+      shift
+    else
+      info_msg "[-authoryx]: No X shift indicated. Using $AUTHOR_XSHIFT (i)"
+    fi
+    ;;
 	-b|--slab2) # args: none || strong
 		if [[ ${2:0:1} == [-] || -z $2 ]]; then
 			info_msg "[-b]: Slab2 control string not specified. Using c"
@@ -1442,10 +1517,7 @@ do
       CENTROIDFLAG=1
       ORIGINFLAG=1
       CMTTYPE="CENTROID"
-      echo $ISC_SHORT_SOURCESTRING >> tectoplot.shortsources
-      echo $ISC_SOURCESTRING >> tectoplot.sources
-      echo $GCMT_SHORT_SOURCESTRING >> tectoplot.shortsources
-      echo $GCMT_SOURCESTRING >> tectoplot.sources
+
     else
       CMTTYPE="${2}"
       shift
@@ -1472,6 +1544,12 @@ do
     fi
 		plots+=("cmt")
     cpts+=("seisdepth")
+    echo $ISC_SHORT_SOURCESTRING >> tectoplot.shortsources
+    echo $ISC_SOURCESTRING >> tectoplot.sources
+    echo $GCMT_SHORT_SOURCESTRING >> tectoplot.shortsources
+    echo $GCMT_SOURCESTRING >> tectoplot.sources
+    echo $GFZ_SOURCESTRING >> tectoplot.sources
+    echo $GFZ_SHORT_SOURCESTRING >> tectoplot.shortsources
 	  ;;
 
   -ca) #  [nts] [tpn] plot selected P/T/N axes for selected EQ types
@@ -1546,6 +1624,10 @@ do
 
   -clipdem)
     clipdemflag=1
+    ;;
+
+  -clipgrav)
+    clipgravflag=1
     ;;
 
   # -cm|--cmtmag) # args: number number
@@ -1661,7 +1743,6 @@ do
           shift
         elif [[ $2 == "idmag" || $2 == "datemag" || $2 == "dateid" || $2 == "id" || $2 == "date" || $2 == "mag" ]]; then
           EQ_LABELFORMAT="${2}"
-          echo "fmt $EQ_LABELFORMAT"
           shift
         else
           info_msg "[-eqlabel]: Label class $2 not recognized."
@@ -1745,6 +1826,13 @@ do
 
   -gdalt)
     if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-gdalt]: No Z-factor specified. Using default: ${HS_Z_FACTOR}"
+    else
+      HS_Z_FACTOR="${2}"
+      info_msg "[-gdalt]: Z-factor value set to ${HS_Z_FACTOR}"
+      shift
+    fi
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
       info_msg "[-gdalt]: No gamma value specified. Using default: ${HS_GAMMA}"
     else
       HS_GAMMA="${2}"
@@ -1752,10 +1840,10 @@ do
       shift
     fi
     if [[ ${2:0:1} == [-] || -z $2 ]]; then
-      info_msg "[-gdalt]: No hillshade/slope blend specified. Using default: ${HSSLOPEBLEND} "
+      info_msg "[-gdalt]: No DEM opacity specified. Using default: ${DEM_ALPHA} "
     else
-      HSSLOPEBLEND="${2}"
-      info_msg "[-gdalt]: Gamma value set to ${HS_GAMMA}"
+      DEM_ALPHA="${2}"
+      info_msg "[-gdalt]: DEM alpha value set to ${DEM_ALPHA}"
       shift
     fi
     gdemtopoplotflag=1
@@ -1931,7 +2019,25 @@ do
     plots+=("image")
     ;;
 
-  --inset)
+  -inset)
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-inset]: No inset size specified. Using ${INSET_SIZE}".
+    else
+      INSET_SIZE="${2}"
+      shift
+    fi
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-inset]: No x shift relative to bottom left corner specified. Using ${INSET_XOFF}".
+    else
+      INSET_XOFF="${2}"
+      shift
+    fi
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-inset]: No y shift relative to bottom left corner specified. Using ${INSET_YOFF}".
+    else
+      INSET_YOFF="${2}"
+      shift
+    fi
     plots+=("inset")
     ;;
 
@@ -1979,11 +2085,19 @@ do
     # KML files need maps to be output in Cartesian coordinates
     # Need to replicate the following commands to plot a geotiff: -Jx projection, -RMINLON/MAXLON/MINLAT/MAXLAT
     #   -geotiff -RJ { -R88/98/17/30 -Jx5i } -gmtvars { MAP_FRAME_TYPE inside }
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-kml]: No resolution specified. Using $KMLRES"
+    else
+      KMLRES="${2}"
+      shift
+      info_msg "[-kml: KML resolution set to $KMLRES"
+    fi
     if [[ $regionsetflag -ne 1 ]]; then
       info_msg "[-geotiff]: Region should be set with -r before -geotiff flag is set. Using default region."
     fi
     gmt gmtset MAP_FRAME_TYPE inside
     RJSTRING="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -JX${PSSIZE}id"
+    GRIDCALL="bltr"
     usecustomrjflag=1
     insideframeflag=1
     kmlflag=1
@@ -2098,6 +2212,7 @@ do
 		fi
 		info_msg "[-m]: Magnetic data to plot is ${MAGMODEL}, transparency is ${MAGTRANS}"
 		plots+=("mag")
+    cpts+=("mag")
     echo $MAG_SOURCESTRING >> tectoplot.sources
     echo $MAG_SHORT_SOURCESTRING >> tectoplot.shortsources
 	  ;;
@@ -2231,8 +2346,8 @@ do
       shift
     fi
     if [[ ${2:0:1} == [-] || -z $2 ]]; then
-      info_msg "[-oc]: No maximum age set for CPT."
-      stretchoccptflag=0
+      info_msg "[-oc]: No maximum age set for CPT. Using $OC_MAXAGE"
+      stretchoccptflag=1
     else
       OC_MAXAGE="${2}"
       shift
@@ -2940,11 +3055,54 @@ do
         SCALEREFLAT=$MINLAT
         SCALELENLAT=$MINLAT
       fi
-    elif [[ ${2:0:1} == [-] || -z $2 ]]; then
-      info_msg "[-scale]: No reference point given. Using upper left corner."
-      SCALEREFLAT=$MAXLAT
-      SCALEREFLON=$MINLON
-      SCALELENLAT=$MAXLAT
+    fi
+
+    if [[ "${2}" =~ [A-Z] ]]; then  # This is an aprofcode location
+      info_msg "[-scale]: aprofcode ${2:0:1} found."
+      SCALEAPROF=($(echo $2 | gawk -v minlon=$MINLON -v maxlon=$MAXLON -v minlat=$MINLAT -v maxlat=$MAXLAT '
+      BEGIN {
+          row[1]="AFKPU"
+          row[2]="BGLQV"
+          row[3]="CHMRW"
+          row[4]="DINSX"
+          row[5]="EJOTY"
+          difflat=maxlat-minlat
+          difflon=maxlon-minlon
+
+          newdifflon=difflon*8/10
+          newminlon=minlon+difflon*1/10
+          newmaxlon=maxlon-difflon*1/10
+
+          newdifflat=difflat*8/10
+          newminlat=minlat+difflat*1/10
+          newmaxlat=maxlat-difflat*1/10
+
+          minlon=newminlon
+          maxlon=newmaxlon
+          minlat=newminlat
+          maxlat=newmaxlat
+          difflat=newdifflat
+          difflon=newdifflon
+
+          for(i=1;i<=5;i++) {
+            for(j=1; j<=5; j++) {
+              char=toupper(substr(row[i],j,1))
+              lats[char]=minlat+(i-1)/4*difflat
+              lons[char]=minlon+(j-1)/4*difflon
+              # print char, lons[char], lats[char]
+            }
+          }
+      }
+      {
+        for(i=1;i<=length($0);++i) {
+          char1=toupper(substr($0,i,1));
+          print lons[char1], lats[char1]
+        }
+      }'))
+      SCALEREFLON=${SCALEAPROF[0]}
+      SCALEREFLAT=${SCALEAPROF[1]}
+      SCALELENLAT=${SCALEAPROF[1]}
+      shift
     fi
     plots+=("mapscale")
     ;;
@@ -3141,6 +3299,9 @@ do
       fi
     fi
     cpts+=("topo")
+
+    MULFACT=$(echo "1 / $HS_Z_FACTOR * 111120" | bc -l)     # Effective z factor for geographic DEM with m elevation
+
     ;;
   #
   # -tc|--cpt) # args: filename
@@ -3273,8 +3434,13 @@ do
     ;;
 
   -title) # args: string
-    PLOTTITLE="${2}"
-    shift
+    PLOTTITLE=""
+    while : ; do
+      [[ ${2:0:1} == [-] || -z $2 ]] && break
+      TITLELIST+=("${2}")
+      shift
+    done
+    PLOTTITLE="${TITLELIST[@]}"
     ;;
 
   -tm|--tempdir) # Relative temporary directory placed into pwd
@@ -3425,9 +3591,6 @@ do
 
 	-z|--seis) # args: number
 		plotseis=1
-    if [[ $USEANSS_DATABASE -eq 1 ]]; then
-      info_msg "[-z]: Using hypocenter database $EQCATALOG"
-    fi
 		if [[ ${2:0:1} == [-] || -z $2 ]]; then
 			info_msg "[-z]: No scaling for seismicity specified... using default $SEISSIZE"
 		else
@@ -3728,10 +3891,16 @@ else
   info_msg "Creating temporary directory $TMP."
 fi
 
+# Make the main directory
+
 mkdir -p "${TMP}"
+
+# Move some leftover files before cd to tmp
 
 [[ -e tectoplot.sources ]] && mv tectoplot.sources ${TMP}
 [[ -e tectoplot.shortsources ]] && mv tectoplot.shortsources ${TMP}
+[[ -e bounds.txt ]] && mv bounds.txt ${TMP}
+[[ -e aprof_profs.txt ]] && mv aprof_profs.txt ${TMP}
 
 if [[ $overplotflag -eq 1 ]]; then
    info_msg "Copying basemap ps into temporary directory"
@@ -3739,6 +3908,17 @@ if [[ $overplotflag -eq 1 ]]; then
 fi
 
 cd "${TMP}"
+
+# Make subdirectories
+mkdir -p "map_elements/"
+mkdir -p "plates/"
+mkdir -p "seismicity/"
+mkdir -p "focalmechs/"
+mkdir -p "${F_TOPO}"
+mkdir -p "profiles/"
+mkdir -p "rasters/"
+
+#
 
 
 ################################################################################
@@ -5210,12 +5390,14 @@ for cptfile in ${cpts[@]} ; do
       if [[ $rescalegravflag -eq 1 ]]; then
         # gmt grdcut $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -Ggravtmp.nc
         zrange=$(grid_zrange $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
+        info_msg "Grav raster range is: $zrange"
         MINZ=$(echo $zrange | gawk  '{print int($1/100)*100}')
         MAXZ=$(echo $zrange | gawk  '{print int($2/100)*100}')
         # MINZ=$(gmt grdinfo $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep z_min | gawk  '{ print int($3/100)*100 }')
         # MAXZ=$(gmt grdinfo $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep z_min | gawk  '{print int($5/100)*100}')
         # echo MINZ MAXZ $MINZ $MAXZ
         # GRAVCPT is set by the type of gravity we selected (BG, etc) and is not the same as GRAV_CPT
+        info_msg "Rescaling gravity CPT to $MINZ/$MAXZ"
         gmt makecpt -C$GRAVCPT -T$MINZ/$MAXZ $VERBOSE > $GRAV_CPT
       else
         gmt makecpt -C$GRAVCPT -T-500/500 $VERBOSE > $GRAV_CPT
@@ -5316,6 +5498,8 @@ for cptfile in ${cpts[@]} ; do
   esac
 done
 
+
+
 ################################################################################
 ################################################################################
 ################################################################################
@@ -5372,6 +5556,9 @@ info_msg "Plotting grid and keeping PS file open for legend"
 # files here and then we have to keep track of whether to close the master PS
 # file or keep it open for subsequent plotting (--keepopenps)
 
+# The frame presents a bit of a problem as we have to manage different calls to
+# psbasemap based on a range of options (title, no title, grid, no grid, etc.)
+
 ##### PREPARE PS FILES
 if [[ $usecustomrjflag -eq 1 ]]; then
   gmt psbasemap ${RJSTRING[@]} $VERBOSE -Btlbr > base_fake_nolabels.ps > base_fake_nolabels.ps
@@ -5421,17 +5608,36 @@ fi
 
 cleanup kinsv.ps eqlabel.ps plate.ps mecaleg.ps seissymbol.ps volcanoes.ps velarrow.ps velgps.ps
 
-MAP_PS_DIM=$(gmt psconvert base_fake.ps -Te -A0.01i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+# Something about map labels messes up the psconvert call making the bounding box wrong.
+# So check the label-free width and if it is significantly less than the with-label
+# width, use it instead. Shouldn't change too much honestly.
 
+MAP_PS_DIM=$(gmt psconvert base_fake.ps -Te -A0.01i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+MAP_PS_NOLABELS_DIM=$(gmt psconvert base_fake_nolabels.ps -Te -A0.01i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
 # MAP_PS_NOLABELS_BB=($(gmt psconvert base_fake_nolabels.ps -Te -A0.01i 2> >(grep -v Processing | grep -v Find | grep -v Figure | grep -v Format | head -n 1) | awk -F'[[]' '{print $3}' | awk -F '[]]' '{print $1}'))
 # MAP_PS_WITHLABELS_BB=($(gmt psconvert base_fake.ps -Te -A0.01i 2> >(grep -v Processing | grep -v Find | grep -v Figure | grep -v Format | head -n 1) | awk -F'[[]' '{print $3}' | awk -F '[]]' '{print $1}'))
 # MAP_ANNOT_VDIFF=$(echo )
 
 MAP_PS_WIDTH_IN=$(echo $MAP_PS_DIM | gawk  '{print $1/2.54}')
 MAP_PS_HEIGHT_IN=$(echo $MAP_PS_DIM | gawk  '{print $2/2.54}')
-# echo "Map dimensions (cm) are W: $MAP_PS_WIDTH_IN, H: $MAP_PS_HEIGHT_IN"
+MAP_PS_WIDTH_NOLABELS_IN=$(echo $MAP_PS_NOLABELS_DIM | gawk  '{print $1/2.54}')
+MAP_PS_HEIGHT_NOLABELS_IN=$(echo $MAP_PS_NOLABELS_DIM | gawk  '{print $2/2.54}')
+info_msg "Map dimensions (in) are W: $MAP_PS_WIDTH_IN, H: $MAP_PS_HEIGHT_IN"
+info_msg "No label map dimensions (in) are W: $MAP_PS_WIDTH_NOLABELS_IN, H: $MAP_PS_HEIGHT_NOLABELS_IN"
 
-cleanup base_fake.ps base_fake.eps
+# If difference is more than 50% of map width
+if [[ $(echo "$MAP_PS_WIDTH_IN - $MAP_PS_WIDTH_NOLABELS_IN > $MAP_PS_WIDTH_IN/2" | bc) -eq 1 ]]; then
+  if [[ $(echo "$MAP_PS_WIDTH_NOLABELS_IN > 1" | bc) -eq 1 ]]; then
+    info_msg "Using label-free width instead."
+    MAP_PS_WIDTH_IN=$MAP_PS_WIDTH_NOLABELS_IN
+  else
+    info_msg "Width of label free PS is 0... not using as alternative."
+  fi
+fi
+
+MAP_PS_HEIGHT_IN_plus=$(echo "$MAP_PS_HEIGHT_IN+12/72" | bc -l )
+
+# cleanup base_fake.ps base_fake.eps
 
 ######
 # These variables are array indices and must be zero at start. They allow multiple
@@ -5443,10 +5649,18 @@ current_plotpointnumber=0
 # beneath the map.
 # There are options for author only, command only, and author+command
 
+# Honestly, it is a bit strange to do this here as we haven't plotted anything
+# including the profile. So our text will overlap the profile. We can fix this
+# by calling the profile psbasemap to add onto base_fake.ps and moving this
+# section to AFTER the plotting commands. But that happens in multi_profile_tectoplot.sh...
+
+#
+
+# We need to SUBTRACT the AUTHOR_YSHIFT as we are SUBTRACTING $OFFSETV
 
 if [[ $printcommandflag -eq 1 || $authorflag -eq 1 ]]; then
-  OFFSETV=$(echo $COMMAND_FONTSIZE | awk '{print ($2+20)/72}')
-  OFFSETV_M=$(echo $COMMAND_FONTSIZE | awk '{print -(($2+20)/72)}')
+  OFFSETV=$(echo $COMMAND_FONTSIZE $AUTHOR_YSHIFT | awk '{print ($1+8)/72 - $2}')
+  OFFSETV_M=$(echo $OFFSETV | awk '{print 0-$1}')
 
   if [[ $printcommandflag -eq 1 ]]; then
     echo "T $COMMAND" >> command.txt
@@ -5480,7 +5694,6 @@ if [[ $printcommandflag -eq 1 || $authorflag -eq 1 ]]; then
     gmt pslegend command.txt -Dx0/0+w${COMMAND_W}i+jTL+l1.1 $RJOK $VERBOSE >> map.ps
     gmt psxy -T -Y${OFFSETV}i $RJOK $VERBOSE >> map.ps
   fi
-
 fi
 
 ##### DO PLOTTING
@@ -5822,6 +6035,9 @@ for plot in ${plots[@]} ; do
 			;;
 
     grav)
+      if [[ $clipgravflag -eq 1 ]]; then
+        gmt grdcut $GRAVDATA -Ggrav.nc -R -J $VERBOSE
+      fi
       gmt grdimage $GRAVDATA $GRID_PRINT_RES -C$GRAV_CPT -t$GRAVTRANS $RJOK $VERBOSE >> map.ps
       ;;
 
@@ -5980,7 +6196,7 @@ for plot in ${plots[@]} ; do
        }' >> aprof_codes.txt
 
       gmt pstext aprof_codes.txt -F+f14p,Helvetica,black $RJOK $VERBOSE >> map.ps
-      # gawk < ../aprof_profs.txt '{ print ">"; print $2, $3; print $4, $5 }' | gmt psxy -W1p,black $RJOK $VERBOSE >> map.ps
+      # gawk < aprof_profs.txt '{ print ">"; print $2, $3; print $4, $5 }' | gmt psxy -W1p,black $RJOK $VERBOSE >> map.ps
     ;;
 
     mprof)
@@ -5993,7 +6209,7 @@ for plot in ${plots[@]} ; do
         PROFILE_Y="-3i"
         MPROFFILE="sprof.control"
 
-        echo "@ auto auto ${SPROF_MINELEV} ${SPROF_MAXELEV} " > sprof.control
+        echo "@ auto auto ${SPROF_MINELEV} ${SPROF_MAXELEV} ${ALIGNXY_FILE}" > sprof.control
         if [[ $plotcustomtopo -eq 1 ]]; then
           info_msg "Adding custom topo grid to sprof"
           echo "S $CUSTOMGRIDFILE 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
@@ -6002,8 +6218,12 @@ for plot in ${plots[@]} ; do
           echo "S dem.nc 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
           echo "G dem.nc 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} topo.cpt" >> sprof.control
         fi
+        if [[ -e grav.nc ]]; then
+          info_msg "Adding gravity grid to sprof as swath"
+          echo "S grav.nc 1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
+        fi
         if [[ -e eqs.txt ]]; then
-          info_msg "Adding eqs to sprof"
+          info_msg "Adding eqs to sprof as seis-xyz"
           echo "E eqs.txt ${SPROFWIDTH} -1 -W0.2p,black -C$SEISDEPTH_CPT" >> sprof.control
         fi
         if [[ -e cmt.dat ]]; then
@@ -6012,7 +6232,7 @@ for plot in ${plots[@]} ; do
         fi
         if [[ $volcanoesflag -eq 1 ]]; then
           # We need to sample the DEM at the volcano point locations, or else use 0 for elevation.
-          info_msg "Adding volcanoes to sprof"
+          info_msg "Adding volcanoes to sprof as xyz"
           echo "X volcanoes.dat ${SPROFWIDTH} 0.001 -St0.1i -W0.1p,black -Gred" >> sprof.control
         fi
         if [[ $plotslab2 -eq 1 ]]; then
@@ -6028,7 +6248,7 @@ for plot in ${plots[@]} ; do
           echo "P P1 black N N ${SPROFLON1} ${SPROFLAT1} ${SPROFLON2} ${SPROFLAT2}" >> sprof.control
         fi
         if [[ $aprofflag -eq 1 ]]; then
-          cat ../aprof_profs.txt >> sprof.control
+          cat aprof_profs.txt >> sprof.control
         fi
       fi
 
@@ -6063,7 +6283,7 @@ for plot in ${plots[@]} ; do
 
       # Plot the gridtrack tracks, for debugging
       # for track_file in *_profiletable.txt; do
-      #    echo $track_file
+      #    # echo $track_file
       #   gmt psxy $track_file -W0.15p,black $RJOK $VERBOSE >> map.ps
       # done
 
@@ -6092,12 +6312,13 @@ for plot in ${plots[@]} ; do
           # echo END POINT ${p[0]}/${p[1]} azimuth ${p[2]} width ${p[3]} color ${p[4]}
           ANTIAZ=$(echo "${p[2]} - 180" | bc -l)
           FOREAZ=$(echo "${p[2]} - 90" | bc -l)
+          WIDTHKM=$(echo "${p[3]} / 2" | bc -l) # Half width
           SUBWIDTH=$(echo "${p[3]} / 110 * 0.1" | bc -l)
           echo ">" >> end_profile_lines.txt
           # echo "${p[0]} ${p[1]}" | gmt vector -Tt${p[2]}/${p[3]}k > endpoint1.txt
           # echo "${p[0]} ${p[1]}" | gmt vector -Tt${ANTIAZ}/${p[3]}k > endpoint2.txt
-          gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${p[3]}k -L0/${p[3]} | tail -n 1 | gawk  '{print $1, $2}' > endpoint1.txt
-          gmt project -C${p[0]}/${p[1]} -A${ANTIAZ} -Q -G${p[3]}k -L0/${p[3]} | tail -n 1 | gawk  '{print $1, $2}' > endpoint2.txt
+          gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${WIDTHKM}k -L0/${WIDTHKM} | tail -n 1 | gawk  '{print $1, $2}' > endpoint1.txt
+          gmt project -C${p[0]}/${p[1]} -A${ANTIAZ} -Q -G${WIDTHKM}k -L0/${WIDTHKM} | tail -n 1 | gawk  '{print $1, $2}' > endpoint2.txt
           cat endpoint1.txt | gmt vector -Tt${FOREAZ}/${SUBWIDTH}d >> end_profile_lines.txt
           cat endpoint1.txt >> end_profile_lines.txt
           echo "${p[0]} ${p[1]}" >> end_profile_lines.txt
@@ -6110,10 +6331,11 @@ for plot in ${plots[@]} ; do
           # echo START POINT ${p[0]}/${p[1]} azimuth ${p[2]} width ${p[3]} color ${p[4]}
           ANTIAZ=$(echo "${p[2]} - 180" | bc -l)
           FOREAZ=$(echo "${p[2]} + 90" | bc -l)
+          WIDTHKM=$(echo "${p[3]} / 2" | bc -l) # Half width
           SUBWIDTH=$(echo "${p[3]}/110 * 0.1" | bc -l)
           echo ">" >>  start_profile_lines.txt
-          gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${p[3]}k -L0/${p[3]} | tail -n 1 | gawk  '{print $1, $2}' > startpoint1.txt
-          gmt project -C${p[0]}/${p[1]} -A${ANTIAZ} -Q -G${p[3]}k -L0/${p[3]} | tail -n 1 | gawk  '{print $1, $2}' > startpoint2.txt
+          gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${WIDTHKM}k -L0/${WIDTHKM}k | tail -n 1 | gawk  '{print $1, $2}' > startpoint1.txt
+          gmt project -C${p[0]}/${p[1]} -A${ANTIAZ} -Q -G${WIDTHKM}k -L0/${WIDTHKM}k | tail -n 1 | gawk  '{print $1, $2}' > startpoint2.txt
           # echo "${p[0]} ${p[1]}" | gmt vector -Tt${p[2]}/${p[3]}d >  startpoint1.txt
           # echo "${p[0]} ${p[1]}" | gmt vector -Tt${ANTIAZ}/${p[3]}d >  startpoint2.txt
           cat  startpoint1.txt | gmt vector -Tt${FOREAZ}/${SUBWIDTH}d >>  start_profile_lines.txt
@@ -6134,10 +6356,11 @@ for plot in ${plots[@]} ; do
           ANTIAZ=$(echo "${p[2]} - 180" | bc -l)
           FOREAZ=$(echo "${p[2]} + 90" | bc -l)
           FOREAZ2=$(echo "${p[2]} - 90" | bc -l)
+          WIDTHKM=$(echo "${p[3]} / 2" | bc -l) # Half width
           SUBWIDTH=$(echo "${p[3]}/110 * 0.1" | bc -l)
           echo ">" >>  mid_profile_lines.txt
-          gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${p[3]}k -L0/${p[3]} | tail -n 1 | gawk  '{print $1, $2}' >  midpoint1.txt
-          gmt project -C${p[0]}/${p[1]} -A${ANTIAZ} -Q -G${p[3]}k -L0/${p[3]} | tail -n 1 | gawk  '{print $1, $2}' > midpoint2.txt
+          gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${WIDTHKM}k -L0/${WIDTHKM}k | tail -n 1 | gawk  '{print $1, $2}' >  midpoint1.txt
+          gmt project -C${p[0]}/${p[1]} -A${ANTIAZ} -Q -G${WIDTHKM}k -L0/${WIDTHKM}k | tail -n 1 | gawk  '{print $1, $2}' > midpoint2.txt
 
           # echo "${p[0]} ${p[1]}" | gmt vector -Tt${p[2]}/${p[3]}d >  midpoint1.txt
           # echo "${p[0]} ${p[1]}" | gmt vector -Tt${ANTIAZ}/${p[3]}d >  midpoint2.txt
@@ -6409,6 +6632,8 @@ for plot in ${plots[@]} ; do
 
       # cd ..
       info_msg "Plotting velocity raster."
+
+echo  "gmt grdimage ./pvdir/plate_velocities.nc -C$PLATEVEL_CPT $GRID_PRINT_RES $RJOK $VERBOSE >> map.ps" >> mainscript.sh
       gmt grdimage ./pvdir/plate_velocities.nc -C$PLATEVEL_CPT $GRID_PRINT_RES $RJOK $VERBOSE >> map.ps
       info_msg "Plotted velocity raster."
       ;;
@@ -6864,53 +7089,64 @@ for plot in ${plots[@]} ; do
 
       # If we are doing hillshading by the GDAL-only method
       if [[ $gdemtopoplotflag -eq 1 ]]; then
-        # DEM will have been clipped already
-        # if [[ $gdaltZEROHINGE -eq 1 ]]; then
-        #   # We need to make a gdal color file that respects the CPT hinge value (usually 0)
-        #   # gdaldem is a bit funny about coloring around the hinge, so do some magic to make
-        #   # the color from land not bleed to the hinge elevation.
-        #   CPTHINGE=0
-        #   gawk < $TOPO_CPT -v hinge=$CPTHINGE '{
-        #     if ($1 != "B" && $1 != "F" && $1 != "N" ) {
-        #       if (count==1) {
-        #         print $1+0.01, $2
-        #         count=2
-        #       } else {
-        #         print $1, $2
-        #       }
+        # # DEM will have been clipped already
+        # # if [[ $gdaltZEROHINGE -eq 1 ]]; then
+        # #   # We need to make a gdal color file that respects the CPT hinge value (usually 0)
+        # #   # gdaldem is a bit funny about coloring around the hinge, so do some magic to make
+        # #   # the color from land not bleed to the hinge elevation.
+        # #   CPTHINGE=0
+        # #   gawk < $TOPO_CPT -v hinge=$CPTHINGE '{
+        # #     if ($1 != "B" && $1 != "F" && $1 != "N" ) {
+        # #       if (count==1) {
+        # #         print $1+0.01, $2
+        # #         count=2
+        # #       } else {
+        # #         print $1, $2
+        # #       }
+        # #
+        # #       if ($3 == hinge) {
+        # #         if (count==0) {
+        # #           print $3-0.0001, $4
+        # #           count=1
+        # #         }
+        # #       }
+        # #     }
+        # #     }' | tr '/' ' ' > topocolor.dat
+        # # else
+        # #   gawk < $TOPO_CPT '{ print $1, $2 }' | tr '/' ' ' > topocolor.dat
+        # # fi
         #
-        #       if ($3 == hinge) {
-        #         if (count==0) {
-        #           print $3-0.0001, $4
-        #           count=1
-        #         }
-        #       }
-        #     }
-        #     }' | tr '/' ' ' > topocolor.dat
-        # else
-        #   gawk < $TOPO_CPT '{ print $1, $2 }' | tr '/' ' ' > topocolor.dat
-        # fi
+        # # Calculate the color stretch
+        #
+        # # Calculate the multidirectional hillshade
+        # gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s 111120 dem.nc hs_md.tif -q
+        # # gdaldem hillshade -combined -s 111120 dem.nc hs_c.tif -q
+        #
+        # # Clip the hillshade to reduce extreme bright and extreme dark areas
+        #
+        #
+        # # Calculate the slope and shade the data
+        # gdaldem slope -compute_edges -s 111120 dem.nc slope.tif -q
+        # echo "0 255 255 255" > slope.txt
+        # echo "90 0 0 0" >> slope.txt
+        # gdaldem color-relief slope.tif slope.txt slopeshade.tif -q
+        #
+        # # A hillshade is mostly gray (127) while a slope map is mostly white (255)
+        #
+        # # Combine the hillshade and slopeshade into a blended, gamma corrected image
+        # HSSLOPEBLEND=0.5
+        # gdal_calc.py --quiet -A hs_md.tif -B slopeshade.tif --outfile=intensity.tif --calc="uint8( ( ((A/255.)*(${HSSLOPEBLEND}) + (B/255.)*(1-${HSSLOPEBLEND}) ) )**(1/${HS_GAMMA}) * 255)"
 
-        # Calculate the color stretch
-        # gdaldem color-relief dem.nc topocolor.dat colordem.tif -q
 
-        # Calculate the multidirectional hillshade
-        gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s 111120 dem.nc hs_md.tif -q
-        # gdaldem hillshade -combined -s 111120 dem.nc hs_c.tif -q
-
-        # Clip the hillshade to reduce extreme bright and extreme dark areas
-
-
-        # Calculate the slope and shade the data
-        gdaldem slope -compute_edges -s 111120 dem.nc slope.tif -q
+        gdaldem hillshade -multidirectional -compute_edges -alt ${HS_ALT} -s $MULFACT dem.nc hillshade.tif -q
+        gdaldem slope -compute_edges -s $MULFACT dem.nc slopedeg.tif -q
         echo "0 255 255 255" > slope.txt
         echo "90 0 0 0" >> slope.txt
-        gdaldem color-relief slope.tif slope.txt slopeshade.tif -q
 
-        # A hillshade is mostly gray (127) while a slope map is mostly white (255)
+        gdaldem color-relief slopedeg.tif slope.txt slope.tif -q
 
-        # Combine the hillshade and slopeshade into a blended, gamma corrected image
-        gdal_calc.py --quiet -A hs_md.tif -B slopeshade.tif --outfile=intensity.tif --calc="uint8( ( ((A/255.)*(${HSSLOPEBLEND}) + (B/255.)*(1-${HSSLOPEBLEND}) ) )**(1/${HS_GAMMA}) * 255)"
+        # Combine hillshade and slope using multiply, then apply gamma stretch
+        gdal_calc.py --overwrite --quiet -A hillshade.tif -B slope.tif --allBands=B --outfile=intensity.tif --calc="uint8(255 * ((A/255.)*(B/255.))**(1/${HS_GAMMA}))"
 
 
       elif [[ $tshadetopoplotflag -eq 1 ]]; then
@@ -6933,7 +7169,10 @@ for plot in ${plots[@]} ; do
 
         # Calculate the texture shade
         # Project from WGS1984 to Mercator / HDF format
-        gdalwarp -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -of EHdr -ot Float32 -ts $demwidth $demheight dem.nc dem.flt -q
+        # The -dstnodata option is a kluge to get around unknown NaNs in dem.flt even if dem.nc has NaNs filled.
+        gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight dem.nc dem.flt -q
+        gdalwarp -if netCDF -of netCDF -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -ts $demwidth $demheight dem.nc demwarp.nc -q
+
         # -ts <width> <height>
 
         # texture the DEM. Pipe output to /dev/null to silence the program
@@ -6947,36 +7186,46 @@ for plot in ${plots[@]} ; do
         else
           MERCMINLAT=$MINLAT
         fi
+
         ${TEXTURE} ${TS_FRAC} dem.flt texture.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
         # make the image. Pipe output to /dev/null to silence the program
         ${TEXTURE_IMAGE} +${TS_STRETCH} texture.flt texture_merc.tif > /dev/null
         # project back to WGS1984
+
         gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax texture_merc.tif texture_2byte.tif -q
+
         # Change to 8 bit unsigned format
         gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 texture_2byte.tif texture.tif -q
         # Calculate the multidirectional hillshade
-        gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s 111120 dem.nc hs_md.tif -q
+        gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s $MULFACT dem.nc hs_md.tif -q
 
         # Combine the hillshade and texture into a blended, gamma corrected image
+        # (A+B)/2
         gdal_calc.py --quiet -A hs_md.tif -B texture.tif --outfile=intensity.tif --calc="uint8( ( ((A/255.)*(${TS_TEXTUREBLEND}) + (B/255.)*(1-${TS_TEXTUREBLEND}) ) )**(1/${TS_GAMMA}) * 255)"
+
+        # Try a screen mode (1-(1-A)(1-B))
+        # gdal_calc.py --quiet -A hs_md.tif -B texture.tif --outfile=intensity.tif --calc="uint8(255 * (1-(1-A/255.)*(1-B/255.))**(1/${TS_GAMMA}))"
+
+        # Multiply : A*B
+        # gdal_calc.py --quiet -A hs_md.tif -B texture.tif --outfile=intensity.tif --calc="uint8(255 * ((A/255.)*(B/255.))**(1/${TS_GAMMA}))"
       else
-        # make regular hillshade intensity file here
-        # gmt grdgradient dem.nc -Em${HS_AZ}/${HS_ALT} -fg -Gintensity.nc
-        # gdal_translate -ot Byte -scale -1 1 0 255 intensity.nc intensity_nostretch.tif
-        gdaldem hillshade -compute_edges -alt ${HS_ALT} -az ${HS_AZ} -s 111120 dem.nc intensity_nostretch.tif -q
+        # make regular hillshade intensity file here and apply the gamma stretch
+        gdaldem hillshade -compute_edges -alt ${HS_ALT} -az ${HS_AZ} -s $MULFACT dem.nc intensity_nostretch.tif -q
 
         gdal_calc.py --quiet -A intensity_nostretch.tif --outfile=intensity.tif --calc="uint8( ( (A/255.)**(1/${HS_GAMMA})) * 255)"
       fi
 
       if [[ $dontplottopoflag -eq 0 ]]; then
 
-        # Combine the shaded relief and color stretch using a multiply scheme
-        # Create the color ramp
-        gdaldem color-relief dem.nc topocolor.dat colordem.tif -q
+        # Apply transparency to dem stretch
+        gdaldem color-relief dem.nc topocolor.dat colordem_noalpha.tif -q
+        gdal_calc.py --overwrite --quiet -A colordem_noalpha.tif --allBands=A --outfile=colordem.tif --calc="uint8( 255 * ( ((A/255.)*${DEM_ALPHA})+((1-${DEM_ALPHA})*255./255.)  ))"
 
-        gdal_calc.py --quiet -A intensity.tif -B colordem.tif --allBands=B --calc="uint8( ( \
-                        2 * (A/255.)*(B/255.)*(A<128) + \
-                        ( 1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128) \
+        # Combine color stretch and intensity using an average of multiple and overlay techniques
+        gdal_calc.py --overwrite --quiet -A intensity.tif -B colordem.tif --allBands=B --calc="uint8( ( \
+                        (2 * (A/255.)*(B/255.)*(A<128) + \
+                        ( 1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128))/2 \
+                        + ((A/255.)*(B/255.)/2) \
                       ) * 255 )" --outfile=colored_hillshade.tif
 
         gmt grdimage colored_hillshade.tif $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
@@ -7044,6 +7293,9 @@ if [[ $makelegendflag -eq 1 ]]; then
   echo "# Legend " > legendbars.txt
   barplotcount=0
   plottedneiscptflag=0
+
+  info_msg "Plotting colorbar legend items"
+
 
   # First, plot the color bars in a column. How many could you possibly have anyway?
   for plot in ${legendwords[@]} ; do
@@ -7150,7 +7402,7 @@ if [[ $makelegendflag -eq 1 ]]; then
   velboxflag=0
   [[ $barplotcount -eq 0 ]] && LEGEND_WIDTH=0.01
   LEG2_X=$(echo "$LEGENDX $LEGEND_WIDTH 0.1i" | gawk  '{print $1+$2+$3 }' )
-  LEG2_Y=${MAP_PS_HEIGHT_IN}
+  LEG2_Y=${MAP_PS_HEIGHT_IN_plus}
 
   # The non-colobar plots come next. pslegend can't handle a lot of things well,
   # and scaling is difficult. Instead we make small eps files and plot them,
@@ -7165,73 +7417,80 @@ if [[ $makelegendflag -eq 1 ]]; then
   NEXTX=0
   GPS_ELLIPSE_TEXT=$(gawk -v c=0.95 'BEGIN{print c*100 "%" }')
 
+  info_msg "Plotting non-colorbar legend items"
+
   for plot in ${plots[@]} ; do
   	case $plot in
       cmt)
-        MEXP_6=$(echo 6.0 | gawk  -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
-                  mwmod = ($1^str)/(sref^(str-1))
-                  a=sprintf("%E", 10^((mwmod + 10.7)*3/2))
-                  split(a,b,"+")
-                  split(a,c,"E")
-                  print c[1], b[2] }')
-        MEXP_7=$(echo 7.0 | gawk  -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
-                  mwmod = ($1^str)/(sref^(str-1))
-                  a=sprintf("%E", 10^((mwmod + 10.7)*3/2))
-                  split(a,b,"+")
-                  split(a,c,"E")
-                  print c[1], b[2] }')
-        MEXP_8=$(echo 8.0 | gawk  -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
-                  mwmod = ($1^str)/(sref^(str-1))
-                  a=sprintf("%E", 10^((mwmod + 10.7)*3/2))
-                  split(a,b,"+")
-                  split(a,c,"E")
-                  print c[1], b[2] }')
+        info_msg "Legend: cmt"
+
+        MEXP_TRIPLE=$(awk < cmt_orig.dat '
+          function ceil(x){return int(x)+(x>int(x))}
+          BEGIN {
+            getline;
+            maxmag=$13
+          }
+          {
+            maxmag=($13>maxmag)?$13:maxmag
+          }
+          END {
+            printf "%0.1d %0.1d %0.1d", ceil(maxmag)-2, ceil(maxmag)-1, ceil(maxmag)
+          }')
+
+        MEXP_ARRAY=($(echo $MEXP_TRIPLE))
+        MEXP_V_N=${MEXP_ARRAY[0]}
+        MEXP_V_S=${MEXP_ARRAY[1]}
+        MEXP_V_T=${MEXP_ARRAY[2]}
+
+        MEXP_N=$(stretched_m0_from_mw $MEXP_V_N)
+        MEXP_S=$(stretched_m0_from_mw $MEXP_V_S)
+        MEXP_T=$(stretched_m0_from_mw $MEXP_V_T)
 
         if [[ $CMTLETTER == "c" ]]; then
-          echo "$CENTERLON $CENTERLAT 15 322 39 -73 121 53 -104 $MEXP_6 126.020000 13.120000 C021576A" | gmt psmeca -E"${CMT_NORMALCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK ${VERBOSE} >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT 15 322 39 -73 121 53 -104 $MEXP_N 126.020000 13.120000 C021576A" | gmt psmeca -E"${CMT_NORMALCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtnormalflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 220 0.99" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 342 0.23" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 129 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
           fi
-          echo "$CENTERLON $CENTERLAT N/6.0" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> mecaleg.ps
-          echo "$CENTERLON $CENTERLAT 14 92 82 2 1 88 172 $MEXP_7 125.780000 8.270000 B082783A" | gmt psmeca -E"${CMT_SSCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.35i -Y-0.15i ${VERBOSE} >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT N/${MEXP_V_N}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT 14 92 82 2 1 88 172 $MEXP_S 125.780000 8.270000 B082783A" | gmt psmeca -E"${CMT_SSCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.35i -Y-0.15i ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtssflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 316 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 47 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 167 0.14" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
           fi
-          echo "$CENTERLON $CENTERLAT SS/7.0" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> mecaleg.ps
-          echo "$CENTERLON $CENTERLAT 33 321 35 92 138 55 89 $MEXP_8 123.750000 7.070000 M081676B" | gmt psmeca -E"${CMT_THRUSTCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.35i -Y-0.15i -R -J -O -K ${VERBOSE} >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT SS/${MEXP_V_S}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT 33 321 35 92 138 55 89 $MEXP_T 123.750000 7.070000 M081676B" | gmt psmeca -E"${CMT_THRUSTCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.35i -Y-0.15i -R -J -O -K ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtthrustflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 42 0.17" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 229 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 139 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
           fi
-          echo "$CENTERLON $CENTERLAT R/8.0" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT R/${MEXP_V_T}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O >> mecaleg.ps
         fi
         if [[ $CMTLETTER == "m" ]]; then
-          echo "$CENTERLON $CENTERLAT 10 -3.19 1.95 1.24 -0.968 -0.425 $MEXP_6 0 0 " | gmt psmeca -E"${CMT_NORMALCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK ${VERBOSE} >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT 10 -3.19 1.95 1.24 -0.968 -0.425 $MEXP_N 0 0 " | gmt psmeca -E"${CMT_NORMALCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtnormalflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 220 0.99" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 342 0.23" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 129 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
           fi
-          echo "$CENTERLON $CENTERLAT N/6.0" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> mecaleg.ps
-          echo "$CENTERLON $CENTERLAT 10 0.12 -1.42 1.3 0.143 -0.189 $MEXP_7 0 0 " | gmt psmeca -E"${CMT_SSCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.35i -Y-0.15i ${VERBOSE} >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT N/${MEXP_V_N}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT 10 0.12 -1.42 1.3 0.143 -0.189 $MEXP_S 0 0 " | gmt psmeca -E"${CMT_SSCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.35i -Y-0.15i ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtssflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 316 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 47 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 167 0.14" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
           fi
-          echo "$CENTERLON $CENTERLAT SS/7.0" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> mecaleg.ps
-          echo "$CENTERLON $CENTERLAT 15 2.12 -1.15 -0.97 0.54 -0.603 $MEXP_8 0 0 2016-12-08T17:38:46" | gmt psmeca -E"${CMT_THRUSTCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.35i -Y-0.15i -R -J -O -K ${VERBOSE} >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT SS/${MEXP_V_S}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT 15 2.12 -1.15 -0.97 0.54 -0.603 $MEXP_T 0 0 2016-12-08T17:38:46" | gmt psmeca -E"${CMT_THRUSTCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.35i -Y-0.15i -R -J -O -K ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtthrustflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 42 0.17" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 229 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 139 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
           fi
-          echo "$CENTERLON $CENTERLAT R/8.0" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT R/${MEXP_V_T}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O >> mecaleg.ps
         fi
 
         PS_DIM=$(gmt psconvert mecaleg.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
@@ -7244,6 +7503,7 @@ if [[ $makelegendflag -eq 1 ]]; then
         ;;
 
       eqlabel)
+        info_msg "Legend: eqlabel"
 
         [[ $EQ_LABELFORMAT == "idmag"   ]]  && echo "$CENTERLON $CENTERLAT ID Mw" | gawk  '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'      > eqlabel.legend.txt
         [[ $EQ_LABELFORMAT == "datemag" ]]  && echo "$CENTERLON $CENTERLAT DATE Mw" | gawk  '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
@@ -7263,6 +7523,8 @@ if [[ $makelegendflag -eq 1 ]]; then
         ;;
 
       grid)
+        info_msg "Legend: grid"
+
         GRIDMAXVEL_INT=$(echo "scale=0;($GRIDMAXVEL+5)/1" | bc)
         V100=$(echo "$GRIDMAXVEL_INT" | bc -l)
         if [[ $PLATEVEC_COLOR =~ "white" ]]; then
@@ -7281,6 +7543,8 @@ if [[ $makelegendflag -eq 1 ]]; then
         ;;
 
       gps)
+        info_msg "Legend: gps"
+
         GPSMAXVEL_INT=$(echo "scale=0;($GPSMAXVEL+5)/1" | bc)
         echo "$CENTERLON $CENTERLAT $GPSMAXVEL_INT 0 5 5 0 ID" | gmt psvelo -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -G${GPS_FILLCOLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> velgps.ps 2>/dev/null
         GPSMESSAGE="GPS: $GPSMAXVEL_INT mm/yr (${GPS_ELLIPSE_TEXT})"
@@ -7295,6 +7559,8 @@ if [[ $makelegendflag -eq 1 ]]; then
         ;;
 
     inset)
+        info_msg "Legend: inset"
+
         echo "$MINLON $MINLAT" > aoi_box.txt
         echo "$MINLON $MAXLAT" >> aoi_box.txt
         echo "$MAXLON $MAXLAT" >> aoi_box.txt
@@ -7308,6 +7574,7 @@ if [[ $makelegendflag -eq 1 ]]; then
         ;;
 
     kinsv)
+        info_msg "Legend: kinsv"
         echo "$CENTERLON $CENTERLAT" |  gmt psxy -Sc0.01i -W0p,white -Gwhite $RJOK $VERBOSE >> kinsv.ps
         echo "$CENTERLON $CENTERLAT" |  gmt psxy -Ss0.4i -W0p,lightblue -Glightblue $RJOK -X0.4i $VERBOSE >> kinsv.ps
         KINMESSAGE=" EQ kinematic vectors "
@@ -7352,25 +7619,41 @@ if [[ $makelegendflag -eq 1 ]]; then
         ;;
 
       seis)
-        MW_4=$(echo 4.0 | gawk  -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{ print ($1^str)/(sref^(str-1)) }')
-        MW_5=$(echo 5.0 | gawk  -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{ print ($1^str)/(sref^(str-1)) }')
-        MW_6=$(echo 6.0 | gawk  -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{ print ($1^str)/(sref^(str-1)) }')
-        MW_7=$(echo 7.0 | gawk  -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{ print ($1^str)/(sref^(str-1)) }')
-        MW_8=$(echo 8.0 | gawk  -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{ print ($1^str)/(sref^(str-1)) }')
+        info_msg "Legend: seis"
+
+        SEIS_QUINT=$(awk < eqs.txt '
+          BEGIN {
+            getline;
+            maxmag=$4
+          }
+          {
+            maxmag=($4>maxmag)?$4:maxmag
+          }
+          END {
+            print (maxmag>8)?"5.0 6.0 7.0 8.0 9.0":(maxmag>7)?"4.0 5.0 6.0 7.0 8.0":(maxmag>6)?"3.0 4.0 5.0 6.0 7.0":(maxmag>5)?"2.0 3.0 4.0 5.0 6.0":"1.0 2.0 3.0 4.0 5.0"
+          }')
+
+        SEIS_ARRAY=($(echo $SEIS_QUINT))
+
+        MW_A=$(stretched_mw_from_mw ${SEIS_ARRAY[0]})
+        MW_B=$(stretched_mw_from_mw ${SEIS_ARRAY[1]})
+        MW_C=$(stretched_mw_from_mw ${SEIS_ARRAY[2]})
+        MW_D=$(stretched_mw_from_mw ${SEIS_ARRAY[3]})
+        MW_E=$(stretched_mw_from_mw ${SEIS_ARRAY[4]})
 
         OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
         gmt gmtset PROJ_LENGTH_UNIT p
 
-        echo "$CENTERLON $CENTERLAT $MW_4 DATESTR ID" | gmt psxy -W0.5p,black -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK ${VERBOSE} >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT 4" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O -K >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT $MW_5 DATESTR ID" | gmt psxy -W0.5p,black -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT 5" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O -K >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT $MW_6 DATESTR ID" | gmt psxy -W0.5p,black -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT 6" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O -K >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT $MW_7 DATESTR ID" | gmt psxy -W0.5p,black -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT 7" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O -K >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT $MW_8 DATESTR ID" | gmt psxy -W0.5p,black -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT 8" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT $MW_A DATESTR ID" | gmt psxy -W0.5p,black -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK ${VERBOSE} >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[0]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O -K >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT $MW_B DATESTR ID" | gmt psxy -W0.5p,black -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[1]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O -K >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT $MW_C DATESTR ID" | gmt psxy -W0.5p,black -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[2]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O -K >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT $MW_D DATESTR ID" | gmt psxy -W0.5p,black -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[3]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O -K >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT $MW_E DATESTR ID" | gmt psxy -W0.5p,black -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[4]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O >> seissymbol.ps
 
         gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
 
@@ -7389,12 +7672,16 @@ if [[ $makelegendflag -eq 1 ]]; then
   			;;
 
       tdefnode)
+        info_msg "Legend: tdefnode"
+
         velboxflag=1
         # echo 0 0.1 "TDEFNODE: $TDPATH"  | gmt pstext $VERBOSE -F+f8,Helvetica,black+jBL -Y$YADD  $RJOK >> maplegend.ps
         # YADD=0.15
         ;;
 
       volcanoes)
+        info_msg "Legend: volcanoes"
+
         echo "$CENTERLON $CENTERLAT" | gmt psxy -W0.25p,"${V_LINEW}" -G"${V_FILL}" -St"${V_SIZE}"/0 $RJOK ${VERBOSE} >> volcanoes.ps
         echo "$CENTERLON $CENTERLAT Volcano" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.1i -O >> volcanoes.ps
 
@@ -7415,19 +7702,20 @@ if [[ $makelegendflag -eq 1 ]]; then
     fi
   done
 
+  info_msg "Legend: printing data sources"
   # gmt pstext tectoplot.shortplot -F+f6p,Helvetica,black $KEEPOPEN $VERBOSE >> map.ps
   # x y fontinfo angle justify linespace parwidth parjust
   echo "> 0 0 9p Helvetica,black 0 l 0.1i ${INCH}i l" > datasourceslegend.txt
   uniq tectoplot.shortsources | gawk  'BEGIN {printf "T Data sources: "} {print}'  | tr '\n' ' ' >> datasourceslegend.txt
 
   # gmt gmtset FONT_ANNOT_PRIMARY 8p,Helvetica-bold,black
-  MAP_PS_HEIGHT_IN_minus=$(echo "$MAP_PS_HEIGHT_IN-11/72" | bc -l )
+
   # NUMLEGBAR=$(wc -l < legendbars.txt)
   # if [[ $NUMLEGBAR -eq 1 ]]; then
   #   gmt pslegend datasourceslegend.txt -Dx0.0i/${MAP_PS_HEIGHT_IN_minus}i+w${LEGEND_WIDTH}+w${INCH}i+jBL -C0.05i/0.05i -J -R -O $KEEPOPEN ${VERBOSE} >> $LEGMAP
   # else
-    gmt pslegend datasourceslegend.txt -Dx0.0i/${MAP_PS_HEIGHT_IN_minus}i+w${LEGEND_WIDTH}+w${INCH}i+jBL -C0.05i/0.05i -J -R -O -K ${VERBOSE} >> $LEGMAP
-    gmt pslegend legendbars.txt -Dx0i/${MAP_PS_HEIGHT_IN}i+w${LEGEND_WIDTH}+jBL -C0.05i/0.05i -J -R -O $KEEPOPEN ${VERBOSE} >> $LEGMAP
+    gmt pslegend datasourceslegend.txt -Dx0.0i/${MAP_PS_HEIGHT_IN}i+w${LEGEND_WIDTH}+w${INCH}i+jBL -C0.05i/0.05i -J -R -O -K ${VERBOSE} >> $LEGMAP
+    gmt pslegend legendbars.txt -Dx0i/${MAP_PS_HEIGHT_IN_plus}i+w${LEGEND_WIDTH}+jBL -C0.05i/0.05i -J -R -O $KEEPOPEN ${VERBOSE} >> $LEGMAP
   # fi
 
   # If we are closing the separate legend file, PDF it

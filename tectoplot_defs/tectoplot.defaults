@@ -14,7 +14,7 @@ ILLUM="-I+d"                     # Default option for shaded relief (not used no
 # Control options
 CLEANUP_FILES=1             # If set to 1, delete files on exit that are marked for cleanup
 
-GRID_PRINT_RES=""       # Set to -Exxx where xxx is a dpi to control output resolution
+GRID_PRINT_RES=""           # Set to -Exxx where xxx is a dpi to control output resolution of grdimage
 
 ################################################################################
 # GMT options
@@ -47,6 +47,7 @@ GISLINECOLOR="0.5p"          # GIS line data file, line width
 # Miscellaneous options that haven't been placed in their proper locations in this file
 
 FILLGRIDNANS=1              # Set to 1 to fill clipped DEM NaN with nearest non-NaN values
+MEXP_TRIPLE="6.0 7.0 8.0"
 
 # The allowable intervals to be selected for plot axes
 INTERVALS_STRING="0.00001 0.0001 0.001 0.01 0.02 0.05 0.1 0.2 0.5 1 2 5 10 100 200 500 1000 2000 5000 10000 20000 50000 100000 200000 500000"
@@ -109,10 +110,13 @@ SWATH_USE_SIGNED_D_FOR_MULTIPOINT_PROFILES=0    # Set to 1 if we use signed dist
 SPROF_MAXELEV=5              # Maximum elevation of SPROF profile data. Set to a number in km (5) or to auto
 SPROF_MINELEV=-50            # Maximum elevation of SPROF profile data. Set to a number in km (5) or to auto
 SPROF_RES="1k"               # Along-profile sampling resolution
+ALIGNXY_FILE="null"
 
 ################################################################################
 # Legend options
 
+AUTHOR_YSHIFT=0
+AUTHOR_XSHIFT=0
 LEGENDX="0"                  # Offset from left side of page, inches
 LEGEND_WIDTH="2i"            # Width of the legend, inches
 
@@ -220,7 +224,8 @@ PLATEVEC_TEXT_PLOT=1         # If 1, plot text, if not, don't
 
 ################################################################################
 ##### Ocean age raster
-OC_TRANS=0
+OC_TRANS=0                   # Oceanic crust age transparency
+OC_MAXAGE=200                # Age of oldest crust in CPT
 
 ################################################################################
 ##### Topography/bathymetry
@@ -232,17 +237,18 @@ CONTOUR_LINEWIDTH="0.2p"     # contour line width
 CONTOUR_MINLEN="100k"        # length of smallest contour plotted
 
 # GDAL DEM options (-gdalt)
-HSSLOPEBLEND=0.6             # Percent of shaded relief from hillshade (rest goes to slope)
-HS_GAMMA=0.6                 # gamma factor for overlaying DEM color ramp onto slope+hs
+HS_GAMMA=1                   # gamma factor for texture file
 HS_AZ=325
 HS_ALT=40                    # Altitude of sun for multiple hillshade
 HS_VEXAG=1                   # Vertical exaggeration applied to terrain for hillshading
+HS_Z_FACTOR=2.5
+DEM_ALPHA=1
 
 # Texture shading options (-tshade)
-TS_FRAC=0.5                 # Texture shader parameter 1
-TS_STRETCH=9                # Texture shader parameter 2, contrast stretch
-TS_TEXTUREBLEND=0.7         # Proportion of hillshade in final texture
-TS_GAMMA=0.5                # Gamma stretch of final texture
+TS_FRAC=0.7                 # Texture shader parameter 1
+TS_STRETCH=4                # Texture shader parameter 2, contrast stretch
+TS_TEXTUREBLEND=0.4         # Proportion of hillshade in final texture
+TS_GAMMA=1                # Gamma stretch of final texture
 
 ################################################################################
 ##### Topographic contours
@@ -265,7 +271,6 @@ EQCUTMAXDEPTH=6000           # Ignore seismicity and CMT data below this depth
 REMOVE_DEFAULTDEPTHS=1       # Should we remove events with D=10,5,33,etc
 REMOVE_DEFAULTDEPTHS_WITHPLOT=1   # Should we plot the removed events separately?
 REMOVE_EQUIVS=1              # Should we remove equivalent earthquakes if CMT exists?
-USEANSS_DATABASE=1           # Use a scraped ANSS database instead of downloading
 EQMAXDEPTH_COLORSCALE=80   # maximum earthquake depth
 SEISSIZE="0.05i"             # seismicity scale
 SEISTRANS=0                  # transparency of seismic data
@@ -322,12 +327,12 @@ LITHO1_DEPTH=100             # Depth of depth slice for LITHO1, in km
 LITHO1_TRANS=0               # transparency of Litho1 polygons
 
 ################################################################################
-##### Globe inset
+##### Globe inset options
 INSET_SIZE="1i"
-INSET_AOI_LINECOLOR="red"
-INSET_AOI_LINEWIDTH="1p"
 INSET_XOFF="0i"
 INSET_YOFF="0i"
+INSET_AOI_LINECOLOR="red"
+INSET_AOI_LINEWIDTH="1p"
 
 ################################################################################
 ##### Focal mechanism kinematics

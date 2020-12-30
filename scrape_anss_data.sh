@@ -145,9 +145,13 @@ rm -f add_to_catalog.cat
 firstfiles=(anss_events_*.dat)
 files=($(echo ${firstfiles[@]} | tr ' ' '\n' | sort -n -t '_' -k3 -k4))
 
+# ANSS CSV data files are in most recent to least recent order for some reason
+# and have a single header line.
+
+
 for ((i=${#files[@]}-1; i>=0; i--)); do
   datfile=${files[i]}
-  lastdatfile_event=($(tail -n 1 $datfile | gawk -F, '{print $1}'))
+  lastdatfile_event=($(head -n 2 $datfile | tail -n 1 | gawk -F, '{print $1}'))
   lastdatfile_epoch=$(echo $lastdatfile_event | gawk '{
     split($1, a, "-")
     year=a[1]

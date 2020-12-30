@@ -119,6 +119,10 @@ function project_xyz_pts_onto_track() {
       printf "%s %s %s\n", $6, ($3)*zscale+zoff, (($3)*zscale+zoff)/(zscale)
     }
   }' > ${project_xyz_pts_onto_track_outputfile}
+
+  # Cleanup
+  rm -f tmp_profile.txt tmp_profile_distfrom0.txt presort_tmp_profile.txt postsort_tmp_profile_truedist.txt
+
 }
 
 # Return a sane interval and subinterval from a given value range and desired
@@ -145,7 +149,6 @@ function interval_and_subinterval_from_minmax_and_number () {
 
 ######## Start of script #######################################################
 
-
 echo "#!/bin/bash" > ./make_oblique_plots.sh
 echo "PERSPECTIVE_AZ=\${1}" >> ./make_oblique_plots.sh
 echo "PERSPECTIVE_INC=\${2}" >> ./make_oblique_plots.sh
@@ -170,10 +173,12 @@ ZOFFSET=0
 
 # Interpret the first line of the profile control file
 TRACKFILE_ORIG=$MPROFFILE
-TRACKFILE=$(echo "$(cd "$(dirname "control_file.txt")"; pwd)/$(basename "control_file.txt")")
+TRACKFILE=$(echo "$(cd "$(dirname "${F_PROFILES}control_file.txt")"; pwd)/$(basename "${F_PROFILES}control_file.txt")")
 
 # transfer the control file to the temporary directory and remove commented, blank lines
-grep . $TRACKFILE_ORIG | grep -v "^[#]" > $TRACKFILE
+# Remove leading whitespace
+
+grep . $TRACKFILE_ORIG | grep -v "^[#]" | awk '{$1=$1};1' > $TRACKFILE
 
 # If we have specified profile IDS, remove lines where the second column is not one of the profiles in PSEL_LIST
 
@@ -206,8 +211,8 @@ ZEROZ="${firstline[6]}"
 if [[ -e $ZEROFILE ]]; then
   ZEROFILE_ORIG=$(echo "$(cd "$(dirname "$ZEROFILE")"; pwd)/$(basename "$ZEROFILE")")
   # rm -f /var/tmp/tectoplot/xy_intersect.txt
-  cp $ZEROFILE_ORIG xy_intersect.txt
-  ZEROFILE="xy_intersect.txt"
+  ZEROFILE="${F_PROFILES}xy_intersect.txt"
+  cp $ZEROFILE_ORIG $ZEROFILE
   zeropointflag=1;
 fi
 
@@ -270,17 +275,17 @@ for i in $(seq 1 $k); do
   FIRSTWORD=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk '{print $1}')
 
   if [[ ${FIRSTWORD:0:1} == "P" ]]; then
-    echo ">" >> line_buffer.txt
-    head -n ${i} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 >> line_buffer.txt
+    echo ">" >> ${F_PROFILES}line_buffer.txt
+    head -n ${i} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 >> ${F_PROFILES}line_buffer.txt
   fi
   if [[ ${FIRSTWORD:0:1} == "S" || ${FIRSTWORD:0:1} == "G" ]]; then
-    head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print $5 }' >> widthlist.txt
+    head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print $5 }' >> ${F_PROFILES}widthlist.txt
   elif [[ ${FIRSTWORD:0:1} == "X" ]]; then
-    head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print $3 }' >> widthlist.txt
+    head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print $3 }' >> ${F_PROFILES}widthlist.txt
   elif [[ ${FIRSTWORD:0:1} == "E" ]]; then
-    head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print $3 }' >> widthlist.txt
+    head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print $3 }' >> ${F_PROFILES}widthlist.txt
   elif [[ ${FIRSTWORD:0:1} == "C" ]]; then
-    head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print $3 }' >> widthlist.txt
+    head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print $3 }' >> ${F_PROFILES}widthlist.txt
   fi
 done
 
@@ -294,7 +299,7 @@ done
 # This just gets the width of the widest swath from the data
 # Use a minimum of 10km as a buffer (why?)
 
-WIDTH_DEG_DATA=$(gawk < widthlist.txt 'BEGIN {maxw=0; } {
+WIDTH_DEG_DATA=$(gawk < ${F_PROFILES}widthlist.txt 'BEGIN {maxw=0; } {
     val=($1+0);
     if (val > maxw) {
       maxw = val
@@ -302,7 +307,7 @@ WIDTH_DEG_DATA=$(gawk < widthlist.txt 'BEGIN {maxw=0; } {
   }
   END {print maxw/110/2}')
 
-MAXWIDTH_KM=$(gawk < widthlist.txt 'BEGIN {maxw=0; } {
+MAXWIDTH_KM=$(gawk < ${F_PROFILES}widthlist.txt 'BEGIN {maxw=0; } {
     val=($1+0);
     if (val > maxw) {
       maxw = val
@@ -314,11 +319,11 @@ WIDTH_DEG=$(echo $WIDTH_DEG_DATA | gawk '{ print ($1<10/110/2) ? 10/110/2 : $1}'
 
 # Make the OGR_GMT format file
 
-echo "# @VGMT1.0 @GLINESTRING @Nname" > linebuffer.gmt
-echo "# @Jp\"+proj=longlat +ellps=WGS84 \"" >> linebuffer.gmt
-echo "# FEATURE_DATA" >> linebuffer.gmt
+echo "# @VGMT1.0 @GLINESTRING @Nname" > ${F_PROFILES}linebuffer.gmt
+echo "# @Jp\"+proj=longlat +ellps=WGS84 \"" >> ${F_PROFILES}linebuffer.gmt
+echo "# FEATURE_DATA" >> ${F_PROFILES}linebuffer.gmt
 
-gawk < line_buffer.txt 'BEGIN{num=1} {
+gawk < ${F_PROFILES}line_buffer.txt 'BEGIN{num=1} {
   if ($1 == ">") {
     print "> -W0.25p";
     printf "# @D\"%s\"\n", num++;
@@ -330,7 +335,7 @@ gawk < line_buffer.txt 'BEGIN{num=1} {
       print $1, $2
     }
   }
-}' >> linebuffer.gmt
+}' >> ${F_PROFILES}linebuffer.gmt
 
 # We could theoretically project and then buffer in meters and then reproject... ick
 
@@ -398,7 +403,7 @@ for i in $(seq 1 $k); do
     # GRIDFILE 0.001 .1k 40k 0.1k
     grididnum[$i]=$(echo "grid${i}")
     gridfilelist[$i]=$(echo "$(cd "$(dirname "${myarr[1]}")"; pwd)/$(basename "${myarr[1]}")")
-    gridfilesellist[$i]=$(echo "cut_$(basename "${myarr[1]}").nc")
+    gridfilesellist[$i]=$(echo "cut_$(basename "${myarr[1]}")")
     gridzscalelist[$i]="${myarr[2]}"
     gridspacinglist[$i]="${myarr[3]}"
     gridwidthlist[$i]="${myarr[4]}"
@@ -412,23 +417,23 @@ for i in $(seq 1 $k); do
       else
         gridcptlist[$i]=$(echo "$(cd "$(dirname "${myarr[6]}")"; pwd)/$(basename "${myarr[6]}")")
       fi
-      info_msg "Loading top grid: ${gridfilesellist[$i]}: Zscale ${gridzscalelist[$i]}, Spacing: ${gridspacinglist[$i]}, Width: ${gridwidthlist[$i]}, SampWidth: ${gridsamplewidthlist[$i]}"
+      info_msg "Loading top grid: ${gridfilelist[$i]}: Zscale ${gridzscalelist[$i]}, Spacing: ${gridspacinglist[$i]}, Width: ${gridwidthlist[$i]}, SampWidth: ${gridsamplewidthlist[$i]}"
     else
-      info_msg "Loading swath grid: ${gridfilesellist[$i]}: Zscale ${gridzscalelist[$i]}, Spacing: ${gridspacinglist[$i]}, Width: ${gridwidthlist[$i]}, SampWidth: ${gridsamplewidthlist[$i]}"
+      info_msg "Loading swath grid: ${gridfilelist[$i]}: Zscale ${gridzscalelist[$i]}, Spacing: ${gridspacinglist[$i]}, Width: ${gridwidthlist[$i]}, SampWidth: ${gridsamplewidthlist[$i]}"
     fi
 
     # # Cut the grid to the AOI and multiply by its ZSCALE
     # If the grid doesn't fall within the buffer AOI, there will be no result but it won't be a problem, so pipe error to /dev/null
-    rm -f tmp.nc
-    gmt grdcut ${gridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Gtmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
-    gmt grdmath tmp.nc ${gridzscalelist[$i]} MUL = ${gridfilesellist[$i]}
+    rm -f ${F_PROFILES}tmp.nc
+    gmt grdcut ${gridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
+    gmt grdmath ${F_PROFILES}tmp.nc ${gridzscalelist[$i]} MUL = ${F_PROFILES}${gridfilesellist[$i]}
   elif [[ ${FIRSTWORD:0:1} == "T" ]]; then
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print }'))
 
     # GRIDFILE 0.001 .1k 40k 0.1k
     ptgrididnum[$i]=$(echo "ptgrid${i}")
     ptgridfilelist[$i]=$(echo "$(cd "$(dirname "${myarr[1]}")"; pwd)/$(basename "${myarr[1]}")")
-    ptgridfilesellist[$i]=$(echo "cut_$(basename "${myarr[1]}").nc")
+    ptgridfilesellist[$i]=$(echo "cut_$(basename "${myarr[1]}")")
     ptgridzscalelist[$i]="${myarr[2]}"
     ptgridspacinglist[$i]="${myarr[3]}"
     ptgridcommandlist[$i]=$(echo "${myarr[@]:4}")
@@ -438,22 +443,22 @@ for i in $(seq 1 $k); do
     # Cut the grid to the AOI and multiply by its ZSCALE
     # If the grid doesn't fall within the buffer AOI, there will be no result but it won't be a problem, so pipe error to /dev/null
 
-    rm -f tmp.nc
+    rm -f ${F_PROFILES}tmp.nc
     # echo     gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Gtmp.nc --GMT_HISTORY=false "-Vn 2>/dev/null"
-    gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Gtmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
-    if [[ -e tmp.nc ]]; then
+    gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
+    if [[ -e ${F_PROFILES}tmp.nc ]]; then
       # echo tmp.nc exists
-      gmt grdmath tmp.nc ${ptgridzscalelist[$i]} MUL = ${ptgridfilesellist[$i]}
+      gmt grdmath ${F_PROFILES}tmp.nc ${ptgridzscalelist[$i]} MUL = ${F_PROFILES}${ptgridfilesellist[$i]}
     fi
   elif [[ ${FIRSTWORD:0:1} == "X" || ${FIRSTWORD:0:1} == "E" ]]; then        # Found an XYZ dataset
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print }'))
     # This is where we would load datasets to be displayed
     FILE_P=$(echo "$(cd "$(dirname "${myarr[1]}")"; pwd)/$(basename "${myarr[1]}")")
-    FILE_SEL=$(echo "crop_$(basename "${myarr[1]}")")
+    FILE_SEL=$(echo "${F_PROFILES}crop_$(basename "${myarr[1]}")")
 
     # Remove lines that don't start with a number or a minus sign. Doesn't handle plus signs...
     # Store in a file called crop_X where X is the basename of the source data file.
-    grep "^[-*0-9]" $FILE_P | gmt select -fg -Lline_buffer.txt+d"${myarr[2]}" > $FILE_SEL
+    grep "^[-*0-9]" $FILE_P | gmt select -fg -L${F_PROFILES}line_buffer.txt+d"${myarr[2]}" > $FILE_SEL
     info_msg "Selecting data in file $FILE_P within buffer distance ${myarr[2]}: to $FILE_SEL"
     xyzfilelist[$i]=$FILE_SEL
 
@@ -499,7 +504,7 @@ for i in $(seq 1 $k); do
     ZOFFSET=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk '{print $5}')
 
     # Initialize the profile plot script
-    echo "#!/bin/bash" > ${LINEID}_profile_plot.sh
+    echo "#!/bin/bash" > ${F_PROFILES}${LINEID}_profile_plot.sh
 
   # if [[ ${FIRSTWORD:0:1} != "#" && ${FIRSTWORD:0:1} != "$" && ${FIRSTWORD:0:1} != "%"  && ${FIRSTWORD:0:1} != "^" && ${FIRSTWORD:0:1} != "@" && ${FIRSTWORD:0:1} != ":" && ${FIRSTWORD:0:1} != ">" ]]; then
   #   LINEID=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk '{print $1}')
@@ -536,19 +541,19 @@ for i in $(seq 1 $k); do
     }')
 
     # echo "$LINEID is LINEID / color is $COLOR light $LIGHTCOLOR lighter $LIGHTERCOLOR,  offset is $XOFFSET_NUM"
-    head -n ${i} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 > ${LINEID}_trackfile.txt
+    head -n ${i} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 > ${F_PROFILES}${LINEID}_trackfile.txt
 
     # Calculate the incremental length along profile between points
-    gmt mapproject ${LINEID}_trackfile.txt -G+uk+i | gawk '{print $3}' > ${LINEID}_dist_km.txt
+    gmt mapproject ${F_PROFILES}${LINEID}_trackfile.txt -G+uk+i | gawk '{print $3}' > ${F_PROFILES}${LINEID}_dist_km.txt
 
     # Calculate the total along-track length of the profile
-    PROFILE_LEN_KM=$(gawk < ${LINEID}_dist_km.txt 'BEGIN{val=0}{val=val+$1}END{print val}')
+    PROFILE_LEN_KM=$(gawk < ${F_PROFILES}${LINEID}_dist_km.txt 'BEGIN{val=0}{val=val+$1}END{print val}')
     PROFILE_XMIN=0
     PROFILE_XMAX=$PROFILE_LEN_KM
 
     # Create swath width indicator for this track using the widest buffer
-  	sed 1d < ${LINEID}_trackfile.txt > shift1_${LINEID}_trackfile.txt
-  	paste ${LINEID}_trackfile.txt shift1_${LINEID}_trackfile.txt | grep -v "\s>" > geodin_${LINEID}_trackfile.txt
+  	sed 1d < ${F_PROFILES}${LINEID}_trackfile.txt > ${F_PROFILES}shift1_${LINEID}_trackfile.txt
+  	paste ${F_PROFILES}${LINEID}_trackfile.txt ${F_PROFILES}shift1_${LINEID}_trackfile.txt | grep -v "\s>" > ${F_PROFILES}geodin_${LINEID}_trackfile.txt
 
     # Script to return azimuth and midpoint between a pair of input points.
     # Comes within 0.2 degrees of geod() results over large distances, while being symmetrical which geod isn't
@@ -556,7 +561,7 @@ for i in $(seq 1 $k); do
 
     # Note: this calculates the NORMAL DIRECTION to the profile and not its AZIMUTH
 
-    gawk < geodin_${LINEID}_trackfile.txt 'function acos(x) { return atan2(sqrt(1-x*x), x) }
+    gawk < ${F_PROFILES}geodin_${LINEID}_trackfile.txt 'function acos(x) { return atan2(sqrt(1-x*x), x) }
         {
             lon1 = $1*3.14159265358979/180;
             lat1 = $2*3.14159265358979/180;
@@ -568,13 +573,13 @@ for i in $(seq 1 $k); do
             lonMid = lon1+atan2(By, cos(lat1)+Bx);
             theta = atan2(sin(lon2-lon1)*cos(lat2), cos(lat1)*sin(lat2)-sin(lat1)*cos(lat2)*cos(lon2-lon1));
             printf "%.5f %.5f %.3f\n", lonMid*180/3.14159265358979, latMid*180/3.14159265358979, (theta*180/3.14159265358979+360-90)%360;
-        }' > az_${LINEID}_trackfile.txt
+        }' > ${F_PROFILES}az_${LINEID}_trackfile.txt
 
-    paste ${LINEID}_trackfile.txt az_${LINEID}_trackfile.txt > jointrack_${LINEID}.txt
+    paste ${F_PROFILES}${LINEID}_trackfile.txt ${F_PROFILES}az_${LINEID}_trackfile.txt > ${F_PROFILES}jointrack_${LINEID}.txt
 
     # The azimuth of the profile is the azimuth of its first segment.
 
-    THISP_AZ=$(head -n 1 az_${LINEID}_trackfile.txt | awk '{print $3}')
+    THISP_AZ=$(head -n 1 ${F_PROFILES}az_${LINEID}_trackfile.txt | awk '{print $3}')
 
     # A hillshade of the profile will need to be adjusted by
     # az=0/360 a2=az+a+90
@@ -588,8 +593,8 @@ for i in $(seq 1 $k); do
     }')
 
 
-    LINETOTAL=$(wc -l < jointrack_${LINEID}.txt)
-    cat jointrack_${LINEID}.txt | gawk -v width="${MAXWIDTH_KM}" -v color="${COLOR}" -v lineval="${LINETOTAL}" -v lineid=${LINEID} '
+    LINETOTAL=$(wc -l < ${F_PROFILES}jointrack_${LINEID}.txt)
+    cat ${F_PROFILES}jointrack_${LINEID}.txt | gawk -v width="${MAXWIDTH_KM}" -v color="${COLOR}" -v lineval="${LINETOTAL}" -v lineid=${F_PROFILES}${LINEID} '
       (NR==1) {
         print $1, $2, $5, width, color, lineid >> "start_points.txt"
         lastval=$5
@@ -607,20 +612,23 @@ for i in $(seq 1 $k); do
         print $1, $2, lastval, width, color, lineid >> "end_points.txt"
       }
       '
+    [[ -e end_points.txt ]] && mv end_points.txt ${F_PROFILES}
+    [[ -e mid_points.txt ]] && mv mid_points.txt ${F_PROFILES}
+    [[ -e start_points.txt ]] && mv start_points.txt ${F_PROFILES}
 
     xoffsetflag=0
     # Set XOFFSET to the distance from our first point to the crossing point of zero_point_file.txt
     if [[ $zeropointflag -eq 1 && $doxflag -eq 1 ]]; then
-      head -n 1 ${LINEID}_trackfile.txt > intersect.txt
-      gmt spatial -Vn -fg -Ie -Fl ${LINEID}_trackfile.txt $ZEROFILE | head -n 1 | gawk '{print $1, $2}' >> intersect.txt
-      INTNUM=$(wc -l < intersect.txt)
+      head -n 1 ${F_PROFILES}${LINEID}_trackfile.txt > ${F_PROFILES}intersect.txt
+      gmt spatial -Vn -fg -Ie -Fl ${F_PROFILES}${LINEID}_trackfile.txt $ZEROFILE | head -n 1 | gawk '{print $1, $2}' >> ${F_PROFILES}intersect.txt
+      INTNUM=$(wc -l < ${F_PROFILES}intersect.txt)
       if [[ $INTNUM -eq 2 ]]; then
-        XOFFSET_NUM=$(gmt mapproject -Vn -G+uk+i intersect.txt | tail -n 1 | gawk '{print 0-$3}')
+        XOFFSET_NUM=$(gmt mapproject -Vn -G+uk+i ${F_PROFILES}intersect.txt | tail -n 1 | gawk '{print 0-$3}')
         xoffsetflag=1
         PROFILE_XMIN=$(echo "$PROFILE_XMIN + $XOFFSET_NUM" | bc -l)
         PROFILE_XMAX=$(echo "$PROFILE_XMAX + $XOFFSET_NUM" | bc -l)
         info_msg "Updated line $LINEID by shifting $XOFFSET_NUM km to match $ZEROFILE"
-        tail -n 1 intersect.txt >> all_intersect.txt
+        tail -n 1 ${F_PROFILES}intersect.txt >> ${F_PROFILES}all_intersect.txt
       fi
     fi
 
@@ -638,7 +646,7 @@ for i in $(seq 1 $k); do
 
     # Find the cross profile locations
 
-    p=($(head -n 1 ${LINEID}_end.txt))
+    p=($(head -n 1 ${F_PROFILES}${LINEID}_end.txt))
     # Determine profile of the oblique block end
     ANTIAZ=$(echo "${p[2]} - 180" | bc -l)
     FOREAZ=$(echo "${p[2]} - 90" | bc -l)
@@ -649,21 +657,21 @@ for i in $(seq 1 $k); do
       XOFFSET_CROSS=0
       # echo "${p[0]} ${p[1]}" > ${LINEID}_endprof.txt
       # echo "${p[0]} ${p[1]}" | gmt vector -Tt${p[2]}/${p[3]}k >> ${LINEID}_endprof.txt
-      echo "${p[0]} ${p[1]}" > ${LINEID}_endprof.txt
-      gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${p[3]}k -L0/${p[3]} | gawk '{print $1, $2}' >> ${LINEID}_endprof.txt
+      echo "${p[0]} ${p[1]}" > ${F_PROFILES}${LINEID}_endprof.txt
+      gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${p[3]}k -L0/${p[3]} | gawk '{print $1, $2}' >> ${F_PROFILES}${LINEID}_endprof.txt
     else
       # echo "full"
       # If we are doing the full profile, we have to go from endpoint to endpoint
       # echo "${p[0]} ${p[1]}" | gmt vector -Tt${ANTIAZ}/${p[3]}k > ${LINEID}_endprof.txt
       # echo "${p[0]} ${p[1]}" | gmt vector -Tt${p[2]}/${p[3]}k >> ${LINEID}_endprof.txt
-      gmt project -C${p[0]}/${p[1]} -A${ANTIAZ} -Q -G${p[3]}k -L0/${p[3]} | gawk '{print $1, $2}' > ${LINEID}_endprof.txt
-      gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${p[3]}k -L0/${p[3]} | gawk '{print $1, $2}' >> ${LINEID}_endprof.txt
+      gmt project -C${p[0]}/${p[1]} -A${ANTIAZ} -Q -G${p[3]}k -L0/${p[3]} | gawk '{print $1, $2}' > ${F_PROFILES}${LINEID}_endprof.txt
+      gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${p[3]}k -L0/${p[3]} | gawk '{print $1, $2}' >> ${F_PROFILES}${LINEID}_endprof.txt
 
       # Get the distance between the points, in km
     fi
     # TMPDIST=$(gmt mapproject ${LINEID}_endprof.txt -G+uk+i | tail -n 1 | gawk '{print $3}')
     # echo a TMPDIST is $TMPDIST
-    TMPDIST=$(gmt mapproject ${LINEID}_endprof.txt -G+uk+i | tail -n 1 | gawk '{print $3}')
+    TMPDIST=$(gmt mapproject ${F_PROFILES}${LINEID}_endprof.txt -G+uk+i | tail -n 1 | gawk '{print $3}')
     # echo b TMPDIST is $TMPDIST
     XOFFSET_CROSS=$(echo "0 - ($TMPDIST / 2)" | bc -l)
     # echo XOFFSET_CROSS is $XOFFSET_CROSS
@@ -673,8 +681,8 @@ for i in $(seq 1 $k); do
 
       # First, do the main profile, honoring the XOFFSET_NUM shift
 
-      gmt sample1d ${LINEID}_trackfile.txt -Af -fg -I${LITHO1_INC}k  > ./${LINEID}_litho1_track.txt
-      rm -f lab.xy
+      gmt sample1d ${F_PROFILES}${LINEID}_trackfile.txt -Af -fg -I${LITHO1_INC}k  > ${F_PROFILES}${LINEID}_litho1_track.txt
+      rm -f ${F_PROFILES}lab.xy
       ptcount=0
       while read p; do
         lon=$(echo $p | gawk '{print $1}')
@@ -712,15 +720,16 @@ for i in $(seq 1 $k); do
             }
             lastz=-$1/1000
             lastval=$(extfield)
-          }' >> ${LINEID}_litho1_poly.dat
+          }' >> ${F_PROFILES}${LINEID}_litho1_poly.dat
+
         ptcount=$(echo "$ptcount + 1" | bc)
-      done < ./${LINEID}_litho1_track.txt
-      mv ./lab.xy ${LINEID}_lab.xy
+      done < ${F_PROFILES}${LINEID}_litho1_track.txt
+      mv lab.xy ${F_PROFILES}${LINEID}_lab.xy
 
       # Then, do the cross-profile to go on the end of the block diagram.
 
       if [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]]; then
-        gmt sample1d ${LINEID}_endprof.txt -Af -fg -I${LITHO1_INC}k  > ./${LINEID}_litho1_cross_track.txt
+        gmt sample1d ${F_PROFILES}${LINEID}_endprof.txt -Af -fg -I${LITHO1_INC}k  > ${F_PROFILES}${LINEID}_litho1_cross_track.txt
         rm -f lab.xy
         ptcount=0
         while read p; do
@@ -759,23 +768,23 @@ for i in $(seq 1 $k); do
               }
               lastz=-$1/1000
               lastval=$(extfield)
-            }' >> ${LINEID}_litho1_cross_poly.dat
+            }' >> ${F_PROFILES}${LINEID}_litho1_cross_poly.dat
           ptcount=$(echo "$ptcount + 1" | bc)
-        done < ./${LINEID}_litho1_cross_track.txt
-        mv ./lab.xy ${LINEID}_cross_lab.xy
+        done < ${F_PROFILES}${LINEID}_litho1_cross_track.txt
+        mv lab.xy ${F_PROFILES}${LINEID}_cross_lab.xy
       fi
 
       # PLOT ON THE MAP PS
-      echo "gmt psxy -L ${LINEID}_litho1_poly.dat -G+z -C$LITHO1_CPT -t${LITHO1_TRANS} -Vn -R -J -O -K >> ${PSFILE}" >> plot.sh
-      echo "gmt psxy ${LINEID}_lab.xy -W0.5p,black -Vn -R -J -O -K >> ${PSFILE}" >> plot.sh
+      echo "gmt psxy -L ${F_PROFILES}${LINEID}_litho1_poly.dat -G+z -C$LITHO1_CPT -t${LITHO1_TRANS} -Vn -R -J -O -K >> ${PSFILE}" >> plot.sh
+      echo "gmt psxy ${F_PROFILES}${LINEID}_lab.xy -W0.5p,black -Vn -R -J -O -K >> ${PSFILE}" >> plot.sh
 
       # PLOT ON THE FLAT PROFILE PS
-      echo "gmt psxy -L ${LINEID}_litho1_poly.dat -G+z -C$LITHO1_CPT -t${LITHO1_TRANS} -Vn -R -J -O -K >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-      echo "gmt psxy ${LINEID}_lab.xy -W0.5p,black -Vn -R -J -O -K >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+      echo "gmt psxy -L ${F_PROFILES}${LINEID}_litho1_poly.dat -G+z -C$LITHO1_CPT -t${LITHO1_TRANS} -Vn -R -J -O -K >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+      echo "gmt psxy ${F_PROFILES}${LINEID}_lab.xy -W0.5p,black -Vn -R -J -O -K >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
       # PLOT ON THE OBLIQUE PROFILE PS
-      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -L -p ${LINEID}_litho1_poly.dat -t${LITHO1_TRANS} -G+z -C$LITHO1_CPT -Vn -R -J -O -K >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p ${LINEID}_lab.xy -W0.5p,black -Vn -R -J -O -K >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -L -p ${F_PROFILES}${LINEID}_litho1_poly.dat -t${LITHO1_TRANS} -G+z -C$LITHO1_CPT -Vn -R -J -O -K >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p ${F_PROFILES}${LINEID}_lab.xy -W0.5p,black -Vn -R -J -O -K >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
 
     fi
 
@@ -786,17 +795,17 @@ for i in $(seq 1 $k); do
     for i in ${!ptgridfilelist[@]}; do
       gridfileflag=1
 
-      if [[ -e ${ptgridfilesellist[$i]} ]]; then
+      if [[ -e ${F_PROFILES}${ptgridfilesellist[$i]} ]]; then
 
         # Resample the track at the specified X increment.
-        gmt sample1d ${LINEID}_trackfile.txt -Af -fg -I${ptgridspacinglist[$i]} > ${LINEID}_${ptgrididnum[$i]}_trackinterp.txt
+        gmt sample1d ${F_PROFILES}${LINEID}_trackfile.txt -Af -fg -I${ptgridspacinglist[$i]} > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt
 
         # Calculate the X coordinate of the resampled track, accounting for any X offset due to profile alignment
-        gmt mapproject -G+uk+a ${LINEID}_${ptgrididnum[$i]}_trackinterp.txt | gawk -v xoff="${XOFFSET_NUM}" '{ print $1, $2, $3 + xoff }' > ${LINEID}_${ptgrididnum[$i]}_trackdist.txt
+        gmt mapproject -G+uk+a ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt | gawk -v xoff="${XOFFSET_NUM}" '{ print $1, $2, $3 + xoff }' > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackdist.txt
 
         # Sample the grid at the points.  Note that -N is needed to avoid paste problems.
 
-        gmt grdtrack -N -Vn -G${ptgridfilesellist[$i]} ${LINEID}_${ptgrididnum[$i]}_trackinterp.txt > ${LINEID}_${ptgrididnum[$i]}_sample.txt
+        gmt grdtrack -N -Vn -G${F_PROFILES}${ptgridfilesellist[$i]} ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_sample.txt
 
         # *_sample.txt is a file containing lon,lat,val
         # We want to reformat to a multisegment polyline that can be plotted using psxy -Ccpt
@@ -804,20 +813,20 @@ for i in $(seq 1 $k); do
         # Lon1 lat1
         # lon2 lat2
         # > -Zval2
-        paste  ${LINEID}_${ptgrididnum[$i]}_trackdist.txt ${LINEID}_${ptgrididnum[$i]}_sample.txt > dat.txt
-        sed 1d < dat.txt > dat1.txt
-      	paste  dat.txt dat1.txt | gawk -v zscale=${ptgridzscalelist[$i]} '{ if ($7 && $6 != "NaN" && $12 != "NaN") { print "> -Z"($6+$12)/2*zscale*-1; print $3, $6*zscale; print $9, $12*zscale } }' > ${LINEID}_${ptgrididnum[$i]}_data.txt
+        paste ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackdist.txt ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_sample.txt > ${F_PROFILES}dat.txt
+        sed 1d < ${F_PROFILES}dat.txt > ${F_PROFILES}dat1.txt
+      	paste ${F_PROFILES}dat.txt ${F_PROFILES}dat1.txt | gawk -v zscale=${ptgridzscalelist[$i]} '{ if ($7 && $6 != "NaN" && $12 != "NaN") { print "> -Z"($6+$12)/2*zscale*-1; print $3, $6*zscale; print $9, $12*zscale } }' > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt
 
         # PLOT ON THE MAP PS
-        echo "gmt psxy -Vn -R -J -O -K -L ${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> "${PSFILE}"" >> plot.sh
+        echo "gmt psxy -Vn -R -J -O -K -L ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> "${PSFILE}"" >> plot.sh
 
         # PLOT ON THE FLAT PROFILE PS
-        echo "gmt psxy -Vn -R -J -O -K -L ${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "gmt psxy -Vn -R -J -O -K -L ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
         # PLOT ON THE OBLIQUE PROFILE PS
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -L ${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -L ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
 
-        grep "^[-*0-9]" ${LINEID}_${ptgrididnum[$i]}_data.txt >> ${LINEID}_all_data.txt
+        grep "^[-*0-9]" ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt >> ${F_PROFILES}${LINEID}_all_data.txt
       fi
     done
 
@@ -829,19 +838,18 @@ for i in $(seq 1 $k); do
     for i in ${!gridfilelist[@]}; do
       gridfileflag=1
 
-      # Sample the input grid along space cross-profiles
-
-      gmt grdtrack -N -Vn -G${gridfilesellist[$i]} ${LINEID}_trackfile.txt -C${gridwidthlist[$i]}/${gridsamplewidthlist[$i]}/${gridspacinglist[$i]}${PERSPECTIVE_TOPO_HALF} -Af > ${LINEID}_${grididnum[$i]}_profiletable.txt
+      # Sample the input grid along space cross-profile
+      gmt grdtrack -N -Vn -G${F_PROFILES}${gridfilesellist[$i]} ${F_PROFILES}${LINEID}_trackfile.txt -C${gridwidthlist[$i]}/${gridsamplewidthlist[$i]}/${gridspacinglist[$i]}${PERSPECTIVE_TOPO_HALF} -Af > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
 
       # ${LINEID}_${grididnum[$i]}_profiletable.txt: FORMAT is grdtrack (> profile data), columns are lon, lat, distance_from_profile, back_azimuth, value
 
       # Extract the profile ID numbers.
       # !!!!! This could easily be simplified to be a list of numbers starting with 0 and incrementing by 1!
-      grep ">" ${LINEID}_${grididnum[$i]}_profiletable.txt | gawk -F- '{print $3}' | gawk -F" " '{print $1}' > ${LINEID}_${grididnum[$i]}_profilepts.txt
+      grep ">" ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt | gawk -F- '{print $3}' | gawk -F" " '{print $1}' > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilepts.txt
 
       # Shift the X coordinates of each cross-profile according to XOFFSET_NUM value
       # In gawk, adding +0 to dinc changes "0.3k" to "0.3"
-      gawk -v xoff="${XOFFSET_NUM}" -v dinc="${gridspacinglist[$i]}" '{ print ( $1 * (dinc + 0) + xoff ) }' < ${LINEID}_${grididnum[$i]}_profilepts.txt > ${LINEID}_${grididnum[$i]}_profilekm.txt
+      gawk -v xoff="${XOFFSET_NUM}" -v dinc="${gridspacinglist[$i]}" '{ print ( $1 * (dinc + 0) + xoff ) }' < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilepts.txt > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilekm.txt
 
       # Construct the profile data table.
       gawk '{
@@ -850,7 +858,7 @@ for i in $(seq 1 $k); do
         } else {
           printf("%s ", $5)
         }
-      }' < ${LINEID}_${grididnum[$i]}_profiletable.txt | sed '1d' > ${LINEID}_${grididnum[$i]}_profiledata.txt
+      }' < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt | sed '1d' > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledata.txt
 
       # If we are doing an oblique section and the current grid is a top grid
       if [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 && ${istopgrid[$i]} -eq 1 ]]; then
@@ -862,7 +870,7 @@ for i in $(seq 1 $k); do
           # Just export the profile data to a CSV without worrying about profile kink problems. Faster.
 
           # First find the maximum value of X. We want X to be negative or zero for the block plot. Not sure what happens otherwise...
-          MAX_X_VAL=$(gawk < ${LINEID}_${grididnum[$i]}_profiletable.txt 'BEGIN{maxx=-999999} { if ($1 != ">" && $1 > maxx) {maxx = $1 } } END{print maxx}')
+          MAX_X_VAL=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt 'BEGIN{maxx=-999999} { if ($1 != ">" && $1 > maxx) {maxx = $1 } } END{print maxx}')
 
           gawk -v xoff="${XOFFSET_NUM}" -v dinc="${gridspacinglist[$i]}" -v maxx=$MAX_X_VAL '
             BEGIN{offset=0;minX=99999999;maxX=-99999999; minY=99999999; maxY=-99999999; minZ=99999999; maxZ=-99999999}
@@ -901,30 +909,33 @@ for i in $(seq 1 $k); do
             }
             END {
               printf "%d %d %d %d %f %f", minX, maxX, minY, maxY, minZ, maxZ > "./profilerange.txt"
-            }' < ${LINEID}_${grididnum[$i]]}_profiletable.txt | sed '1d' > ${LINEID}_${grididnum[$i]}_data.csv
+            }' < ${F_PROFILES}${LINEID}_${grididnum[$i]]}_profiletable.txt | sed '1d' > ${F_PROFILES}${LINEID}_${grididnum[$i]}_data.csv
         else
+          echo a
+        mv profilerange.txt ${F_PROFILES}/profilerange.txt
+        echo b
 
           # Turn the gridded profile data into dt, da, Z data, shifted by X offset
 
           # Output the lon, lat, Z, and the sign of the cross-profile distance (left vs right)
-          gawk < ${LINEID}_${grididnum[$i]]}_profiletable.txt '{
+          gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]]}_profiletable.txt '{
             if ($1 != ">") {
               print $1, $2, $5, ($3>0)?-1:1
             }
-          }' > ${LINEID}_${grididnum[$i]]}_prepdata.txt
+          }' > ${F_PROFILES}${LINEID}_${grididnum[$i]]}_prepdata.txt
 
             # I need a file with LON, LAT, Z
 
             # Interpolate at a spacing of ${gridspacinglist[$i]} (spacing between cross track profiles)
-            gmt sample1d ${LINEID}_trackfile.txt -Af -fg -I${gridspacinglist[$i]} > line_trackinterp.txt
+            gmt sample1d ${F_PROFILES}${LINEID}_trackfile.txt -Af -fg -I${gridspacinglist[$i]} > ${F_PROFILES}line_trackinterp.txt
 
             # If this function can be sped up that would be great.
             echo "Distance to and along track calc... (takes some time!)"
-            gmt mapproject ${LINEID}_${grididnum[$i]]}_prepdata.txt -Lline_trackinterp.txt+p -fg -Vn > ${LINEID}_${grididnum[$i]]}_dadtpre.txt
+            gmt mapproject ${F_PROFILES}${LINEID}_${grididnum[$i]]}_prepdata.txt -L${F_PROFILES}line_trackinterp.txt+p -fg -Vn > ${F_PROFILES}${LINEID}_${grididnum[$i]]}_dadtpre.txt
             # Output is Lon, Lat, Z, DistSign, DistX, ?, DecimalID
             # DecimalID * ${gridspacinglist[$i]} = distance along track
 
-            gawk < ${LINEID}_${grididnum[$i]]}_dadtpre.txt -v xoff="${XOFFSET_NUM}" -v dinc="${gridspacinglist[$i]}" '
+            gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]]}_dadtpre.txt -v xoff="${XOFFSET_NUM}" -v dinc="${gridspacinglist[$i]}" '
                 BEGIN{
                   offset=0;minX=99999999;maxX=-99999999; minY=99999999; maxY=-99999999; minZ=99999999; maxZ=-99999999
                 }
@@ -956,12 +967,12 @@ for i in $(seq 1 $k); do
                 }
                 END {
                   printf "%d %d %d %d %f %f", minX, maxX, minY, maxY, minZ, maxZ > "./profilerange.txt"
-                } ' | sed '1d' > ${LINEID}_${grididnum[$i]}_data.csv
+                } ' | sed '1d' > ${F_PROFILES}${LINEID}_${grididnum[$i]}_data.csv
         fi
 
-        mv ./profilerange.txt ${LINEID}_${grididnum[$i]}_profilerange.txt
+        mv profilerange.txt ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt
 
-cat << EOF > ${LINEID}_${grididnum[$i]}_data.vrt
+cat << EOF > ${F_PROFILES}${LINEID}_${grididnum[$i]}_data.vrt
 <OGRVRTDataSource>
     <OGRVRTLayer name="${LINEID}_${grididnum[$i]}_data">
         <SrcDataSource>${LINEID}_${grididnum[$i]}_data.csv</SrcDataSource>
@@ -972,12 +983,12 @@ cat << EOF > ${LINEID}_${grididnum[$i]}_data.vrt
 </OGRVRTDataSource>
 EOF
 
-        dem_minx=$(gawk < ${LINEID}_${grididnum[$i]}_profilerange.txt '{print $1}')
-        dem_maxx=$(gawk < ${LINEID}_${grididnum[$i]}_profilerange.txt '{print $2}')
-        dem_miny=$(gawk < ${LINEID}_${grididnum[$i]}_profilerange.txt '{print $3}')
-        dem_maxy=$(gawk < ${LINEID}_${grididnum[$i]}_profilerange.txt '{print $4}')
-        dem_minz=$(gawk < ${LINEID}_${grididnum[$i]}_profilerange.txt '{print $5}')
-        dem_maxz=$(gawk < ${LINEID}_${grididnum[$i]}_profilerange.txt '{print $6}')
+        dem_minx=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt '{print $1}')
+        dem_maxx=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt '{print $2}')
+        dem_miny=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt '{print $3}')
+        dem_maxy=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt '{print $4}')
+        dem_minz=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt '{print $5}')
+        dem_maxz=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt '{print $6}')
         # echo dem_minx $dem_minx dem_maxx $dem_maxx dem_miny $dem_miny dem_maxy $dem_maxy dem_minz $dem_minz dem_maxz $dem_maxz
 
         dem_xtoyratio=$(echo "($dem_maxx - $dem_minx)/($dem_maxy - $dem_miny)" | bc -l)
@@ -992,7 +1003,9 @@ EOF
         # echo $numx $numy
         # echo numx $numx numy $numy
 
-        gdal_grid -q -of "netCDF" -txe $dem_minx $dem_maxx -tye $dem_miny $dem_maxy -outsize $numx $numy -zfield field_3 -a nearest -l ${LINEID}_${grididnum[$i]}_data ${LINEID}_${grididnum[$i]}_data.vrt ${LINEID}_${grididnum[$i]}_newgrid.nc
+        cd ${F_PROFILES}
+          gdal_grid -q -of "netCDF" -txe $dem_minx $dem_maxx -tye $dem_miny $dem_maxy -outsize $numx $numy -zfield field_3 -a nearest -l ${LINEID}_${grididnum[$i]}_data ${LINEID}_${grididnum[$i]}_data.vrt ${LINEID}_${grididnum[$i]}_newgrid.nc
+        cd ..
 
         # From here on, only the zsize and dem_miny, dem_maxy variables are needed for plotting
 
@@ -1005,13 +1018,8 @@ EOF
 
         # Notably, any TIFF can be plotted using gridview, so this approach can be generalized...
 
-        # topocolor.dat will already exist at this point for all topo grids but may not if the top tile
+        # ${F_CPTS}topocolor.dat will already exist at this point for all topo grids but may not if the top tile
         # is not a topo grid.
-
-
-
-
-
 
         if [[ $zerohingeflag -eq 1 ]]; then
           # We need to make a gdal color file that respects the CPT hinge value (usually 0)
@@ -1037,66 +1045,67 @@ EOF
                 }
               }
             }
-          }' | tr '/' ' ' > topocolor_km.dat
+          }' | tr '/' ' ' > ${F_PROFILES}topocolor_km.dat
         else
-          gawk < $TOPO_CPT -v scale=${gridzscalelist[$i]} '{ print $1*scale, $2 }' | tr '/' ' ' > topocolor_km.dat
+          gawk < $TOPO_CPT -v scale=${gridzscalelist[$i]} '{ print $1*scale, $2 }' | tr '/' ' ' > ${F_PROFILES}topocolor_km.dat
         fi
 
 
         if [[ $gdemtopoplotflag -eq 1 ]]; then
 
           # Calculate the color stretch
-          gdaldem color-relief ${LINEID}_${grididnum[$i]}_newgrid.nc topocolor_km.dat ${LINEID}_${grididnum[$i]}_colordem.tif -q
+          gdaldem color-relief ${F_PROFILES}${LINEID}_${grididnum[$i]}_newgrid.nc ${F_PROFILES}topocolor_km.dat ${F_PROFILES}${LINEID}_${grididnum[$i]}_colordem.tif -q
 
           # Calculate the multidirectional hillshade
           # s factor is 1 as our DEM is in km/km/km units
-          gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s 1 ${LINEID}_${grididnum[$i]}_newgrid.nc ${LINEID}_${grididnum[$i]}_hs_md.tif -q
-          # gdaldem hillshade -combined -s 111120 dem.nc hs_c.tif -q
+          gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s 1 ${F_PROFILES}${LINEID}_${grididnum[$i]}_newgrid.nc ${F_PROFILES}${LINEID}_${grididnum[$i]}_hs_md.tif -q
 
           # Clip the hillshade to reduce extreme bright and extreme dark areas
 
           # Calculate the slope and shade the data
-          gdaldem slope -compute_edges -s 111120 ${LINEID}_${grididnum[$i]}_newgrid.nc ${LINEID}_${grididnum[$i]}_slope.tif -q
-          echo "0 255 255 255" > slope.txt
-          echo "90 0 0 0" >> slope.txt
-          gdaldem color-relief ${LINEID}_${grididnum[$i]}_slope.tif slope.txt ${LINEID}_${grididnum[$i]}_slopeshade.tif -q
 
-          # gdal_calc.py --quiet -A hs_md.tif -B slope.tif --outfile=combhssl.tif --calc="uint8( (1 - A/255. * arctan(sqrt(abs(B)/90.))*0.4)**(1/${HS_GAMMA}) * 255)"
+          # Z factor doesn't matter here as we render it out...
+          gdaldem slope -compute_edges -s 111120 ${F_PROFILES}${LINEID}_${grididnum[$i]}_newgrid.nc ${F_PROFILES}${LINEID}_${grididnum[$i]}_slope.tif -q
+          echo "0 255 255 255" > ${F_PROFILES}slope.txt
+          echo "90 0 0 0" >> ${F_PROFILES}slope.txt
+          gdaldem color-relief ${F_PROFILES}${LINEID}_${grididnum[$i]}_slope.tif ${F_PROFILES}slope.txt ${F_PROFILES}${LINEID}_${grididnum[$i]}_slopeshade.tif -q
+
+          # gdal_calc.py --overwrite --quiet -A hs_md.tif -B slope.tif --outfile=combhssl.tif --calc="uint8( (1 - A/255. * arctan(sqrt(abs(B)/90.))*0.4)**(1/${HS_GAMMA}) * 255)"
           # cang = 1 - cang * atan(sqrt(slope)) * INV_SQUARE_OF_HALF_PI;
-          # gdal_calc.py --quiet -A hs_md.tif -B slopeshade.tif --calc="uint8( ((A/255.)*(B/255.)) * 255 )" --outfile=slope_hillshade.tif
+          # gdal_calc.py --overwrite --quiet -A hs_md.tif -B slopeshade.tif --calc="uint8( ((A/255.)*(B/255.)) * 255 )" --outfile=slope_hillshade.tif
           # if the colordem.tif band has a value of 0, this apparently messes things up badly as gdal
           # interprets that as the nodata value.
 
           # A hillshade is mostly gray (127) while a slope map is mostly white (255)
 
           # Combine the hillshade and slopeshade into a blended, gamma corrected image
-          gdal_calc.py --quiet -A ${LINEID}_${grididnum[$i]}_hs_md.tif -B ${LINEID}_${grididnum[$i]}_slopeshade.tif --outfile=${LINEID}_${grididnum[$i]}_intensity.tif --calc="uint8( ( ((A/255.)*(${HSSLOPEBLEND}) + (B/255.)*(1-${HSSLOPEBLEND}) ) )**(1/${HS_GAMMA}) * 255)"
+          gdal_calc.py --overwrite --quiet -A ${F_PROFILES}${LINEID}_${grididnum[$i]}_hs_md.tif -B ${F_PROFILES}${LINEID}_${grididnum[$i]}_slopeshade.tif --outfile=${F_PROFILES}${LINEID}_${grididnum[$i]}_intensity.tif --calc="uint8( ( ((A/255.)*(${HSSLOPEBLEND}) + (B/255.)*(1-${HSSLOPEBLEND}) ) )**(1/${HS_GAMMA}) * 255)"
 
         elif [[ $tshadetopoplotflag -eq 1 ]]; then
 
           # echo "New approach for tshade on -mob..."
           # We are doing the texture shading version
 
-          rm -f texture.flt out_texture.tif newdem.flt newdem.hdr
+          rm -f ${F_PROFILES}texture.flt ${F_PROFILES}out_texture.tif ${F_PROFILES}newdem.flt ${F_PROFILES}newdem.hdr
 
           # fill NaNs
-          gmt grdfill ${LINEID}_${grididnum[$i]}_newgrid.nc -An -G${LINEID}_${grididnum[$i]}_dem_no_nan.nc ${VERBOSE}
+          gmt grdfill ${F_PROFILES}${LINEID}_${grididnum[$i]}_newgrid.nc -An -G${F_PROFILES}${LINEID}_${grididnum[$i]}_dem_no_nan.nc ${VERBOSE}
 
           # Flip the grid vertically
 
-          gmt grdedit -Ev ${LINEID}_${grididnum[$i]}_dem_no_nan.nc -G${LINEID}_${grididnum[$i]}_dem_no_nan_flip.nc ${VERBOSE}
-          mv ${LINEID}_${grididnum[$i]}_dem_no_nan_flip.nc ${LINEID}_${grididnum[$i]}_dem_no_nan.nc
+          gmt grdedit -Ev ${F_PROFILES}${LINEID}_${grididnum[$i]}_dem_no_nan.nc -G${F_PROFILES}${LINEID}_${grididnum[$i]}_dem_no_nan_flip.nc ${VERBOSE}
+          mv ${F_PROFILES}${LINEID}_${grididnum[$i]}_dem_no_nan_flip.nc ${F_PROFILES}${LINEID}_${grididnum[$i]}_dem_no_nan.nc
 
           # Calculate the color stretch
-          gdaldem color-relief ${LINEID}_${grididnum[$i]}_dem_no_nan.nc topocolor_km.dat ${LINEID}_${grididnum[$i]}_colordem.tif -q 2>/dev/null
+          gdaldem color-relief ${F_PROFILES}${LINEID}_${grididnum[$i]}_dem_no_nan.nc ${F_PROFILES}topocolor_km.dat ${F_PROFILES}${LINEID}_${grididnum[$i]}_colordem.tif -q 2>/dev/null
 
           # Calculate the texture shade
           # Project to HDF format
-          gdal_translate -of EHdr -ot Float32 ${LINEID}_${grididnum[$i]}_dem_no_nan.nc newdem.flt -q 2>/dev/null
+          gdal_translate -of EHdr -ot Float32 ${F_PROFILES}${LINEID}_${grididnum[$i]}_dem_no_nan.nc ${F_PROFILES}newdem.flt -q 2>/dev/null
 
           # Change the ULX and ULY in the .hdr file to fool texture
-          cp newdem.hdr newdem.hdr.store
-          awk < newdem.hdr '{
+          cp ${F_PROFILES}newdem.hdr ${F_PROFILES}newdem.hdr.store
+          awk < ${F_PROFILES}newdem.hdr '{
             if ($1 == "ULXMAP") {
               print "ULXMAP         1000000.00000000"
             } else if ($1 == "ULYMAP") {
@@ -1104,17 +1113,17 @@ EOF
             } else {
               printf "%s\n", $0
             }
-          }' > newdem.hdr.2
-          mv newdem.hdr.2 newdem.hdr
+          }' > ${F_PROFILES}newdem.hdr.2
+          mv ${F_PROFILES}newdem.hdr.2 ${F_PROFILES}newdem.hdr
 
-          rm -f texture.flt texture.hdr
+          rm -f ${F_PROFILES}texture.flt ${F_PROFILES}texture.hdr
 
           # texture the DEM. Pipe output to /dev/null to silence the program
-          ${TEXTURE} ${TS_FRAC} newdem.flt texture.flt  > /dev/null 2>&1
+          ${TEXTURE} ${TS_FRAC} ${F_PROFILES}newdem.flt ${F_PROFILES}texture.flt  > /dev/null 2>&1
 
           # ~/Dropbox/scripts/tectoplot/texture_shader/texture 0.66 newdem.flt texture.flt
           # Change the limits for the header
-          awk < texture.hdr '{
+          awk < ${F_PROFILES}texture.hdr '{
             if ($1== "nrows") {
               yval=$2/2
             }
@@ -1125,34 +1134,34 @@ EOF
             } else {
               printf "%s\n", $0
             }
-          }' > texture.hdr.2
-          cp texture.hdr.2 texture.hdr
+          }' > ${F_PROFILES}texture.hdr.2
+          cp ${F_PROFILES}texture.hdr.2 ${F_PROFILES}texture.hdr
 
           # make the image. Pipe output to /dev/null to silence the program
-          ${TEXTURE_IMAGE} +${TS_STRETCH} texture.flt out_texture.tif > /dev/null 2>&1
+          ${TEXTURE_IMAGE} +${TS_STRETCH} ${F_PROFILES}texture.flt ${F_PROFILES}out_texture.tif > /dev/null 2>&1
 
-          gmt grdedit -T out_texture.tif -Gtt_unflipped.tif ${VERBOSE}
-          gmt grdedit -Ev tt_unflipped.tif -Gtt.tif ${VERBOSE}
+          gmt grdedit -T ${F_PROFILES}out_texture.tif -G${F_PROFILES}tt_unflipped.tif ${VERBOSE}
+          gmt grdedit -Ev ${F_PROFILES}tt_unflipped.tif -G${F_PROFILES}tt.tif ${VERBOSE}
 
           # Change to 8 bit unsigned format
           # This also flips the tiff upside down for some reason. So pre-flip it above.
-          gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 tt.tif ${LINEID}_${grididnum[$i]}_texture.tif -q 2>/dev/null
+          gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 ${F_PROFILES}tt.tif ${F_PROFILES}${LINEID}_${grididnum[$i]}_texture.tif -q 2>/dev/null
 
           # Calculate the multidirectional hillshade
-          gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s 1 ${LINEID}_${grididnum[$i]}_dem_no_nan.nc ${LINEID}_${grididnum[$i]}_hs_md.tif -q 2>/dev/null
+          gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s 1 ${F_PROFILES}${LINEID}_${grididnum[$i]}_dem_no_nan.nc ${F_PROFILES}${LINEID}_${grididnum[$i]}_hs_md.tif -q 2>/dev/null
 
           # Combine the hillshade and texture into a blended, gamma corrected image
-          gdal_calc.py --quiet -A ${LINEID}_${grididnum[$i]}_hs_md.tif -B ${LINEID}_${grididnum[$i]}_texture.tif --outfile=${LINEID}_${grididnum[$i]}_intensity.tif --calc="uint8( ( ((A/255.)*(${TS_TEXTUREBLEND}) + (B/255.)*(1-${TS_TEXTUREBLEND}) ) )**(1/${TS_GAMMA}) * 255)"
+          gdal_calc.py --overwrite --quiet -A ${F_PROFILES}${LINEID}_${grididnum[$i]}_hs_md.tif -B ${F_PROFILES}${LINEID}_${grididnum[$i]}_texture.tif --outfile=${F_PROFILES}${LINEID}_${grididnum[$i]}_intensity.tif --calc="uint8( ( ((A/255.)*(${TS_TEXTUREBLEND}) + (B/255.)*(1-${TS_TEXTUREBLEND}) ) )**(1/${TS_GAMMA}) * 255)"
         else
-          gdaldem color-relief ${LINEID}_${grididnum[$i]}_newgrid.nc topocolor_km.dat ${LINEID}_${grididnum[$i]}_colordem.tif -q
-          gdaldem hillshade -compute_edges -az ${THISP_HS_AZ} -alt ${HS_ALT} -s 1 ${LINEID}_${grididnum[$i]}_newgrid.nc ${LINEID}_${grididnum[$i]}_intensity.tif -q
+          gdaldem color-relief ${F_PROFILES}${LINEID}_${grididnum[$i]}_newgrid.nc ${F_PROFILES}topocolor_km.dat ${F_PROFILES}${LINEID}_${grididnum[$i]}_colordem.tif -q
+          gdaldem hillshade -compute_edges -az ${THISP_HS_AZ} -alt ${HS_ALT} -s 1 ${F_PROFILES}${LINEID}_${grididnum[$i]}_newgrid.nc ${F_PROFILES}${LINEID}_${grididnum[$i]}_intensity.tif -q
         fi
 
 
-        gdal_calc.py --quiet -A ${LINEID}_${grididnum[$i]}_intensity.tif -B ${LINEID}_${grididnum[$i]}_colordem.tif --allBands=B --calc="uint8( ( \
+        gdal_calc.py --overwrite --quiet -A ${F_PROFILES}${LINEID}_${grididnum[$i]}_intensity.tif -B ${F_PROFILES}${LINEID}_${grididnum[$i]}_colordem.tif --allBands=B --calc="uint8( ( \
                         2 * (A/255.)*(B/255.)*(A<128) + \
                         ( 1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128) \
-                      ) * 255 )" --outfile=${LINEID}_${grididnum[$i]}_colored_hillshade.tif
+                      ) * 255 )" --outfile=${F_PROFILES}${LINEID}_${grididnum[$i]}_colored_hillshade.tif
 
 
 
@@ -1177,7 +1186,7 @@ EOF
 
         echo "yshift=\$(gawk -v height=\${PROFILE_HEIGHT_IN} -v inc=\$PERSPECTIVE_INC 'BEGIN{print cos(inc*3.1415926/180)*(height+0)}')" >> ${LINEID}_topscript.sh
 
-        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" -X\${xshift}i --MAP_FRAME_PEN=thinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" -X\${xshift}i --MAP_FRAME_PEN=thinner,black -K -O >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
         # If we have an end-cap plot (e.g. litho1), plot that here.
         # Data needs to be plottable by psxyz
@@ -1186,7 +1195,7 @@ EOF
         if [[ $litho1profileflag -eq 1 ]]; then
 
 cat<<-EOF >> ${LINEID}_topscript.sh
-gawk < ${LINEID}_litho1_cross_poly.dat -v xval=\$line_max_x -v zval=\$line_min_z '{
+gawk < ${F_PROFILES}${LINEID}_litho1_cross_poly.dat -v xval=\$line_max_x -v zval=\$line_min_z '{
 if (\$1 == ">") {
 print
 } else {
@@ -1196,37 +1205,37 @@ print
     print xval, \$1, \$2
   }
 }
-}' > ${LINEID}_litho1_cross_poly_xyz.dat
+}' > ${F_PROFILES}${LINEID}_litho1_cross_poly_xyz.dat
 EOF
-          echo "gmt psxyz -p  ${LINEID}_litho1_cross_poly_xyz.dat -L -G+z -C$LITHO1_CPT -t${LITHO1_TRANS} -Vn -R -J -JZ -O -K >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+          echo "gmt psxyz -p ${F_PROFILES}${LINEID}_litho1_cross_poly_xyz.dat -L -G+z -C$LITHO1_CPT -t${LITHO1_TRANS} -Vn -R -J -JZ -O -K >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
         fi
 
         # Draw the box at the end of the profile. For other view angles, should draw the other box?
 
         echo "if [[ \$(echo \"\${PERSPECTIVE_AZ} > 180\" | bc -l) -eq 1 ]]; then" >> ${LINEID}_topscript.sh
-          echo "echo \"\$line_min_x \$dem_maxy \$line_max_z\" > ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
-          echo "echo \"\$line_min_x \$dem_maxy \$line_min_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
-          echo "echo \"\$line_min_x \$dem_miny \$line_min_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
-          echo "echo \"\$line_min_x \$dem_miny \$line_max_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+          echo "echo \"\$line_min_x \$dem_maxy \$line_max_z\" > ${F_PROFILES}${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+          echo "echo \"\$line_min_x \$dem_maxy \$line_min_z\" >> ${F_PROFILES}${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+          echo "echo \"\$line_min_x \$dem_miny \$line_min_z\" >> ${F_PROFILES}${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+          echo "echo \"\$line_min_x \$dem_miny \$line_max_z\" >> ${F_PROFILES}${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
         echo "else" >> ${LINEID}_topscript.sh
-          echo "echo \"\$line_max_x \$dem_maxy \$line_max_z\" > ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
-          echo "echo \"\$line_max_x \$dem_maxy \$line_min_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
-          echo "echo \"\$line_max_x \$dem_miny \$line_min_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
-          echo "echo \"\$line_max_x \$dem_miny \$line_max_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+          echo "echo \"\$line_max_x \$dem_maxy \$line_max_z\" > ${F_PROFILES}${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+          echo "echo \"\$line_max_x \$dem_maxy \$line_min_z\" >> ${F_PROFILES}${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+          echo "echo \"\$line_max_x \$dem_miny \$line_min_z\" >> ${F_PROFILES}${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+          echo "echo \"\$line_max_x \$dem_miny \$line_max_z\" >> ${F_PROFILES}${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
         echo "fi" >> ${LINEID}_topscript.sh
 
-        echo "gmt psxyz ${LINEID}_endbox.xyz -p -R -J -JZ -Wthinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        echo "gmt psxyz ${F_PROFILES}${LINEID}_endbox.xyz -p -R -J -JZ -Wthinner,black -K -O >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
-        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${dem_minz} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -JZ\${ZSIZE}i -J -Bzaf -Bxaf --MAP_FRAME_PEN=thinner,black -K -O -Y\${yshift}i >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${dem_minz} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -JZ\${ZSIZE}i -J -Bzaf -Bxaf --MAP_FRAME_PEN=thinner,black -K -O -Y\${yshift}i >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
         # I think this could be done with gmt makecpt -C+Uk but technical questions exist
         # This assumes topo is in m and needs to be in km... not applicable for other grids
 
 
-        gawk < ${gridcptlist[$i]} -v sc=${gridzscalelist[$i]} '{ if ($1 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { print $1*sc "\t" $2 "\t" $3*sc "\t" $4} else {print}}' > ${LINEID}_topokm.cpt
+        gawk < ${gridcptlist[$i]} -v sc=${gridzscalelist[$i]} '{ if ($1 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { print $1*sc "\t" $2 "\t" $3*sc "\t" $4} else {print}}' > ${F_PROFILES}${LINEID}_topokm.cpt
 
         # if [[ $gdemtopoplotflag -eq 1 || $tshadetopoplotflag -eq 1 ]]; then
-          echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc  -G${LINEID}_${grididnum[$i]}_colored_hillshade.tif -p -Qi300 -R -J -JZ -O  >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+          echo "gmt grdview ${F_PROFILES}${LINEID}_${grididnum[$i]}_newgrid.nc  -G${F_PROFILES}${LINEID}_${grididnum[$i]}_colored_hillshade.tif -p -Qi300 -R -J -JZ -O  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
           # echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc -G${LINEID}_${grididnum[$i]}_colored_hillshade.tif -Qi300 -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -J -JZ\${ZSIZE}i -O -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_min_z} -Y\${yshift}i >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
         # else
         #   echo "gmt grdview ${LINEID}_${grididnum[$i]}_newgrid.nc -p -Qi300 -R -J -JZ -C${LINEID}_topokm.cpt -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
@@ -1241,7 +1250,7 @@ EOF
         # profiledata.txt contains space delimited rows of data.
 
         # This function calculates the 0, 25, 50, 75, and 100 quartiles of the data. First strip out the NaN values which are in the data.
-        cat ${LINEID}_${grididnum[$i]}_profiledata.txt | sed 's/NaN//g' |  gawk '{
+        cat ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledata.txt | sed 's/NaN//g' |  gawk '{
           q1=-1;
           q2=-1;
           q3=-1
@@ -1267,69 +1276,70 @@ EOF
             }
           }
           printf("%g %g %g %g %g\n", a[1], q1, q2, q3, a[n])
-        }' > ${LINEID}_${grididnum[$i]}_profilesummary_pre.txt
+        }' > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilesummary_pre.txt
 
         # Find the value of Z at X=0 and subtract it from the entire dataset
         if [[ $ZOFFSETflag -eq 1 && $dozflag -eq 1 ]]; then
           # echo ZOFFSETflag is set
-          XZEROINDEX=$(gawk < profilekm.txt '{if ($1 > 0) { exit } } END {print NR}')
-          ZOFFSET_NUM=$(head -n $XZEROINDEX ${LINEID}_${grididnum[$i]}_profilesummary_pre.txt | tail -n 1 | gawk '{print 0-$3}')
+          XZEROINDEX=$(gawk < ${F_PROFILES}profilekm.txt '{if ($1 > 0) { exit } } END {print NR}')
+          ZOFFSET_NUM=$(head -n $XZEROINDEX ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilesummary_pre.txt | tail -n 1 | gawk '{print 0-$3}')
         fi
 
-        cat ${LINEID}_${grididnum[$i]}_profilesummary_pre.txt | gawk -v zoff="${ZOFFSET_NUM}" '{print $1+zoff, $2+zoff, $3+zoff, $4+zoff, $5+zoff}' > ${LINEID}_${grididnum[$i]}_profilesummary.txt
+        cat ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilesummary_pre.txt | gawk -v zoff="${ZOFFSET_NUM}" '{print $1+zoff, $2+zoff, $3+zoff, $4+zoff, $5+zoff}' > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilesummary.txt
 
         # profilesummary.txt is min q1 q2 q3 max
         #           1  2   3  4  5   6
         # gmt wants X q2 min q1 q3 max
 
-        paste ${LINEID}_${grididnum[$i]}_profilekm.txt ${LINEID}_${grididnum[$i]}_profilesummary.txt | tr '\t' ' ' | gawk '{print $1, $4, $2, $3, $5, $6}' > ${LINEID}_${grididnum[$i]}_profiledatabox.txt
+        paste ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilekm.txt ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilesummary.txt | tr '\t' ' ' | gawk '{print $1, $4, $2, $3, $5, $6}' > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatabox.txt
 
-        gawk '{print $1, $2}' < ${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${LINEID}_${grididnum[$i]}_profiledatamedian.txt
-        gawk '{print $1, $3}' < ${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${LINEID}_${grididnum[$i]}_profiledatamin.txt
-        gawk '{print $1, $6}' < ${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${LINEID}_${grididnum[$i]}_profiledatamax.txt
+        gawk '{print $1, $2}' < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamedian.txt
+        gawk '{print $1, $3}' < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamin.txt
+        gawk '{print $1, $6}' < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamax.txt
 
         # Makes an envelope plottable by GMT
-        gawk '{print $1, $4}' < ${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${LINEID}_${grididnum[$i]}_profiledataq13min.txt
-        gawk '{print $1, $5}' < ${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${LINEID}_${grididnum[$i]}_profiledataq13max.txt
+        gawk '{print $1, $4}' < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt
+        gawk '{print $1, $5}' < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatabox.txt > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13max.txt
 
-        cat ${LINEID}_${grididnum[$i]}_profiledatamax.txt > ${LINEID}_${grididnum[$i]}_profileenvelope.txt
-        tac ${LINEID}_${grididnum[$i]}_profiledatamin.txt >> ${LINEID}_${grididnum[$i]}_profileenvelope.txt
+        cat ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamax.txt > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt
+        tac ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamin.txt >> ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt
 
-        cat ${LINEID}_${grididnum[$i]}_profiledataq13min.txt > ${LINEID}_${grididnum[$i]}_profileq13envelope.txt
-        tac ${LINEID}_${grididnum[$i]}_profiledataq13max.txt >> ${LINEID}_${grididnum[$i]}_profileq13envelope.txt
+        cat ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt
+        tac ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13max.txt >> ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt
 
         # PLOT ON THE MAP PS
-        echo "gmt psxy -Vn ${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> "${PSFILE}"" >> plot.sh
-        echo "gmt psxy -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> "${PSFILE}"" >> plot.sh
-        echo "gmt psxy -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> "${PSFILE}"" >> plot.sh
+        echo "gmt psxy -Vn ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> "${PSFILE}"" >> plot.sh
+        echo "gmt psxy -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> "${PSFILE}"" >> plot.sh
+        echo "gmt psxy -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> "${PSFILE}"" >> plot.sh
 
         # PLOT ON THE FLAT PROFILE PS
-        echo "gmt psxy -Vn ${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-        echo "gmt psxy -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-        echo "gmt psxy -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "gmt psxy -Vn ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "gmt psxy -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "gmt psxy -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
         # PLOT ON THE OBLIQUE PROFILE PS
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn ${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
 
-        ## Output data files to THIS_DIR
-        echo "km_along_profile q0 q25 q25 q75 q100" > $THIS_DIR${LINEID}_${grididnum[$i]}_data.txt
-        paste ${LINEID}_${grididnum[$i]}_profilekm.txt ${LINEID}_${grididnum[$i]}_profilesummary.txt >> $THIS_DIR${LINEID}_${grididnum[$i]}_data.txt
-        paste ${LINEID}_${grididnum[$i]}_profilekm.txt ${LINEID}_${grididnum[$i]}_profilesummary.txt >> ${LINEID}_all_data.txt
+        # ## Output data files to THIS_DIR (why???)
+        # echo "km_along_profile q0 q25 q25 q75 q100" > $THIS_DIR${LINEID}_${grididnum[$i]}_data.txt
+        # paste ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilekm.txt ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilesummary.txt >> $THIS_DIR${LINEID}_${grididnum[$i]}_data.txt
+
+        paste ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilekm.txt ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilesummary.txt >> ${F_PROFILES}${LINEID}_all_data.txt
       fi
     done  # for each grid
 
-    echo -n "@;${COLOR};${LINEID}@;; " >> IDfile.txt
+    echo -n "@;${COLOR};${LINEID}@;; " >> ${F_PROFILES}IDfile.txt
     if [[ $xoffsetflag -eq 1 && $ZOFFSETflag -eq 1 ]]; then
-      printf "@:8: (%+.02g km/%+.02g) @::" $XOFFSET_NUM $ZOFFSET_NUM >> IDfile.txt
-      echo -n " " >> IDfile.txt
+      printf "@:8: (%+.02g km/%+.02g) @::" $XOFFSET_NUM $ZOFFSET_NUM >> ${F_PROFILES}IDfile.txt
+      echo -n " " >> ${F_PROFILES}IDfile.txt
     elif [[ $xoffsetflag -eq 1 && $ZOFFSETflag -eq 0 ]]; then
-      printf "@:8: (%+.02g km (X)) @::" $XOFFSET_NUM >> IDfile.txt
-      echo -n " " >> IDfile.txt
+      printf "@:8: (%+.02g km (X)) @::" $XOFFSET_NUM >> ${F_PROFILES}IDfile.txt
+      echo -n " " >> ${F_PROFILES}IDfile.txt
     elif [[ $xoffsetflag -eq 0 && $ZOFFSETflag -eq 1 ]]; then
-      printf "@:8: (%+.02g km (Z)) @::" $ZOFFSET_NUM >> IDfile.txt
-      echo -n " " >> IDfile.txt
+      printf "@:8: (%+.02g km (Z)) @::" $ZOFFSET_NUM >> ${F_PROFILES}IDfile.txt
+      echo -n " " >> ${F_PROFILES}IDfile.txt
     fi
 
     ############################################################################
@@ -1354,35 +1364,35 @@ EOF
       # echo "wc -l < ${xyzcullfile[$i]}"
 
       # Calculate distance from data points to the track, using only first two columns
-      gawk < ${xyzfilelist[i]} '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -L${LINEID}_trackfile.txt -fg -Vn | gawk '{print $3, $4, $5}' > tmp.txt
-      gawk < ${xyzfilelist[i]} '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Lline_buffer.txt+p -fg -Vn | gawk '{print $4}'> tmpbuf.txt
+      gawk < ${xyzfilelist[i]} '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -L${F_PROFILES}${LINEID}_trackfile.txt -fg -Vn | gawk '{print $3, $4, $5}' > ${F_PROFILES}tmp.txt
+      gawk < ${xyzfilelist[i]} '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -L${F_PROFILES}line_buffer.txt+p -fg -Vn | gawk '{print $4}'> ${F_PROFILES}tmpbuf.txt
       # Paste result onto input lines and select the points that are closest to current track out of all tracks
-      paste tmpbuf.txt ${xyzfilelist[i]} tmp.txt  > joinbuf.txt
+      paste ${F_PROFILES}tmpbuf.txt ${xyzfilelist[i]} ${F_PROFILES}tmp.txt  > ${F_PROFILES}joinbuf.txt
 #      head joinbuf.txt
 #      echo PROFILE_INUM=$PROFILE_INUM
-      cat joinbuf.txt | gawk -v lineid=$PROFILE_INUM '{
+      cat ${F_PROFILES}joinbuf.txt | gawk -v lineid=$PROFILE_INUM '{
         if ($1==lineid) {
           for (i=2;i<=NF;++i) {
             printf "%s ", $(i)
           }
           printf("\n")
         }
-      }' > $FNAME
+      }' > ${F_PROFILES}$FNAME
 
       # output is lon lat ... fields ... dist_to_track lon_at_track lat_at_track
 
       # Calculate distance from data points to any profile line, using only first two columns, then paste onto input file.
 
-      pointsX=$(head -n 1 ${LINEID}_trackfile.txt | gawk '{print $1}')
-      pointsY=$(head -n 1 ${LINEID}_trackfile.txt | gawk '{print $2}')
-      pointeX=$(tail -n 1 ${LINEID}_trackfile.txt | gawk '{print $1}')
-      pointeY=$(tail -n 1 ${LINEID}_trackfile.txt | gawk '{print $2}')
+      pointsX=$(head -n 1 ${F_PROFILES}${LINEID}_trackfile.txt | gawk '{print $1}')
+      pointsY=$(head -n 1 ${F_PROFILES}${LINEID}_trackfile.txt | gawk '{print $2}')
+      pointeX=$(tail -n 1 ${F_PROFILES}${LINEID}_trackfile.txt | gawk '{print $1}')
+      pointeY=$(tail -n 1 ${F_PROFILES}${LINEID}_trackfile.txt | gawk '{print $2}')
 
       # Exclude points that project onto the endpoints of the track, or are too far away. Distances are in meters in FNAME
       # echo "$pointsX $pointsY / $pointeX $pointeY"
       # rm -f ./cull.dat
 
-      cat $FNAME | gawk -v x1=$pointsX -v y1=$pointsY -v x2=$pointeX -v y2=$pointeY -v w=${xyzwidthlist[i]} '{
+      cat ${F_PROFILES}$FNAME | gawk -v x1=$pointsX -v y1=$pointsY -v x2=$pointeX -v y2=$pointeY -v w=${xyzwidthlist[i]} '{
         if (($(NF-1) == x1 && $(NF) == y1) || ($(NF-1) == x2 && $(NF) == y2) || $(NF-2) > (w+0)*1000) {
           # Nothing. My gawk skills are poor.
           printf "%s %s", $(NF-1), $(NF) >> "./cull.dat"
@@ -1397,7 +1407,8 @@ EOF
           }
           printf("\n")
         }
-      }' > projpts_${FNAME}
+      }' > ${F_PROFILES}projpts_${FNAME}
+      cleanup cull.dat
 
       # echo tally
       # wc -l ./cull.dat
@@ -1418,32 +1429,32 @@ EOF
       # very long or short lines. Should use some logic to set this value?
 
       # To ensure the profile path is perfect, we have to add the points on the profile back, and then remove them later
-      NUMFIELDS=$(head -n 1 projpts_${FNAME} | gawk '{print NF}')
+      NUMFIELDS=$(head -n 1 ${F_PROFILES}projpts_${FNAME} | gawk '{print NF}')
 
-      gawk < ${LINEID}_trackfile.txt -v fnum=$NUMFIELDS '{
+      gawk < ${F_PROFILES}${LINEID}_trackfile.txt -v fnum=$NUMFIELDS '{
         printf "%s %s REMOVEME", $1, $2
         for(i=3; i<fnum; i++) {
           printf " 0"
         }
         printf("\n")
-      }' >> projpts_${FNAME}
+      }' >> ${F_PROFILES}projpts_${FNAME}
 
       # This gets the points into a general along-track order by calculating their true distance from the starting point
       # Tracks that loop back toward the first point might fail (but who would do that anyway...)
 
-      gawk < projpts_${FNAME} '{print $1, $2}' | gmt mapproject -G$pointsX/$pointsY+uk -Vn | gawk '{print $3}' > tmp.txt
-      paste projpts_${FNAME} tmp.txt > tmp2.txt
-      NUMFIELDS=$(head -n 1 tmp2.txt | gawk '{print NF}')
-      sort -n -k $NUMFIELDS < tmp2.txt > presort_${FNAME}
+      gawk < ${F_PROFILES}projpts_${FNAME} '{print $1, $2}' | gmt mapproject -G$pointsX/$pointsY+uk -Vn | gawk '{print $3}' > ${F_PROFILES}tmp.txt
+      paste ${F_PROFILES}projpts_${FNAME} ${F_PROFILES}tmp.txt > ${F_PROFILES}tmp2.txt
+      NUMFIELDS=$(head -n 1 ${F_PROFILES}tmp2.txt | gawk '{print NF}')
+      sort -n -k $NUMFIELDS < ${F_PROFILES}tmp2.txt > ${F_PROFILES}presort_${FNAME}
 
       # Calculate true distances along the track line. "REMOVEME" is output as "NaN" by GMT.
-      gawk < presort_${FNAME} '{print $1, $2}' | gmt mapproject -G+uk -Vn | gawk '{print $3}' > tmp.txt
+      gawk < ${F_PROFILES}presort_${FNAME} '{print $1, $2}' | gmt mapproject -G+uk -Vn | gawk '{print $3}' > ${F_PROFILES}tmp.txt
 
       # NF is the true distance along profile that needs to be the X coordinate, modified by XOFFSET_NUM
       # NF-1 is the distance from the zero point and should be discarded
       # $3 is the Z value that needs to be modified by zscale and ZOFFSET_NUM
 
-      paste presort_${FNAME} tmp.txt | gawk -v xoff=$XOFFSET_NUM -v zoff=$ZOFFSET_NUM -v zscale=${xyzunitlist[i]} '{
+      paste ${F_PROFILES}presort_${FNAME} ${F_PROFILES}tmp.txt | gawk -v xoff=$XOFFSET_NUM -v zoff=$ZOFFSET_NUM -v zscale=${xyzunitlist[i]} '{
         if ($3 != "REMOVEME") {
           printf "%s %s %s", $(NF)+xoff, ($3)*zscale+zoff, (($3)*zscale+zoff)/(zscale)
           if (NF>=4) {
@@ -1453,9 +1464,9 @@ EOF
           }
           printf("\n")
         }
-      }' > finaldist_${FNAME}
+      }' > ${F_PROFILES}finaldist_${FNAME}
 
-      gawk < finaldist_${FNAME} '{print $1, $2, $2, $2, $2, $2 }' >> ${LINEID}_all_data.txt
+      gawk < ${F_PROFILES}finaldist_${FNAME} '{print $1, $2, $2, $2, $2, $2 }' >> ${F_PROFILES}${LINEID}_all_data.txt
 
       ##########################################################################
       # Plot earthquake data scaled by magnitude
@@ -1464,7 +1475,7 @@ EOF
 
         if  [[ $REMOVE_DEFAULTDEPTHS -eq 1 ]]; then
           # Plotting in km instead of in map geographic coords
-          gawk < finaldist_${FNAME} '{
+          gawk < ${F_PROFILES}finaldist_${FNAME} '{
             if ($3 == 10 || $3 == 33 || $3 == 5 ||$3 == 1 || $3 == 6  || $3 == 35 ) {
               seen[$3]++
             } else {
@@ -1475,38 +1486,38 @@ EOF
             for (key in seen) {
               printf "%s (%s)\n", key, seen[key] >> "/dev/stderr"
             }
-          }' > tmp.dat 2>removed.dat
-          mv tmp.dat finaldist_${FNAME}
+          }' > ${F_PROFILES}tmp.dat 2>${F_PROFILES}removed.dat
+          mv ${F_PROFILES}tmp.dat ${F_PROFILES}finaldist_${FNAME}
         fi
 
         # PLOT ON THE MAP PS
-        gawk < finaldist_${FNAME} -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1))}' > stretch_finaldist_${FNAME}
+        gawk < ${F_PROFILES}finaldist_${FNAME} -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1))}' > ${F_PROFILES}stretch_finaldist_${FNAME}
         echo "OLD_PROJ_LENGTH_UNIT=\$(gmt gmtget PROJ_LENGTH_UNIT -Vn)" >> plot.sh
         echo "gmt gmtset PROJ_LENGTH_UNIT p" >> plot.sh
-        echo "gmt psxy stretch_finaldist_${FNAME} -G$COLOR -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} ${xyzcommandlist[i]} $RJOK ${VERBOSE} >> ${PSFILE}" >> plot.sh
+        echo "gmt psxy ${F_PROFILES}stretch_finaldist_${FNAME} -G$COLOR -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} ${xyzcommandlist[i]} $RJOK ${VERBOSE} >> ${PSFILE}" >> plot.sh
         echo "gmt gmtset PROJ_LENGTH_UNIT \$OLD_PROJ_LENGTH_UNIT" >> plot.sh
 
         # PLOT ON THE FLAT PROFILE PS
         echo "OLD_PROJ_LENGTH_UNIT=\$(gmt gmtget PROJ_LENGTH_UNIT -Vn)" >> ${LINEID}_temp_plot.sh
         echo "gmt gmtset PROJ_LENGTH_UNIT p"  >> ${LINEID}_temp_plot.sh
-        echo "gmt psxy stretch_finaldist_${FNAME} -G$COLOR -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} ${xyzcommandlist[i]} $RJOK ${VERBOSE}  >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "gmt psxy ${F_PROFILES}stretch_finaldist_${FNAME} -G$COLOR -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} ${xyzcommandlist[i]} $RJOK ${VERBOSE}  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
         echo "gmt gmtset PROJ_LENGTH_UNIT \$OLD_PROJ_LENGTH_UNIT" >> ${LINEID}_temp_plot.sh
 
         # PLOT ON THE OBLIQUE SECTION PS
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "OLD_PROJ_LENGTH_UNIT=\$(gmt gmtget PROJ_LENGTH_UNIT -Vn)" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt gmtset PROJ_LENGTH_UNIT p" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy stretch_finaldist_${FNAME} -p -G$COLOR -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} ${xyzcommandlist[i]} $RJOK ${VERBOSE} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy ${F_PROFILES}stretch_finaldist_${FNAME} -p -G$COLOR -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} ${xyzcommandlist[i]} $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt gmtset PROJ_LENGTH_UNIT \$OLD_PROJ_LENGTH_UNIT" >> ${LINEID}_plot.sh
 
       else
         # PLOT ON THE MAP PS
-        echo "gmt psxy finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> "${PSFILE}"" >> plot.sh
+        echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> "${PSFILE}"" >> plot.sh
 
         # PLOT ON THE FLAT SECTION PS
-        echo "gmt psxy finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
         # PLOT ON THE OBLIQUE SECTION PS
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy finaldist_${FNAME} -p -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -p -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
 
       rm -f presort_${FNAME}
@@ -1528,170 +1539,169 @@ EOF
 
       # CMTWIDTH is e.g. 150k so in gawk we do +0
 
-      gawk < cmt_thrust.txt '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Lline_buffer.txt+p -fg -Vn | gawk '{print $4, $3}' > tmpbuf.txt
-      paste tmpbuf.txt cmt_thrust.txt | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
+      gawk < ${F_CMT}cmt_thrust.txt '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -L${F_PROFILES}line_buffer.txt+p -fg -Vn | gawk '{print $4, $3}' > ${F_PROFILES}tmpbuf.txt
+      paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_thrust.txt | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
         if ($1==lineid && $2/1000 < (maxdist+0)) {
           for (i=3;i<=NF;++i) {
             printf "%s ", $(i)
           }
           printf("\n")
         }
-      }' > cmt_thrust_sel.txt
+      }' > ${F_PROFILES}cmt_thrust_sel.txt
 
-      if [[ -e cmt_alt_pts_thrust.xyz ]]; then
-        paste tmpbuf.txt cmt_alt_pts_thrust.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
+      if [[ -e ${F_PROFILES}cmt_alt_pts_thrust.xyz ]]; then
+        paste ${F_PROFILES}tmpbuf.txt cmt_alt_pts_thrust.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
           if ($1==lineid && $2/1000 < (maxdist+0)) {
             for (i=3;i<=NF;++i) {
               printf "%s ", $(i)
             }
             printf("\n")
           }
-        }' > ${LINEID}_cmt_alt_pts_thrust_sel.xyz
+        }' > ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel.xyz
       fi
 
       # cmt_alt_lines comes in the format >:lat1 lon1 z1:lat2 lon2 z2\n
       # Split into two XYZ files, project each file separately, and then merge to plot.
-      if [[ -e cmt_alt_lines_thrust.xyz ]]; then
-        paste tmpbuf.txt cmt_alt_lines_thrust.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
+      if [[ -e ${F_PROFILES}cmt_alt_lines_thrust.xyz ]]; then
+        paste ${F_PROFILES}tmpbuf.txt ${F_PROFILES}cmt_alt_lines_thrust.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
           if ($1==lineid && $2/1000 < (maxdist+0)) {
             for (i=3;i<=NF;++i) {
               printf "%s ", $(i)
             }
             printf("\n")
           }
-        }' > tmp.txt
-        gawk < tmp.txt -F: '{
+        }' > ${F_PROFILES}tmp.txt
+        gawk < ${F_PROFILES}tmp.txt -F: '{
           print $2 > "./split1.txt"
           print $3 > "./split2.txt"
         }'
-        mv split1.txt ${LINEID}_cmt_alt_lines_thrust_sel_P1.xyz
-        mv split2.txt ${LINEID}_cmt_alt_lines_thrust_sel_P2.xyz
+        mv split1.txt ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_sel_P1.xyz
+        mv split2.txt ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_sel_P2.xyz
       fi
 
-      gawk < cmt_normal.txt '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Lline_buffer.txt+p -fg -Vn | gawk '{print $4, $3}' > tmpbuf.txt
-      paste tmpbuf.txt cmt_normal.txt | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
+      gawk < ${F_CMT}cmt_normal.txt '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -L${F_PROFILES}line_buffer.txt+p -fg -Vn | gawk '{print $4, $3}' > ${F_PROFILES}tmpbuf.txt
+      paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_normal.txt | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
         if ($1==lineid && $2/1000 < (maxdist+0)) {
           for (i=3;i<=NF;++i) {
             printf "%s ", $(i)
           }
           printf("\n")
         }
-      }' > cmt_normal_sel.txt
+      }' > ${F_PROFILES}cmt_normal_sel.txt
 
-      if [[ -e cmt_alt_pts_normal.xyz ]]; then
-        paste tmpbuf.txt cmt_alt_pts_normal.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
+      if [[ -e ${F_PROFILES}cmt_alt_pts_normal.xyz ]]; then
+        paste ${F_PROFILES}tmpbuf.txt ${F_PROFILES}cmt_alt_pts_normal.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
           if ($1==lineid && $2/1000 < (maxdist+0)) {
             for (i=3;i<=NF;++i) {
               printf "%s ", $(i)
             }
             printf("\n")
           }
-      }' > ${LINEID}_cmt_alt_pts_normal_sel.xyz
+      }' > ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel.xyz
       fi
 
-      if [[ -e cmt_alt_lines_normal.xyz ]]; then
-        paste tmpbuf.txt cmt_alt_lines_normal.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
+      if [[ -e ${F_PROFILES}cmt_alt_lines_normal.xyz ]]; then
+        paste ${F_PROFILES}tmpbuf.txt ${F_PROFILES}cmt_alt_lines_normal.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
           if ($1==lineid && $2/1000 < (maxdist+0)) {
             for (i=3;i<=NF;++i) {
               printf "%s ", $(i)
             }
             printf("\n")
           }
-        }' > tmp.txt
-        gawk < tmp.txt -F: '{
+        }' > ${F_PROFILES}tmp.txt
+        gawk < ${F_PROFILES}tmp.txt -F: '{
           print $2 > "./split1.txt"
           print $3 > "./split2.txt"
         }'
-        mv split1.txt ${LINEID}_cmt_alt_lines_normal_sel_P1.xyz
-        mv split2.txt ${LINEID}_cmt_alt_lines_normal_sel_P2.xyz
+        mv ./split1.txt ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_sel_P1.xyz
+        mv ./split2.txt ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_sel_P2.xyz
       fi
 
-      gawk < cmt_strikeslip.txt '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Lline_buffer.txt+p -fg -Vn | gawk '{print $4, $3}' > tmpbuf.txt
-      paste tmpbuf.txt cmt_strikeslip.txt | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
+      gawk < ${F_CMT}cmt_strikeslip.txt '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -L${F_PROFILES}line_buffer.txt+p -fg -Vn | gawk '{print $4, $3}' > ${F_PROFILES}tmpbuf.txt
+      paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_strikeslip.txt | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
         if ($1==lineid && $2/1000 < (maxdist+0)) {
           for (i=3;i<=NF;++i) {
             printf "%s ", $(i)
           }
           printf("\n")
         }
-      }' > cmt_strikeslip_sel.txt
+      }' > ${F_PROFILES}cmt_strikeslip_sel.txt
 
-      if [[ -e cmt_alt_pts_strikeslip.xyz ]]; then
-        paste tmpbuf.txt cmt_alt_pts_strikeslip.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
+      if [[ -e ${F_PROFILES}cmt_alt_pts_strikeslip.xyz ]]; then
+        paste ${F_PROFILES}tmpbuf.txt ${F_PROFILES}cmt_alt_pts_strikeslip.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
           if ($1==lineid && $2/1000 < (maxdist+0)) {
             for (i=3;i<=NF;++i) {
               printf "%s ", $(i)
             }
             printf("\n")
           }
-        }' > ${LINEID}_cmt_alt_pts_strikeslip_sel.xyz
+        }' > ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel.xyz
       fi
 
-      if [[ -e cmt_alt_lines_strikeslip.xyz ]]; then
-        paste tmpbuf.txt cmt_alt_lines_strikeslip.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
+      if [[ -e ${F_PROFILES}cmt_alt_lines_strikeslip.xyz ]]; then
+        paste ${F_PROFILES}tmpbuf.txt ${F_PROFILES}cmt_alt_lines_strikeslip.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
           if ($1==lineid && $2/1000 < (maxdist+0)) {
             for (i=3;i<=NF;++i) {
               printf "%s ", $(i)
             }
             printf("\n")
           }
-        }' > tmp.txt
-        gawk < tmp.txt -F: '{
+        }' > ${F_PROFILES}tmp.txt
+        gawk < ${F_PROFILES}tmp.txt -F: '{
           print $2 > "./split1.txt"
           print $3 > "./split2.txt"
         }'
-        mv split1.txt ${LINEID}_cmt_alt_lines_strikeslip_sel_P1.xyz
-        mv split2.txt ${LINEID}_cmt_alt_lines_strikeslip_sel_P2.xyz
+        mv split1.txt ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_sel_P1.xyz
+        mv split2.txt ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_sel_P2.xyz
       fi
       ##### Now we need to project the alt_pts and alt_lines onto the profile.
       #####
       #####
 
-
       # project_xyz_pts_onto_track $trackfile $xyzfile $outputfile $xoffset $zoffset $zscale
 
 
-      [[ -e ${LINEID}_cmt_alt_pts_strikeslip_sel.xyz ]] && project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_pts_strikeslip_sel.xyz ${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
-      [[ -e ${LINEID}_cmt_alt_pts_thrust_sel.xyz ]] && project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_pts_thrust_sel.xyz ${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
-      [[ -e ${LINEID}_cmt_alt_pts_normal_sel.xyz ]] && project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_pts_normal_sel.xyz ${LINEID}_cmt_alt_pts_normal_sel_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
+      [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel.xyz ]] && project_xyz_pts_onto_track ${F_PROFILES}${LINEID}_trackfile.txt ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel.xyz ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
+      [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel.xyz ]] && project_xyz_pts_onto_track ${F_PROFILES}${LINEID}_trackfile.txt ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel.xyz ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
+      [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel.xyz ]] && project_xyz_pts_onto_track ${F_PROFILES}${LINEID}_trackfile.txt ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel.xyz ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
 
-      if [[ -e ${LINEID}_cmt_alt_lines_thrust_sel_P1.xyz ]]; then
-        project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_lines_thrust_sel_P1.xyz ${LINEID}_cmt_alt_lines_thrust_sel_P1_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
-        project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_lines_thrust_sel_P2.xyz ${LINEID}_cmt_alt_lines_thrust_sel_P2_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
-        gawk < ${LINEID}_cmt_alt_lines_thrust_sel_P1_proj.xyz '{ print ">:" $0 ":" }' > tmp1.txt
-        paste -d '\0' tmp1.txt ${LINEID}_cmt_alt_lines_thrust_sel_P2_proj.xyz | tr ':' '\n' > ${LINEID}_cmt_alt_lines_thrust_proj_final.xyz
+      if [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_sel_P1.xyz ]]; then
+        project_xyz_pts_onto_track ${F_PROFILES}${LINEID}_trackfile.txt ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_sel_P1.xyz ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_sel_P1_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
+        project_xyz_pts_onto_track ${F_PROFILES}${LINEID}_trackfile.txt ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_sel_P2.xyz ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_sel_P2_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
+        gawk < ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_sel_P1_proj.xyz '{ print ">:" $0 ":" }' > ${F_PROFILES}tmp1.txt
+        paste -d '\0' ${F_PROFILES}tmp1.txt ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_sel_P2_proj.xyz | tr ':' '\n' > ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz
       fi
 
-      if [[ -e ${LINEID}_cmt_alt_lines_normal_sel_P1.xyz ]]; then
-        project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_lines_normal_sel_P1.xyz ${LINEID}_cmt_alt_lines_normal_sel_P1_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
-        project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_lines_normal_sel_P2.xyz ${LINEID}_cmt_alt_lines_normal_sel_P2_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
-        gawk < ${LINEID}_cmt_alt_lines_normal_sel_P1_proj.xyz '{ print ">:" $0 ":" }' > tmp1.txt
-        paste -d '\0' tmp1.txt ${LINEID}_cmt_alt_lines_normal_sel_P2_proj.xyz | tr ':' '\n' > ${LINEID}_cmt_alt_lines_normal_proj_final.xyz
+      if [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_sel_P1.xyz ]]; then
+        project_xyz_pts_onto_track ${F_PROFILES}${LINEID}_trackfile.txt ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_sel_P1.xyz ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_sel_P1_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
+        project_xyz_pts_onto_track ${F_PROFILES}${LINEID}_trackfile.txt ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_sel_P2.xyz ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_sel_P2_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
+        gawk < ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_sel_P1_proj.xyz '{ print ">:" $0 ":" }' > ${F_PROFILES}tmp1.txt
+        paste -d '\0' ${F_PROFILES}tmp1.txt ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_sel_P2_proj.xyz | tr ':' '\n' > ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz
       fi
 
-      if [[ -e ${LINEID}_cmt_alt_lines_strikeslip_sel_P1.xyz ]]; then
-        project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_lines_strikeslip_sel_P1.xyz ${LINEID}_cmt_alt_lines_strikeslip_sel_P1_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
-        project_xyz_pts_onto_track ${LINEID}_trackfile.txt ${LINEID}_cmt_alt_lines_strikeslip_sel_P2.xyz ${LINEID}_cmt_alt_lines_strikeslip_sel_P2_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
-        gawk < ${LINEID}_cmt_alt_lines_strikeslip_sel_P1_proj.xyz '{ print ">:" $0 ":" }' > tmp1.txt
-        paste -d '\0' tmp1.txt ${LINEID}_cmt_alt_lines_strikeslip_sel_P2_proj.xyz | tr ':' '\n' > ${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz
+      if [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_sel_P1.xyz ]]; then
+        project_xyz_pts_onto_track ${F_PROFILES}${LINEID}_trackfile.txt ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_sel_P1.xyz ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_sel_P1_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
+        project_xyz_pts_onto_track ${F_PROFILES}${LINEID}_trackfile.txt ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_sel_P2.xyz ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_sel_P2_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
+        gawk < ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_sel_P1_proj.xyz '{ print ">:" $0 ":" }' > ${F_PROFILES}tmp1.txt
+        paste -d '\0' ${F_PROFILES}tmp1.txt ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_sel_P2_proj.xyz | tr ':' '\n' > ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz
       fi
 
       # For each line segment in the potentially multipoint profile, we need to
       # project the CMTs orthogonally onto the segment using pscoupe
 
-      numprofpts=$(cat ${LINEID}_trackfile.txt | wc -l)
+      numprofpts=$(cat ${F_PROFILES}${LINEID}_trackfile.txt | wc -l)
       numsegs=$(echo "$numprofpts - 1" | bc -l)
 
       cur_x=0
       for segind in $(seq 1 $numsegs); do
         segind_p=$(echo "$segind + 1" | bc -l)
-        p1_x=$(cat ${LINEID}_trackfile.txt | head -n ${segind} | tail -n 1 | gawk '{print $1}')
-        p1_z=$(cat ${LINEID}_trackfile.txt | head -n ${segind} | tail -n 1 | gawk '{print $2}')
-        p2_x=$(cat ${LINEID}_trackfile.txt | head -n ${segind_p} | tail -n 1 | gawk '{print $1}')
-        p2_z=$(cat ${LINEID}_trackfile.txt | head -n ${segind_p} | tail -n 1 | gawk '{print $2}')
-        add_x=$(cat ${LINEID}_dist_km.txt | head -n $segind_p | tail -n 1)
+        p1_x=$(cat ${F_PROFILES}${LINEID}_trackfile.txt | head -n ${segind} | tail -n 1 | gawk '{print $1}')
+        p1_z=$(cat ${F_PROFILES}${LINEID}_trackfile.txt | head -n ${segind} | tail -n 1 | gawk '{print $2}')
+        p2_x=$(cat ${F_PROFILES}${LINEID}_trackfile.txt | head -n ${segind_p} | tail -n 1 | gawk '{print $1}')
+        p2_z=$(cat ${F_PROFILES}${LINEID}_trackfile.txt | head -n ${segind_p} | tail -n 1 | gawk '{print $2}')
+        add_x=$(cat ${F_PROFILES}${LINEID}_dist_km.txt | head -n $segind_p | tail -n 1)
 
-        cat cmt_thrust_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 }' | gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
+        cat ${F_PROFILES}cmt_thrust_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 }' | gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
 
         rm -f *_map
         for pscoupefile in Aa*; do
@@ -1704,12 +1714,12 @@ EOF
               printf "%s ", $i;
             }
             printf "\n"
-          }' >> ${LINEID}_cmt_thrust_profile_data.txt
-          gawk <  ${LINEID}_cmt_thrust_profile_data.txt '{print $1, $2, $2, $2, $2, $2}' >> ${LINEID}_all_data.txt
+          }' >> ${F_PROFILES}${LINEID}_cmt_thrust_profile_data.txt
+          gawk <  ${F_PROFILES}${LINEID}_cmt_thrust_profile_data.txt '{print $1, $2, $2, $2, $2, $2}' >> ${F_PROFILES}${LINEID}_all_data.txt
         done
         rm -f Aa*
 
-        cat cmt_normal_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 }' | gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
+        cat ${F_PROFILES}cmt_normal_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 }' | gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
         rm -f *_map
         for pscoupefile in Aa*; do
           info_msg "Shifting profile $pscoupefile by $cur_x km to account for segmentation"
@@ -1721,12 +1731,12 @@ EOF
               printf "%s ", $i;
             }
             printf "\n"
-          }' >> ${LINEID}_cmt_normal_profile_data.txt
-          gawk <  ${LINEID}_cmt_normal_profile_data.txt '{print $1, $2, $2, $2, $2, $2}' >> ${LINEID}_all_data.txt
+          }' >> ${F_PROFILES}${LINEID}_cmt_normal_profile_data.txt
+          gawk <  ${F_PROFILES}${LINEID}_cmt_normal_profile_data.txt '{print $1, $2, $2, $2, $2, $2}' >> ${F_PROFILES}${LINEID}_all_data.txt
         done
         rm -f Aa*
 
-        cat cmt_strikeslip_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 }' | gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
+        cat ${F_PROFILES}cmt_strikeslip_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 }' | gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
         rm -f *_map
         for pscoupefile in Aa*; do
           info_msg "Shifting profile $pscoupefile by $cur_x km to account for segmentation"
@@ -1738,14 +1748,14 @@ EOF
               printf "%s ", $i;
             }
             printf "\n"
-          }' >> ${LINEID}_cmt_strikeslip_profile_data.txt
-          gawk <  ${LINEID}_cmt_strikeslip_profile_data.txt '{print $1, $2, $2, $2, $2, $2}' >> ${LINEID}_all_data.txt
+          }' >> ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data.txt
+          gawk <  ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data.txt '{print $1, $2, $2, $2, $2, $2}' >> ${F_PROFILES}${LINEID}_all_data.txt
         done
 
         rm -f Aa*
 
         if [[ ! $segind -eq $numsegs ]]; then
-          add_x=$(cat ${LINEID}_dist_km.txt | head -n $segind_p | tail -n 1)
+          add_x=$(cat ${F_PROFILES}${LINEID}_dist_km.txt | head -n $segind_p | tail -n 1)
           # echo -n "new cur_x = $cur_x + $add_x"
           cur_x=$(echo "$cur_x + $add_x" | bc -l)
           # echo " = $cur_x"
@@ -1756,69 +1766,69 @@ EOF
 
       if [[ cmtthrustflag -eq 1 ]]; then
         # PLOT ONTO THE MAP DOCUMENT
-        [[ -e ${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
-        [[ -e ${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
-        echo "sort < ${LINEID}_cmt_thrust_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_THRUSTCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
+        [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
+        [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
+        echo "sort < ${F_PROFILES}${LINEID}_cmt_thrust_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_THRUSTCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
 
         # PLOT ONTO THE FLAT PROFILE PS
-        [[ -e ${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-        [[ -e ${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-        echo "sort < ${LINEID}_cmt_thrust_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_THRUSTCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "sort < ${F_PROFILES}${LINEID}_cmt_thrust_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_THRUSTCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
         # PLOT ONTO THE OBLIQUE PROFILE PS
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${LINEID}_cmt_thrust_profile_data.txt -n -k 11 | gmt psmeca -p -E${CMT_THRUSTCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -G$COLOR $CMTCOMMANDS $RJOK ${VERBOSE} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${F_PROFILES}${LINEID}_cmt_thrust_profile_data.txt -n -k 11 | gmt psmeca -p -E${CMT_THRUSTCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -G$COLOR $CMTCOMMANDS $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
       if [[ cmtnormalflag -eq 1 ]]; then
         # PLOT ONTO THE MAP DOCUMENT
-        [[ -e ${LINEID}_cmt_alt_pts_normal_sel_proj.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_pts_normal_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
-        [[ -e ${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_lines_normal_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
-        echo "sort < ${LINEID}_cmt_normal_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_NORMALCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
+        [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
+        [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
+        echo "sort < ${F_PROFILES}${LINEID}_cmt_normal_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_NORMALCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
 
         # PLOT ONTO THE FLAT PROFILE PS
-        [[ -e ${LINEID}_cmt_alt_pts_normal_sel_proj.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_pts_normal_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-        [[ -e ${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_lines_normal_proj_final.xyz -W0.1p,black $RJOK $VERBOSE >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-        echo "sort < ${LINEID}_cmt_normal_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_NORMALCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "sort < ${F_PROFILES}${LINEID}_cmt_normal_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_NORMALCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
         # PLOT ONTO THE OBLIQUE PROFILE PS
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${LINEID}_cmt_alt_pts_normal_sel_proj.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_pts_normal_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_lines_normal_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${LINEID}_cmt_normal_profile_data.txt -n -k 11 | gmt psmeca -p -E${CMT_NORMALCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -G$COLOR $CMTCOMMANDS $RJOK ${VERBOSE} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${F_PROFILES}${LINEID}_cmt_normal_profile_data.txt -n -k 11 | gmt psmeca -p -E${CMT_NORMALCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -G$COLOR $CMTCOMMANDS $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
       if [[ cmtssflag -eq 1 ]]; then
         # PLOT ONTO THE MAP DOCUMENT
-        [[ -e ${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
-        [[ -e ${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
-        echo "sort < ${LINEID}_cmt_strikeslip_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_SSCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
+        [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
+        [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
+        echo "sort < ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_SSCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
 
         # PLOT ONTO THE FLAT PROFILE PS
-        [[ -e ${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-        [[ -e ${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-        echo "sort < ${LINEID}_cmt_strikeslip_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_SSCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "sort < ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data.txt -n -k 11 | gmt psmeca -E"${CMT_SSCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
         # PLOT ONTO THE OBLIQUE PROFILE PS
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz ]] && echo "gmt psxy ${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${LINEID}_cmt_strikeslip_profile_data.txt -n -k 11 | gmt psmeca -p -E${CMT_SSCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -G$COLOR $CMTCOMMANDS $RJOK ${VERBOSE} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data.txt -n -k 11 | gmt psmeca -p -E${CMT_SSCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -G$COLOR $CMTCOMMANDS $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
     fi
 
     # Plot the locations of profile points above the profile, adjusting for XOFFSET and summing the incremental distance if necessary.
     # ON THE MAP
-    echo "gawk < xpts_${LINEID}_dist_km.txt '(NR==1) { print \$1 + $XOFFSET_NUM, \$2}' | gmt psxy -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} -G${COLOR} >> ${PSFILE}" >> plot.sh
-    echo "gawk < xpts_${LINEID}_dist_km.txt 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+$XOFFSET_NUM, \$2; runtotal=\$1+runtotal; }' | gmt psxy -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} >> ${PSFILE}" >> plot.sh
+    echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt '(NR==1) { print \$1 + $XOFFSET_NUM, \$2}' | gmt psxy -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} -G${COLOR} >> ${PSFILE}" >> plot.sh
+    echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+$XOFFSET_NUM, \$2; runtotal=\$1+runtotal; }' | gmt psxy -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} >> ${PSFILE}" >> plot.sh
 
     # ON THE FLAT PROFILES
-    echo "gawk < xpts_${LINEID}_dist_km.txt '(NR==1) { print \$1 + $XOFFSET_NUM, \$2}' | gmt psxy -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} -G${COLOR} >> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-    echo "gawk < xpts_${LINEID}_dist_km.txt 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+$XOFFSET_NUM, \$2; runtotal=\$1+runtotal; }' | gmt psxy -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR}>> ${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+    echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt '(NR==1) { print \$1 + $XOFFSET_NUM, \$2}' | gmt psxy -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} -G${COLOR} >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+    echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+$XOFFSET_NUM, \$2; runtotal=\$1+runtotal; }' | gmt psxy -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR}>> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
     # ON THE OBLIQUE PLOTS
-    [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gawk < xpts_${LINEID}_dist_km.txt '(NR==1) { print \$1 + $XOFFSET_NUM, \$2}' | gmt psxy -p -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} -G${COLOR} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-    [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gawk < xpts_${LINEID}_dist_km.txt 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+$XOFFSET_NUM, \$2; runtotal=\$1+runtotal; }' | gmt psxy -p -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} >> ${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+    [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt '(NR==1) { print \$1 + $XOFFSET_NUM, \$2}' | gmt psxy -p -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} -G${COLOR} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+    [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+$XOFFSET_NUM, \$2; runtotal=\$1+runtotal; }' | gmt psxy -p -J -R -K -O -Si0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.5p,${COLOR} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
 
     if [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]]; then
-      gawk < ${LINEID}_all_data.txt '{
+      gawk < ${F_PROFILES}${LINEID}_all_data.txt '{
           if ($1 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { km[++c]=$1; }
           if ($2 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { val[++d]=$2; }
           if ($6 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { val[++d]=$6; }
@@ -1827,25 +1837,25 @@ EOF
           asort(val);
           print km[1], km[length(km)], val[1], val[length(val)]
         #  print km[1]-(km[length(km)]-km[1])*0.01,km[length(km)]+(km[length(km)]-km[1])*0.01,val[1]-(val[length(val)]-val[1])*0.1,val[length(val)]+(val[length(val)]-val[1])*0.1
-      }' > ${LINEID}_limits.txt
+      }' > ${F_PROFILES}${LINEID}_limits.txt
 
       if [[ $xminflag -eq 1 ]]; then
-        line_min_x=$(gawk < ${LINEID}_limits.txt '{print $1}')
+        line_min_x=$(gawk < ${F_PROFILES}${LINEID}_limits.txt '{print $1}')
       else
         line_min_x=$min_x
       fi
       if [[ $xmaxflag -eq 1 ]]; then
-        line_max_x=$(gawk < ${LINEID}_limits.txt '{print $2}')
+        line_max_x=$(gawk < ${F_PROFILES}${LINEID}_limits.txt '{print $2}')
       else
         line_max_x=$max_x
       fi
       if [[ $zminflag -eq 1 ]]; then
-        line_min_z=$(gawk < ${LINEID}_limits.txt '{print $3}')
+        line_min_z=$(gawk < ${F_PROFILES}${LINEID}_limits.txt '{print $3}')
       else
         line_min_z=$min_z
       fi
       if [[ $zmaxflag -eq 1 ]]; then
-        line_max_z=$(gawk < ${LINEID}_limits.txt '{print $4}')
+        line_max_z=$(gawk < ${F_PROFILES}${LINEID}_limits.txt '{print $4}')
       else
         line_max_z=$max_z
       fi
@@ -1879,8 +1889,6 @@ EOF
           line_min_z=$(echo "$line_min_z - $zrange_buf" | bc -l)
         fi
       fi
-
-
 
       # Create the data files that will be used to plot the profile vertex points above the profile
 
@@ -1917,16 +1925,18 @@ EOF
         echo "xshift=0" >> ${LINEID}_plot_start.sh
       echo "fi" >> ${LINEID}_plot_start.sh
 
-      echo "gmt psbasemap -py\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bxaf+l\"${x_axis_label}\" -Byaf+l\"${z_axis_label}\" -BSEW -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z --MAP_FRAME_PEN=thinner,black -K > ${LINEID}_profile.ps" >> ${LINEID}_plot_start.sh
+      echo "gmt psbasemap -py\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bxaf+l\"${x_axis_label}\" -Byaf+l\"${z_axis_label}\" -BSEW -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z --MAP_FRAME_PEN=thinner,black -K > ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot_start.sh
 
       # Concatenate the cross section plotting commands onto the script
       cat ${LINEID}_plot.sh >> ${LINEID}_plot_start.sh
+      cleanup ${LINEID}_plot.sh
 
       # Concatenate the terrain plotting commands onto the script.
       # If there is no top tile, we need to create some commands to allow a plot to be made correctly.
 
       if [[ -e ${LINEID}_topscript.sh ]]; then
         cat ${LINEID}_topscript.sh >> ${LINEID}_plot_start.sh
+        cleanup ${LINEID}_topscript.sh
       else
         # COMEBACK
         echo "VEXAG=\${3}" > ${LINEID}_topscript.sh
@@ -1945,7 +1955,7 @@ EOF
         echo "fi" >> ${LINEID}_topscript.sh
 
         echo "yshift=\$(gawk -v height=\${PROFILE_HEIGHT_IN} -v inc=\$PERSPECTIVE_INC 'BEGIN{print cos(inc*3.1415926/180)*(height+0)}')" >> ${LINEID}_topscript.sh
-        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" -X\${xshift}i --MAP_FRAME_PEN=thinner,black -K -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" -X\${xshift}i --MAP_FRAME_PEN=thinner,black -K -O >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
         # Draw the box at the end of the profile. For other view angles, should draw the other box?
 
@@ -1956,7 +1966,7 @@ EOF
 # Change limits based on profile limits, in the script itself.
 
 cat<<-EOF >> ${LINEID}_topscript.sh
-gawk < ${LINEID}_litho1_cross_poly.dat -v xval=\$line_max_x -v zval=\$line_min_z '{
+gawk < ${F_PROFILES}${LINEID}_litho1_cross_poly.dat -v xval=\$line_max_x -v zval=\$line_min_z '{
 if (\$1 == ">") {
 print
 } else {
@@ -1966,12 +1976,12 @@ print
     print xval, \$1, \$2
   }
 }
-}' > ${LINEID}_litho1_cross_poly_xyz.dat
+}' > ${F_PROFILES}${LINEID}_litho1_cross_poly_xyz.dat
 EOF
-        echo "gmt psxyz -p  ${LINEID}_litho1_cross_poly_xyz.dat -L -G+z -C$LITHO1_CPT -t${LITHO1_TRANS} -Vn -R -J -JZ -O -K >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        echo "gmt psxyz -p ${F_PROFILES}${LINEID}_litho1_cross_poly_xyz.dat -L -G+z -C$LITHO1_CPT -t${LITHO1_TRANS} -Vn -R -J -JZ -O -K >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
       fi
-
         cat ${LINEID}_topscript.sh >> ${LINEID}_plot_start.sh
+        cleanup ${LINEID}_topscript.sh
       fi
 
       # echo "echo \"\$line_max_x \$dem_maxy \$line_max_z\" > ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
@@ -1980,24 +1990,21 @@ EOF
       # echo "echo \"\$line_max_x \$dem_miny \$line_max_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
 
       echo "if [[ \$(echo \"\${PERSPECTIVE_AZ} > 180\" | bc -l) -eq 1 ]]; then" >> ${LINEID}_topscript.sh
-        echo "echo \"\$line_min_x \$dem_maxy \$line_max_z\" > ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
-        echo "echo \"\$line_min_x \$dem_maxy \$line_min_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
-        echo "echo \"\$line_min_x \$dem_miny \$line_min_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
-        echo "echo \"\$line_min_x \$dem_miny \$line_max_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_min_x \$dem_maxy \$line_max_z\" > ${F_PROFILES}${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_min_x \$dem_maxy \$line_min_z\" >> ${F_PROFILES}${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_min_x \$dem_miny \$line_min_z\" >> ${F_PROFILES}${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_min_x \$dem_miny \$line_max_z\" >> ${F_PROFILES}${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
       echo "else" >> ${LINEID}_topscript.sh
-        echo "echo \"\$line_max_x \$dem_maxy \$line_max_z\" > ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
-        echo "echo \"\$line_max_x \$dem_maxy \$line_min_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
-        echo "echo \"\$line_max_x \$dem_miny \$line_min_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
-        echo "echo \"\$line_max_x \$dem_miny \$line_max_z\" >> ${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_max_x \$dem_maxy \$line_max_z\" > ${F_PROFILES}${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_max_x \$dem_maxy \$line_min_z\" >> ${F_PROFILES}${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_max_x \$dem_miny \$line_min_z\" >> ${F_PROFILES}${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
+        echo "echo \"\$line_max_x \$dem_miny \$line_max_z\" >> ${F_PROFILES}${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
       echo "fi" >> ${LINEID}_topscript.sh
 
-
-
       # NO -K
-      echo "gmt psxyz ${LINEID}_endbox.xyz -p -R -J -JZ -Wthinner,black -O >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+      echo "gmt psxyz ${F_PROFILES}${LINEID}_endbox.xyz -p -R -J -JZ -Wthinner,black -O >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
-
-      echo "gmt psconvert ${LINEID}_profile.ps -A+m1i -Tf -F${LINEID}_profile" >> ${LINEID}_plot_start.sh
+      echo "gmt psconvert ${F_PROFILES}${LINEID}_profile.ps -A+m1i -Tf -F${F_PROFILES}${LINEID}_profile" >> ${LINEID}_plot_start.sh
 
       # Execute plot script
       chmod a+x ${LINEID}_plot_start.sh
@@ -2010,8 +2017,8 @@ EOF
     ### End of processing this profile.
 
     # Add profile X limits to all_data in case plotted data does not span profile.
-    echo "$PROFILE_XMIN NaN NaN NaN NaN NaN" >> ${LINEID}_all_data.txt
-    echo "$PROFILE_XMAX NaN NaN NaN NaN NaN" >> ${LINEID}_all_data.txt
+    echo "$PROFILE_XMIN NaN NaN NaN NaN NaN" >> ${F_PROFILES}${LINEID}_all_data.txt
+    echo "$PROFILE_XMAX NaN NaN NaN NaN NaN" >> ${F_PROFILES}${LINEID}_all_data.txt
 
     # Create the profile postscript plot
     # Profiles will be plotted by a master script that feeds in the appropriate parameters based on all profiles.
@@ -2021,10 +2028,11 @@ EOF
     echo "PROFILE_WIDTH_IN=${PROFILE_WIDTH_IN}" >>${LINEID}_profile_plot.sh
 
     # Center the frame on the new PS document
-    echo "gmt psbasemap -Vn -JX${PROFILE_WIDTH_IN}/${PROFILE_HEIGHT_IN} -Bltrb -R${PROFILE_XMIN}/${PROFILE_XMAX}/\${line_min_z}/\${line_max_z} --MAP_FRAME_PEN=thinner,black -K -Xc -Yc >> ${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
+    echo "gmt psbasemap -Vn -JX${PROFILE_WIDTH_IN}/${PROFILE_HEIGHT_IN} -Bltrb -R${PROFILE_XMIN}/${PROFILE_XMAX}/\${line_min_z}/\${line_max_z} --MAP_FRAME_PEN=thinner,black -K -Xc -Yc >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
     cat ${LINEID}_temp_plot.sh >> ${LINEID}_profile_plot.sh
-    echo "gmt psbasemap -Vn -BtESW+t\"${LINEID}\" -Baf -Bx+l\"Distance (km)\" --FONT_TITLE=\"10p,Helvetica,black\" --MAP_FRAME_PEN=thinner,black -R -J -O >> ${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
-    echo "gmt psconvert -Tf -A+m0.5i ${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
+    cleanup ${LINEID}_temp_plot.sh
+    echo "gmt psbasemap -Vn -BtESW+t\"${LINEID}\" -Baf -Bx+l\"Distance (km)\" --FONT_TITLE=\"10p,Helvetica,black\" --MAP_FRAME_PEN=thinner,black -R -J -O >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
+    echo "gmt psconvert -Tf -A+m0.5i ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
     echo "./${LINEID}_profile_plot.sh \$zmin \$zmax" >> ./make_flat_profiles.sh
     chmod a+x ./${LINEID}_profile_plot.sh
 
@@ -2034,9 +2042,9 @@ EOF
 done < $TRACKFILE
 
 # Set a buffer around the data extent to give a nice visual appearance when setting auto limits
-cat *_all_data.txt > all_data.txt
+cat ${F_PROFILES}*_all_data.txt > ${F_PROFILES}all_data.txt
 
-gawk < all_data.txt '{
+gawk < ${F_PROFILES}all_data.txt '{
     if ($1 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { km[++c]=$1; }
     if ($2 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { val[++d]=$2; }
     if ($6 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { val[++d]=$6; }
@@ -2045,7 +2053,7 @@ gawk < all_data.txt '{
     asort(val);
     print km[1], km[length(km)], val[1], val[length(val)]
   #  print km[1]-(km[length(km)]-km[1])*0.01,km[length(km)]+(km[length(km)]-km[1])*0.01,val[1]-(val[length(val)]-val[1])*0.1,val[length(val)]+(val[length(val)]-val[1])*0.1
-}' > limits.txt
+}' > ${F_PROFILES}limits.txt
 
 # These are hard data limits.
 
@@ -2054,16 +2062,16 @@ gawk < all_data.txt '{
 # will cause the section to be way too low. So we need to do the buffer after the one-to-one.
 
 if [[ $xminflag -eq 1 ]]; then
-  min_x=$(gawk < limits.txt '{print $1}')
+  min_x=$(gawk < ${F_PROFILES}limits.txt '{print $1}')
 fi
 if [[ $xmaxflag -eq 1 ]]; then
-  max_x=$(gawk < limits.txt '{print $2}')
+  max_x=$(gawk < ${F_PROFILES}limits.txt '{print $2}')
 fi
 if [[ $zminflag -eq 1 ]]; then
-  min_z=$(gawk < limits.txt '{print $3}')
+  min_z=$(gawk < ${F_PROFILES}limits.txt '{print $3}')
 fi
 if [[ $zmaxflag -eq 1 ]]; then
-  max_z=$(gawk < limits.txt '{print $4}')
+  max_z=$(gawk < ${F_PROFILES}limits.txt '{print $4}')
 fi
 
 # Set minz/maxz to ensure that H=W
@@ -2080,18 +2088,20 @@ fi
 
 # Create the data files that will be used to plot the profile vertex points above the profile
 
+cd ${F_PROFILES}
 for distfile in *_dist_km.txt; do
   gawk < $distfile -v maxz=$max_z -v minz=$min_z -v profheight=${PROFILE_HEIGHT_IN} '{
     print $1, (maxz+minz)/2
   }' > xpts_$distfile
 done
+cd ..
 
 maxzval=$(gawk -v maxz=$max_z -v minz=$min_z 'BEGIN {print (maxz+minz)/2}')
 
 echo "echo \"0 $maxzval\" | gmt psxy -J -R -K -O -St0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.7p,black -Gwhite >> ${PSFILE}" >> plot.sh
 
 
-LINETEXT=$(cat IDfile.txt)
+LINETEXT=$(cat ${F_PROFILES}IDfile.txt)
 # echo LINETEXT is "${LINETEXT}"
 
 # FOR THE MAP
@@ -2104,6 +2114,7 @@ echo "gmt psbasemap -Vn -BtESW+t\"${LINETEXT}\" -Baf -Bx+l\"Distance (km)\" --FO
 # Execute plot script
 chmod a+x ./newplot.sh
 ./newplot.sh
+cleanup plot.sh
 
 # FOR THE FLAT PROFILES
 mv ./make_flat_profiles.sh ./tmp.sh
