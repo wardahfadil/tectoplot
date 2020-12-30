@@ -75,7 +75,7 @@ tectoplot will download and manage various publicly available datasets, like SRT
 tectoplot's cross section functionality supports multiple profiles incorporating various kinds of data (swath grids like topography or gravity, along-profile sampled grids like Slab2 depth grids, XYZ data, XYZ seismicity data scaled by magnitude, and focal mechanisms). Profiles can be aligned in the X direction using an XY polyline that crosses the profiles, such as a trench axis, and can be aligned in the Z direction by matching profile values to 0 at this intersection point. This allows stacking of profiles. Profiles can have more than two vertices, and attempts are made to project data intelligently onto such profiles. Notably, a signed distance function is available that will extract topography in a distance-from-track and distance-along-track-of-closest-point-on-track space, which avoids some of the nasty artifacts arising from kinked profiles. 
 
 ## Credits 
-This script relies very heavily on GMT 6 (www.generic-mapping-tools.org) and gdal (gdal.org)
+This script relies very heavily on GMT 6 (www.generic-mapping-tools.org), gdal (gdal.org), and GNU awk (gawk).
 NDK import in cmt_tools.sh is from a heavily modified version of ndk2meca.awk by Thorsten Becker (sourced from http://www-udc.ig.utexas.edu/external/becker/software/ndk2meca.awk)
 Moment tensor diagonalization via perl is heavily modified from diagonalize.pl by Utpal Kumar (IESAS)
 Various CMT calculations are modified from GMT's psmeca.c/ultimeca.c by G. Patau (IPGP)
