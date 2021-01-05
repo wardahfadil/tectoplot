@@ -13,10 +13,12 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 
 # ISSUE: If no top tile grid is given, various parts of the profile script will
 # fail to work as we won't have the profile width and scale factors set correctly
-# and won't generate the top plot script. 
+# and won't generate the top plot script.
 
 # CHANGELOG
 
+# January  05, 2021: Fixed SEISDEPTH_CPT issue, added -grid, updated -inset
+# January  05, 2021: Added Oblique Mercator (-RJ OA,OC) and updated -inset to show real AOI
 # December 31, 2020: Updated external dataset routines (Seis+Cmt), bug fixes
 # December 30, 2020: Fixed a bug in EQ culling that dropped earliest seismic events
 # December 30, 2020: Added -noplot option to skip plotting and just output data
@@ -422,7 +424,7 @@ cat <<-EOF
     --open           [[program]]                         open PDF file at end
     -o|--out         [filename]                          basename of output file [+.pdf, +.tif, etc added as needed]
     -pss   [size]          Set PS page size in inches (8).
-    --inset          [[size]]                            plot a globe with AOI polygon.
+    --inset          [[size]] [[deg]] [[x]] [[y]]        plot a globe with AOI polygon.
     --legend         [[width]]                           plot legend above the map area (color bar width=2i)
     -gres            [dpi]                               set dpi of grids printed to PS file (default: grid native res)
     -command                                             print tectoplot command at bottom of page
@@ -466,11 +468,16 @@ cat <<-EOF
     Global projections with degree range, specified by word or GMT letter and optional arguments
                      Gnomonic|F ; Orthographic|G ; Stereo|S     [[Meridian]] [[Latitude]] [[Range]]
 
+    Oblique Mercator projections
+    -RJ              ObMercA/OA  [centerlon] [centerlat] [azimuth] [width]k [height]k
+                     ObMercC/OC  [centerlon] [centerlat] [polelon] [polelat] [width]k [height]k
+
   Grid/gratiucle and map frame options
     -B               [{ -Betc -Betc }]                   provide custom B strings for map in GMT argument format
     -pgs             [gridline spacing]                  override map gridline spacing
     -pgo                                                 turn grid lines off
     -pgl                                                 turn grid labels off
+    -pgn                                                 don't plot grid at all
     -scale           [length] [lon] [lat]                plot a scale bar. length needs suffix (e.g. 100k).
 
   Plotting/control commands:
@@ -2074,6 +2081,11 @@ do
     plots+=("usergrid")
     ;;
 
+  -grid)
+    doplotgridflag=1
+    plots+=("graticule")
+    ;;
+
   -gridlabels) # args: string (quoted)
     GRIDCALL="${2}"
     shift
@@ -2128,6 +2140,12 @@ do
       shift
     fi
     if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-inset]: No horizon degree width specified. Using ${INSET_DEGREE}".
+    else
+      INSET_DEGWIDTH="${2}"
+      shift
+    fi
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
       info_msg "[-inset]: No x shift relative to bottom left corner specified. Using ${INSET_XOFF}".
     else
       INSET_XOFF="${2}"
@@ -2139,7 +2157,7 @@ do
       INSET_YOFF="${2}"
       shift
     fi
-    plots+=("inset")
+    addinsetplotflag=1
     ;;
 
   -ips) # args: file
@@ -2597,6 +2615,11 @@ do
 
     ;; # args: none
 
+  -pgn)
+    dontplotgridflag=1
+    GRIDCALL="blrt"
+    ;;
+
   -pgo)
     GRIDLINESON=0
     ;;
@@ -3006,6 +3029,7 @@ do
       shift
       RJSTRING="${rj[@]}"
       ;;
+
       UTM)
         if [[ $2 =~ ^[0-9]+$ ]]; then   # Specified a UTM Zone (positive integer)
           UTMZONE=$2
@@ -3016,6 +3040,8 @@ do
         setutmrjstringfromarrayflag=1
         recalcregionflag=1
       ;;
+
+      # Global extents
       Hammer|H|Winkel|R|Robinson|N|Mollweide|W|VanderGrinten|V|Sinusoidal|I|Eckert4|Kf|Eckert6|Ks)
         MINLON=-180; MAXLON=180; MINLAT=-90; MAXLAT=90
         if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+$ ]]; then   # Specified a central meridian
@@ -3091,6 +3117,143 @@ do
           Stereo|S)        rj+=("-JS${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i")     ;;
         esac
         RJSTRING="${rj[@]}"
+        recalcregionflag=1
+      ;;
+      # Oblique Mercator A (lon lat azimuth widthkm heightkm)
+      ObMercA|OA)
+        # Set up default values
+        CENTRALLON=0
+        CENTRALLAT=0
+        ORIENTAZIMUTH=0
+        MAPWIDTHKM="200k"
+        MAPHEIGHTKM="100k"
+        if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+$ ]]; then   # Specified a central meridian
+          CENTRALLON=$2
+          shift
+          if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+$ ]]; then   # Specified a latitude
+            CENTRALLAT=$2
+            shift
+            if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+$ ]]; then   # Specified a degree range
+              ORIENTAZIMUTH=$2
+              shift
+              if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+[k]$ ]]; then   # Specified a width with unit k
+                MAPWIDTHKM=$2
+                shift
+                if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+[k]$ ]]; then   # Specified a width with unit k
+                  MAPHEIGHTKM=$2
+                  shift
+                fi
+              fi
+            fi
+          fi
+        fi
+
+        # echo "Map params: $CENTRALLON $CENTRALLAT $ORIENTAZIMUTH $MAPWIDTHKM $MAPHEIGHTKM"
+        # Now we have to calculate the LAT/LON range for this projection somehow
+        # given the width and height in km. So we project from the center point along the
+        # azimuth and back-azimuth to get the mid-points, and then we project across the
+        # back-azimuth from those points to get the total range.
+
+        # # echo END POINT ${p[0]}/${p[1]} azimuth ${p[2]} width ${p[3]} color ${p[4]}
+        # AZIMUTHp90=$(echo "$ORIENTAZIMUTH + 90" | bc -l)
+        # AZIMUTHp180=$(echo "$ORIENTAZIMUTH + 180" | bc -l)
+        # AZIMUTHp270=$(echo "$ORIENTAZIMUTH + 270" | bc -l)
+
+        # MAPWIDTHNUM=$(echo $MAPWIDTHKM | awk '{print ($1+0)/2}')
+        # MAPWIDTHKM=$(echo "${MAPWIDTHNUM}k")
+        # MAPHEIGHTNUM=$(echo $MAPHEIGHTKM | awk '{print ($1+0)/2}')
+        # MAPHEIGHTKM=$(echo "${MAPHEIGHTNUM}k")
+
+        # PT1=($(gmt project -C${CENTRALLON}/${CENTRALLAT} -A${ORIENTAZIMUTH} -Q -G${MAPWIDTHKM} -L0/${MAPWIDTHNUM} ${VERBOSE} | tail -n 1 | gawk '{print $1, $2}'))
+        # PT2=($(gmt project -C${CENTRALLON}/${CENTRALLAT} -A${AZIMUTHp180} -Q -G${MAPWIDTHKM} -L0/${MAPWIDTHNUM} ${VERBOSE} | tail -n 1 | gawk '{print $1, $2}'))
+        #
+        # PT1F=($(gmt project -C${PT1[0]}/${PT1[1]} -A${AZIMUTHp90} -Q -G${MAPHEIGHTKM} -L0/${MAPHEIGHTNUM} ${VERBOSE} | tail -n 1 | gawk '{print $1, $2}'))
+        # PT1B=($(gmt project -C${PT1[0]}/${PT1[1]} -A${AZIMUTHp270} -Q -G${MAPHEIGHTKM} -L0/${MAPHEIGHTNUM} ${VERBOSE} | tail -n 1 | gawk '{print $1, $2}'))
+        #
+        # PT2F=($(gmt project -C${PT2[0]}/${PT2[1]} -A${AZIMUTHp90} -Q -G${MAPHEIGHTKM} -L0/${MAPHEIGHTNUM} ${VERBOSE} | tail -n 1 | gawk '{print $1, $2}'))
+        # PT2B=($(gmt project -C${PT2[0]}/${PT2[1]} -A${AZIMUTHp270} -Q -G${MAPHEIGHTKM} -L0/${MAPHEIGHTNUM} ${VERBOSE} | tail -n 1 | gawk '{print $1, $2}'))
+
+        # echo ${PT1[@]} > projpoints.txt
+        # echo ${PT2[@]} >> projpoints.txt
+        # echo ${PT1F[@]} >> projpoints.txt
+        # echo ${PT1B[@]} >> projpoints.txt
+        # echo ${PT2F[@]} >> projpoints.txt
+        # echo ${PT2B[@]} >> projpoints.txt
+        #
+        # RANGE=($(awk < projpoints.txt '
+        #   BEGIN {
+        #     getline;
+        #     maxlon=$1; minlon=$1; maxlat=$2; minlat=$2
+        #   }
+        #   {
+        #     maxlon=($1>maxlon)?$1:maxlon
+        #     minlon=($1<minlon)?$1:minlon
+        #     maxlat=($2>maxlat)?$2:maxlat
+        #     minlat=($2<minlat)?$2:minlat
+        #   }
+        #   END {
+        #     print minlon, maxlon, minlat, maxlat
+        #   }'))
+        #
+        # MINLON=${RANGE[0]}
+        # MAXLON=${RANGE[1]}
+        # MINLAT=${RANGE[2]}
+        # MAXLAT=${RANGE[3]}
+        rj+=("-Rk-${MAPWIDTHKM}/${MAPWIDTHKM}/-${MAPHEIGHTKM}/${MAPHEIGHTKM}")
+        # rj+=("-R${PT2F[0]}/${PT2F[1]}/${PT1B[0]}/${PT1B[1]}r")
+        rj+=("-JOa${CENTRALLON}/${CENTRALLAT}/${ORIENTAZIMUTH}/${PSSIZE}i")
+        RJSTRING="${rj[@]}"
+        # echo "RJSTRING is $RJSTRING"
+        recalcregionflag=1
+      ;;
+      # Lon Lat lonpole latPole widthkm heightkm
+      ObMercC|OC)
+        # Set up default values
+        CENTRALLON=0
+        CENTRALLAT=0
+        POLELON=0
+        POLELAT=0
+        MAPWIDTHKM="200k"
+        MAPHEIGHTKM="100k"
+        if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+$ ]]; then   # Specified a central meridian
+          CENTRALLON=$2
+          shift
+          if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+$ ]]; then   # Specified a latitude
+            CENTRALLAT=$2
+            shift
+            if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+$ ]]; then   # Specified a latitude
+              POLELON=$2
+              shift
+              if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+$ ]]; then   # Specified a latitude
+                POLELAT=$2
+                shift
+                if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+[k]$ ]]; then   # Specified a width with unit k
+                  MAPWIDTHKM=$2
+                  shift
+                  if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+[k]$ ]]; then   # Specified a width with unit k
+                    MAPHEIGHTKM=$2
+                    shift
+                  fi
+                fi
+              fi
+            fi
+          fi
+        fi
+
+        # echo "Map params: $CENTRALLON $CENTRALLAT $ORIENTAZIMUTH $MAPWIDTHKM $MAPHEIGHTKM"
+        # Now we have to calculate the LAT/LON range for this projection somehow
+        # given the width and height in km. So we project from the center point along
+        # the small circle defined by the pole. From those end points, we project a forward
+        # (toward the pole) and backward (away from the pole) line that defines the
+        # box corners.
+
+        MAPWIDTHNUM=$(echo $MAPWIDTHKM | awk '{print $1 + 0}')
+        MAPHEIGHTNUM=$(echo $MAPHEIGHTKM | awk '{print $1 + 0}')
+
+        rj+=("-Rk-${MAPWIDTHKM}/${MAPWIDTHKM}/-${MAPHEIGHTKM}/${MAPHEIGHTKM}")
+        rj+=("-JOc${CENTRALLON}/${CENTRALLAT}/${POLELON}/$POLELAT/${PSSIZE}i")
+        RJSTRING="${rj[@]}"
+        # echo "RJSTRING is $RJSTRING"
         recalcregionflag=1
       ;;
     esac
@@ -3876,6 +4039,13 @@ if [[ $setregionbyearthquakeflag -eq 1 ]]; then
   info_msg "[-r]: Earthquake centered region: $MINLON/$MAXLON/$MINLAT/$MAXLAT centered at $REGION_EQ_LON/$REGION_EQ_LAT"
 fi
 
+if [[ ! $usecustomrjflag -eq 1 ]]; then
+  rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
+  rj+=("-JQ${MINLON}/${PSSIZE}i")
+  RJSTRING="${rj[@]}"
+  # echo "Basic RJSTRING is $RJSTRING"
+  usecustomrjflag=1
+fi
 
 ################################################################################
 ###### Calculate some sizes for the final map document based on AOI aspect ratio
@@ -3889,15 +4059,7 @@ LONSIZE=$(echo "$MAXLON - $MINLON" | bc -l)
 
 INCH=$PSSIZE
 
-##### Define the output filename for the map, in PDF
-if [[ $outflag == 0 ]]; then
-	MAPOUT="tectomap_"$MINLAT"_"$MAXLAT"_"$MINLON"_"$MAXLON
-  MAPOUTLEGEND="tectomap_"$MINLAT"_"$MAXLAT"_"$MINLON"_"$MAXLON"_legend.pdf"
-  info_msg "Output file is $MAPOUT, legend is $MAPOUTLEGEND"
-else
-  info_msg "Output file is $MAPOUT, legend is legend.pdf"
-  MAPOUTLEGEND="legend.pdf"
-fi
+
 
 # If MAKERECTMAP is set to 1, the RJSTRING will be changed to a different format
 # to allow plotting of a rectangular map not bounded by parallels/meridians.
@@ -3942,12 +4104,17 @@ if [[ $setutmrjstringfromarrayflag -eq 1 ]]; then
   info_msg "[-RJ]: Custom region and projection string is: ${RJSTRING[@]}"
 fi
 
+### NOTE: All "Default projection" sections below are now unneeded as we have
+###       a well defined RJSTRING for all maps
+
 # Examine boundary of map to see of we want to reset the AOI to only the map area
 
-if [[ $recalcregionflag -eq 1 ]]; then
-  info_msg "Recalculating AOI from map boundary"
-
+info_msg "Recalculating AOI from map boundary"
+# echo RJSTRING IS ${RJSTRING[@]}
 gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '($1!="NaN"){print}' > bounds.txt
+gmt mapproject bounds.txt ${RJSTRING[@]} ${VERBOSE} > projbounds.txt
+
+if [[ $recalcregionflag -eq 1 ]]; then
 
   NEWRANGE=($(gawk < bounds.txt '
     BEGIN {
@@ -3995,14 +4162,15 @@ if [[ $(echo "$MAXLON > 180 && $MINLON < 180" | bc) -eq 1 ]]; then
   selectg180flag=1
 fi
 
-
-MSG=$(echo ">>>>>>>>> Plotting order is ${plots[@]} <<<<<<<<<<<<<")
-# echo $MSG
-[[ $narrateflag -eq 1 ]] && echo $MSG
-
-legendwords=${plots[@]}
-MSG=$(echo ">>>>>>>>> Legend order is ${legendwords[@]} <<<<<<<<<<<<<")
-[[ $narrateflag -eq 1 ]] && echo $MSG
+##### Define the output filename for the map, in PDF
+if [[ $outflag == 0 ]]; then
+	MAPOUT="tectomap_"$MINLAT"_"$MAXLAT"_"$MINLON"_"$MAXLON
+  MAPOUTLEGEND="tectomap_"$MINLAT"_"$MAXLAT"_"$MINLON"_"$MAXLON"_legend.pdf"
+  info_msg "Output file is $MAPOUT, legend is $MAPOUTLEGEND"
+else
+  info_msg "Output file is $MAPOUT, legend is legend.pdf"
+  MAPOUTLEGEND="legend.pdf"
+fi
 
 ##### EQ / CMT magnitudes
 
@@ -4073,6 +4241,7 @@ mkdir -p "${F_CMT}"
 
 [[ -e ../aprof_profs.txt ]] && mv ../aprof_profs.txt ${F_PROFILES}
 [[ -e ../bounds.txt ]] && mv ../bounds.txt ${F_MAPELEMENTS}
+[[ -e ../projbounds.txt ]] && mv ../projbounds.txt ${F_MAPELEMENTS}
 
 mkdir -p "${F_PLATES}"
 
@@ -4178,6 +4347,42 @@ if [[ $GRIDLINESON -eq 1 ]]; then
 else
   GRIDSP_LINE=""
 fi
+
+# DEFINE BSTRING
+
+if [[ $PLOTTITLE == "" ]]; then
+  TITLE=""
+else
+  TITLE="+t\"${PLOTTITLE}\""
+fi
+if [[ $usecustombflag -eq 0 ]]; then
+  bcmds+=("-Bxa${GRIDSP}${GRIDSP_LINE}")
+  bcmds+=("-Bya${GRIDSP}${GRIDSP_LINE}")
+  bcmds+=("-B${GRIDCALL}${TITLE}")
+  BSTRING=("${bcmds[@]}")
+fi
+
+# If grid isn't explicitly turned on but is also not turned off, add it to plots
+for plot in ${plots[@]}; do
+  [[ $plot == "graticule" ]] && gridisonflag=1
+done
+if [[ $dontplotgridflag -eq 0 && $gridisonflag -eq 0 ]]; then
+  plots+=("graticule")
+fi
+
+# Add the inset on top of everything else so the grid won't ever cover it
+if [[ $addinsetplotflag -eq 1 ]]; then
+  plots+=("inset")
+fi
+
+MSG=$(echo ">>>>>>>>> Plotting order is ${plots[@]} <<<<<<<<<<<<<")
+# echo $MSG
+[[ $narrateflag -eq 1 ]] && echo $MSG
+
+legendwords=${plots[@]}
+MSG=$(echo ">>>>>>>>> Legend order is ${legendwords[@]} <<<<<<<<<<<<<")
+[[ $narrateflag -eq 1 ]] && echo $MSG
+
 
 ################################################################################
 #####          Manage SLAB2 data                                           #####
@@ -5713,7 +5918,6 @@ for cptfile in ${cpts[@]} ; do
         cp $SEISDEPTH_CPT $SEISDEPTH_NODEEPEST_CPT
         echo "${EQMAXDEPTH_COLORSCALE}	0/17.937/216.21	6370	0/0/255" >> $SEISDEPTH_CPT
       fi
-      cp $SEISDEPTH_CPT $SEISDEPTH_NODEEPEST_CPT
 
     ;;
 
@@ -5764,7 +5968,8 @@ if [[ $kmlflag -eq 1 ]]; then
 fi
 
 # Font options
-gmt gmtset FONT_ANNOT_PRIMARY 10 FONT_LABEL 10 FONT_TITLE 18p,Palatino-BoldItalic
+gmt gmtset FONT_ANNOT_PRIMARY 10 FONT_LABEL 10 FONT_TITLE 12p,Helvetica,black
+
 
 # Symbol options
 gmt gmtset MAP_VECTOR_SHAPE 0.5 MAP_TITLE_OFFSET 8p
@@ -5774,7 +5979,6 @@ if [[ $usecustomgmtvars -eq 1 ]]; then
   gmt gmtset ${GMTVARS[@]}
 fi
 
-info_msg "Plotting grid and keeping PS file open for legend"
 
 # The strategy for adding items to the legend is to make little baby EPS files
 # and then place them onto the master PS using gmt psimage. We initialize these
@@ -5784,54 +5988,24 @@ info_msg "Plotting grid and keeping PS file open for legend"
 # The frame presents a bit of a problem as we have to manage different calls to
 # psbasemap based on a range of options (title, no title, grid, no grid, etc.)
 
-cleanup base_fake.ps base_fake.eps base_fake_nolabels.ps base_fake_nolabels.eps
+# cleanup base_fake.ps base_fake.eps base_fake_nolabels.ps base_fake_nolabels.eps
 
-##### PREPARE PS FILES
-if [[ $usecustomrjflag -eq 1 ]]; then
-  gmt psbasemap ${RJSTRING[@]} $VERBOSE -Btlbr > base_fake_nolabels.ps > base_fake_nolabels.ps
+# gmt psbasemap ${BSTRING[@]} ${SCALECMD} $RJOK $VERBOSE >> map.ps
 
-  # Special flag to plot using a custom string containing -R -J -B
-  if [[ $usecustombflag -eq 1 ]]; then
-    gmt psbasemap -Xc -Yc ${RJSTRING[@]} $VERBOSE ${BSTRING[@]} > base_fake.ps
-  else
-    if [[ $PLOTTITLE == "BlankMapTitle" ]]; then
-      gmt psbasemap -Xc -Yc ${RJSTRING[@]} $VERBOSE -Bxa"$GRIDSP""$GRIDSP_LINE" -Bya"$GRIDSP""$GRIDSP_LINE" -B"${GRIDCALL}" > base_fake.ps
-    else
-      gmt psbasemap ${RJSTRING[@]} $VERBOSE -Bxa"$GRIDSP""$GRIDSP_LINE" -Bya"$GRIDSP""$GRIDSP_LINE" -B"${GRIDCALL}"+t"${PLOTTITLE}" > base_fake.ps
-    fi
-  fi
-  # Probably not the best way to initialize these
-  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > kinsv.ps
-  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > plate.ps
-  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > mecaleg.ps
-  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > seissymbol.ps
-  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > volcanoes.ps
-  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > velarrow.ps
-  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > velgps.ps
-  gmt psxy -T -X$PLOTSHIFTX -Y$PLOTSHIFTY $OVERLAY $VERBOSE -K ${RJSTRING[@]} >> map.ps
-else
-  if [[ $usecustombflag -eq 1 ]]; then
-    gmt psbasemap -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i  $VERBOSE -Bbtlr > base_fake_nolabels.ps
-    # SHOULD PROBABLY UPDATE TO AN AVERAGE LONGITUDE INSTEAD OF -JQ$MINLON?
-    gmt psbasemap -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i  $VERBOSE ${BSTRING[@]} > base_fake.ps
-  else
-    if [[ $PLOTTITLE == "BlankMapTitle" ]]; then
-      gmt psbasemap -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i  $VERBOSE -Bxa"$GRIDSP""$GRIDSP_LINE" -Bya"$GRIDSP""$GRIDSP_LINE" -B"${GRIDCALL}" > base_fake.ps
-    else
-      gmt psbasemap -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i  $VERBOSE -Bxa"$GRIDSP""$GRIDSP_LINE" -Bya"$GRIDSP""$GRIDSP_LINE" -B"${GRIDCALL}"+t"${PLOTTITLE}" > base_fake.ps
-    fi
-  fi
-  # Probably not the best way to initialize these
-  gmt psxy -T -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -X0i -Yc $OVERLAY -K $VERBOSE  > kinsv.ps
-  gmt psxy -T -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -X0i -Yc $OVERLAY -K $VERBOSE  > eqlabel.ps
-  gmt psxy -T -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -X0i -Yc $OVERLAY -K $VERBOSE  > plate.ps
-  gmt psxy -T -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -X0i -Yc $OVERLAY -K $VERBOSE  > mecaleg.ps
-  gmt psxy -T -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -X0i -Yc $OVERLAY -K $VERBOSE  > seissymbol.ps
-  gmt psxy -T -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -X0i -Yc $OVERLAY -K $VERBOSE  > volcanoes.ps
-  gmt psxy -T -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -X0i -Yc $OVERLAY -K $VERBOSE  > velarrow.ps
-  gmt psxy -T -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -X0i -Yc $OVERLAY -K $VERBOSE  > velgps.ps
-  gmt psxy -T -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JQ$MINLON/${INCH}i -X$PLOTSHIFTX -Y$PLOTSHIFTY $OVERLAY -K $VERBOSE  >> map.ps
-fi
+# Note that BSTRING needs to be quoted as it has a title with spaces...
+
+gmt psbasemap ${RJSTRING[@]} $VERBOSE -Btlbr > base_fake_nolabels.ps
+gmt psbasemap ${RJSTRING[@]} "${BSTRING[@]}" $VERBOSE > base_fake.ps
+gmt psxy -T -X$PLOTSHIFTX -Y$PLOTSHIFTY $OVERLAY $VERBOSE -K ${RJSTRING[@]} >> map.ps
+
+gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > kinsv.ps
+gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > plate.ps
+gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > mecaleg.ps
+gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > seissymbol.ps
+gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > volcanoes.ps
+gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > velarrow.ps
+gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > velgps.ps
+
 
 cleanup kinsv.ps eqlabel.ps plate.ps mecaleg.ps seissymbol.ps volcanoes.ps velarrow.ps velgps.ps
 
@@ -6275,6 +6449,10 @@ for plot in ${plots[@]} ; do
       fi
 			;;
 
+    graticule)
+      gmt psbasemap "${BSTRING[@]}" ${SCALECMD} $RJOK $VERBOSE >> map.ps
+      ;;
+
     grav)
       if [[ $clipgravflag -eq 1 ]]; then
         gmt grdcut $GRAVDATA -G${F_GRAV}grav.nc -R -J $VERBOSE
@@ -6332,6 +6510,19 @@ for plot in ${plots[@]} ; do
       info_msg "gmt grdimage $IMAGENAME ${IMAGEARGS} $RJOK ${VERBOSE} >> map.ps"
       gmt grdimage "$IMAGENAME" $GRID_PRINT_RES "${IMAGEARGS}" $RJOK $VERBOSE >> map.ps
       ;;
+
+    inset)
+        # echo "$MINLON $MINLAT" > aoi_box.txt
+        # echo "$MINLON $MAXLAT" >> aoi_box.txt
+        # echo "$MAXLON $MAXLAT" >> aoi_box.txt
+        # echo "$MAXLON $MINLAT" >> aoi_box.txt
+        # echo "$MINLON $MINLAT" >> aoi_box.txt
+
+        gmt_init_tmpdir
+        gmt pscoast -Rg -JG${CENTERLON}/${CENTERLAT}/${INSET_DEGWIDTH}/${INSET_SIZE} -Xa${INSET_XOFF} -Ya${INSET_YOFF} -Bg -Dc -A5000 -Ggray -Swhite -O -K ${VERBOSE} >> map.ps
+        gmt psxy ${F_MAPELEMENTS}"bounds.txt" -W${INSET_AOI_LINEWIDTH},${INSET_AOI_LINECOLOR} -Xa${INSET_XOFF} -Ya${INSET_YOFF} ${VERBOSE} $RJOK >> map.ps
+        gmt_remove_tmpdir
+        ;;
 
     kinsv)
       # Plot the slip vectors for focal mechanism nodal planes
@@ -7499,39 +7690,6 @@ for plot in ${plots[@]} ; do
 	esac
 done
 
-gmt gmtset FONT_TITLE 12p,Helvetica,black
-
-################################################################################
-# Plot the frame and close the map if KEEPOPEN is set to "" and we aren't
-# overplotting a legend. Otherwise, keep the PS file open.
-
-##### PLOT GRID (AND SCALE BAR) OVER MAP
-
-if [[ $legendovermapflag -eq 0 ]]; then
-  info_msg "Plotting grid and keeping PS file open if --keepopenps is set ($KEEPOPEN)"
-  if [[ $usecustombflag -eq 1 ]]; then
-    echo gmt psbasemap -R -J -O $KEEPOPEN $VERBOSE ${BSTRING[@]}
-    gmt psbasemap -R -J -O $KEEPOPEN $VERBOSE ${BSTRING[@]} ${SCALECMD} >> map.ps
-  else
-    if [[ $PLOTTITLE == "BlankMapTitle" ]]; then
-      gmt psbasemap -R -J -O $KEEPOPEN $VERBOSE -Bxa"$GRIDSP""$GRIDSP_LINE" -Bya"$GRIDSP""$GRIDSP_LINE" -B"${GRIDCALL}" ${SCALECMD} >> map.ps
-    else
-      gmt psbasemap -R -J -O $KEEPOPEN $VERBOSE -Bxa"$GRIDSP""$GRIDSP_LINE" -Bya"$GRIDSP""$GRIDSP_LINE" -B"${GRIDCALL}"+t"${PLOTTITLE}" ${SCALECMD} >> map.ps
-    fi
-  fi
-else # We are overplotting a legend, so keep it open in any case
-  info_msg "Plotting grid and keeping PS file open for legend"
-  if [[ $usecustombflag -eq 1 ]]; then
-    gmt psbasemap -R -J -O -K $VERBOSE ${BSTRING[@]} ${SCALECMD} >> map.ps
-  else
-    if [[ $PLOTTITLE == "BlankMapTitle" ]]; then
-      gmt psbasemap -R -J -O -K $VERBOSE -Bxa"$GRIDSP""$GRIDSP_LINE" -Bya"$GRIDSP""$GRIDSP_LINE" -B"${GRIDCALL}" ${SCALECMD} >> map.ps
-    else
-      gmt psbasemap -R -J -O -K $VERBOSE -Bxa"$GRIDSP""$GRIDSP_LINE" -Bya"$GRIDSP""$GRIDSP_LINE" -B"${GRIDCALL}"+t"${PLOTTITLE}" ${SCALECMD} >> map.ps
-    fi
-  fi
-fi
-
 ##### PLOT LEGEND
 if [[ $makelegendflag -eq 1 ]]; then
   gmt gmtset MAP_TICK_LENGTH_PRIMARY 0.5p MAP_ANNOT_OFFSET_PRIMARY 1.5p MAP_ANNOT_OFFSET_SECONDARY 2.5p MAP_LABEL_OFFSET 2.5p FONT_LABEL 6p,Helvetica,black
@@ -7822,21 +7980,6 @@ if [[ $makelegendflag -eq 1 ]]; then
         NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
         ;;
 
-    inset)
-        info_msg "Legend: inset"
-
-        echo "$MINLON $MINLAT" > aoi_box.txt
-        echo "$MINLON $MAXLAT" >> aoi_box.txt
-        echo "$MAXLON $MAXLAT" >> aoi_box.txt
-        echo "$MAXLON $MINLAT" >> aoi_box.txt
-        echo "$MINLON $MINLAT" >> aoi_box.txt
-
-        gmt_init_tmpdir
-        gmt pscoast -Rg -JG${CENTERLON}/${CENTERLAT}/${INSET_SIZE} -Xa${INSET_XOFF} -Ya${INSET_YOFF} -Bg -Dc -A5000 -Ggray -Swhite -K -O ${VERBOSE} >> $LEGMAP
-        gmt psxy aoi_box.txt -R -J -O -K -W${INSET_AOI_LINEWIDTH},${INSET_AOI_LINECOLOR} -Xa${INSET_XOFF} -Ya${INSET_YOFF} ${VERBOSE} >> $LEGMAP
-        gmt_remove_tmpdir
-        ;;
-
     kinsv)
         info_msg "Legend: kinsv"
         echo "$CENTERLON $CENTERLAT" |  gmt psxy -Sc0.01i -W0p,white -Gwhite $RJOK $VERBOSE >> kinsv.ps
@@ -7978,8 +8121,9 @@ if [[ $makelegendflag -eq 1 ]]; then
   # if [[ $NUMLEGBAR -eq 1 ]]; then
   #   gmt pslegend datasourceslegend.txt -Dx0.0i/${MAP_PS_HEIGHT_IN_minus}i+w${LEGEND_WIDTH}+w${INCH}i+jBL -C0.05i/0.05i -J -R -O $KEEPOPEN ${VERBOSE} >> $LEGMAP
   # else
-    gmt pslegend datasourceslegend.txt -Dx0.0i/${MAP_PS_HEIGHT_IN}i+w${LEGEND_WIDTH}+w${INCH}i+jBL -C0.05i/0.05i -J -R -O -K ${VERBOSE} >> $LEGMAP
-    gmt pslegend legendbars.txt -Dx0i/${MAP_PS_HEIGHT_IN_plus}i+w${LEGEND_WIDTH}+jBL -C0.05i/0.05i -J -R -O $KEEPOPEN ${VERBOSE} >> $LEGMAP
+
+  gmt pslegend datasourceslegend.txt -Dx0.0i/${MAP_PS_HEIGHT_IN}i+w${LEGEND_WIDTH}+w${INCH}i+jBL -C0.05i/0.05i -J -R -O -K ${VERBOSE} >> $LEGMAP
+  gmt pslegend legendbars.txt -Dx0i/${MAP_PS_HEIGHT_IN_plus}i+w${LEGEND_WIDTH}+jBL -C0.05i/0.05i -J -R -O -K ${VERBOSE} >> $LEGMAP
   # fi
 
   # If we are closing the separate legend file, PDF it
@@ -7993,6 +8137,9 @@ if [[ $makelegendflag -eq 1 ]]; then
 fi  # [[ $makelegendflag -eq 1 ]]
 
 # Export TECTOPLOT call and GMT command history from PS file to .history file
+
+# Close the PS if we need to
+gmt psxy -T -R -J -O $KEEPOPEN $VERBOSE >> map.ps
 
 echo "${COMMAND}" > "$MAPOUT.history"
 echo "${COMMAND}" >> $TECTOPLOTDIR"tectoplot.history"

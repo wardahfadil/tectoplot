@@ -26,7 +26,7 @@ DATE_FORMAT="-u"
 PLOTFILE="map.ps"            # name of PS file bearing plot data
 PLOTSHIFTX="1i"              # GMT shift of origin, X direction
 PLOTSHIFTY="c"               # GMT shift of origin, Y direction
-PLOTTITLE="BlankMapTitle"    # title (default will be replaced with no title)
+PLOTTITLE=""    # title (default will be replaced with no title)
 PSSCALE=1                    # fraction of PSSIZE to plot at (1=no scaling)
 PSSIZE=8                     # size of square page, inches
 PSSIZE_DEFAULT=8             # size of square page, inches
@@ -334,6 +334,7 @@ LITHO1_TRANS=0               # transparency of Litho1 polygons
 INSET_SIZE="1i"
 INSET_XOFF="0i"
 INSET_YOFF="0i"
+INSET_DEGWIDTH=90
 INSET_AOI_LINECOLOR="red"
 INSET_AOI_LINEWIDTH="1p"
 

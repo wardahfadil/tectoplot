@@ -45,7 +45,7 @@ for i in ${MAKENUMS[@]}; do
   case $i in
     1) # Example 1: Four global plots in one PDF
       tectoplot -n -command -RJ N      -t 10m -gres 30 -title "Robinson"                                                    -pss 8 -a l --keepopenps    -z -zmag 7 10
-      tectoplot -n -command -RJ W 45   -t 10m -gres 30 -title "Mollweide" -pos  9i    0i -ips ./tempfiles_to_delete/map.ps  -pss 8 -a l --keepopenps    -c -zmag 7 10
+      tectoplot -n -command -RJ W 45   -t 10m -gres 30 -title "Mollweide" -pos  9i    0i -ips ./tempfiles_to_delete/map.ps  -pss 8 -a l --keepopenps    -c -cmag 7 10
       tectoplot -n -command -RJ H 135  -t 10m -gres 30 -title "Hammer"    -pos -9i -5.5i -ips ./tempfiles_to_delete/map.ps  -pss 8 -a l --keepopenps    -z -zmag 8 10
       tectoplot -n -command -RJ R -180 -t 10m -gres 30 -title "Winkel"    -pos  9i -0.5i -ips ./tempfiles_to_delete/map.ps  -pss 8 -a l          -o example1
     ;;
@@ -223,7 +223,7 @@ EOF
     16) # Example 16: Plot a focal mechanism database from an NDK file
       if [[ -e ../example_data/quick.ndk ]]; then
         tectoplot -n -RJ V -ac lightbrown lightblue -a l -c \
-        -cadd ../example_data/quick.ndk K replace -zmag 7 10  \
+        -cadd ../example_data/quick.ndk K replace -cmag 7 10  \
         -title "Large QuickCMT earthquakes" -author -command -o example16
       fi
     ;;
