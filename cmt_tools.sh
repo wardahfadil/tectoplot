@@ -109,7 +109,6 @@ function sdr_mantissa_exponent_to_full_moment_tensor(strike_d, dip_d, rake_d, ma
   Mf[6]=M[6]/10^maxscale
 }
 
-
 # Calculate the principal axes azimuth and plunge from strike, dip, rake of a nodal plane
 # Results are placed into TNP[1]-TNP[6] in the order Taz, Tinc, Naz, Ninc, Paz, Pinc (degrees)
 

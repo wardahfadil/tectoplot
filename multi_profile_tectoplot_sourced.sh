@@ -289,6 +289,12 @@ for i in $(seq 1 $k); do
   fi
 done
 
+# If there are no swath-type data requests, set a nominal width of 1 km
+if [[ ! -e ${F_PROFILES}widthlist.txt ]]; then
+  info_msg "No swath data in profile control file; setting to 1 km"
+  echo "1k" > ${F_PROFILES}widthlist.txt
+fi
+
 # We accomplish buffering using geographic coordinates, so that buffers far from
 # the equator will be too wide (longitudinally). This is not a real problem as we only use the
 # buffers to define the AOI and graphically indicate the profile areas.
@@ -594,7 +600,7 @@ for i in $(seq 1 $k); do
 
 
     LINETOTAL=$(wc -l < ${F_PROFILES}jointrack_${LINEID}.txt)
-    cat ${F_PROFILES}jointrack_${LINEID}.txt | gawk -v width="${MAXWIDTH_KM}" -v color="${COLOR}" -v lineval="${LINETOTAL}" -v lineid=${F_PROFILES}${LINEID} '
+    cat ${F_PROFILES}jointrack_${LINEID}.txt | gawk -v width="${MAXWIDTH_KM}" -v color="${COLOR}" -v lineval="${LINETOTAL}" -v folderid=${F_PROFILES} -v lineid=${LINEID} '
       (NR==1) {
         print $1, $2, $5, width, color, lineid >> "start_points.txt"
         lastval=$5
@@ -607,14 +613,11 @@ for i in $(seq 1 $k); do
         lastval=$5
       }
       END {
-        filename=sprintf("./%s_end.txt",lineid)
-        print $1, $2, lastval, width, color, lineid >> filename
+        filename=sprintf("%s%s_end.txt", folderid, lineid)
+        print $1, $2, lastval, width, color, folderid >> filename
         print $1, $2, lastval, width, color, lineid >> "end_points.txt"
       }
       '
-    [[ -e end_points.txt ]] && mv end_points.txt ${F_PROFILES}
-    [[ -e mid_points.txt ]] && mv mid_points.txt ${F_PROFILES}
-    [[ -e start_points.txt ]] && mv start_points.txt ${F_PROFILES}
 
     xoffsetflag=0
     # Set XOFFSET to the distance from our first point to the crossing point of zero_point_file.txt
@@ -2040,6 +2043,10 @@ EOF
     PROFILE_INUM=$(echo "$PROFILE_INUM + 1" | bc)
   fi
 done < $TRACKFILE
+
+[[ -e end_points.txt ]] && mv end_points.txt ${F_PROFILES}
+[[ -e mid_points.txt ]] && mv mid_points.txt ${F_PROFILES}
+[[ -e start_points.txt ]] && mv start_points.txt ${F_PROFILES}
 
 # Set a buffer around the data extent to give a nice visual appearance when setting auto limits
 cat ${F_PROFILES}*_all_data.txt > ${F_PROFILES}all_data.txt

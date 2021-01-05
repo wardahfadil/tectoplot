@@ -4,7 +4,7 @@
 # https://github.com/kyleedwardbradley/tectoplot
 # Kyle Bradley, Nanyang Technological University, Singapore
 
-NUMEXAMPLES=14
+NUMEXAMPLES=16
 
 
 declare -a on_exit_items
@@ -43,44 +43,42 @@ fi
 for i in ${MAKENUMS[@]}; do
   echo Example $i
   case $i in
-    1)
-      # Example 1: Four global plots in one PDF
+    1) # Example 1: Four global plots in one PDF
       tectoplot -n -command -RJ N      -t 10m -gres 30 -title "Robinson"                                                    -pss 8 -a l --keepopenps    -z -zmag 7 10
       tectoplot -n -command -RJ W 45   -t 10m -gres 30 -title "Mollweide" -pos  9i    0i -ips ./tempfiles_to_delete/map.ps  -pss 8 -a l --keepopenps    -c -zmag 7 10
       tectoplot -n -command -RJ H 135  -t 10m -gres 30 -title "Hammer"    -pos -9i -5.5i -ips ./tempfiles_to_delete/map.ps  -pss 8 -a l --keepopenps    -z -zmag 8 10
       tectoplot -n -command -RJ R -180 -t 10m -gres 30 -title "Winkel"    -pos  9i -0.5i -ips ./tempfiles_to_delete/map.ps  -pss 8 -a l          -o example1
     ;;
 
-    2)
-      # Example 2: Two stereographic global plots in one PDF
+    2) # Example 2: Two stereographic global plots in one PDF
       tectoplot -n -command -RJ S 100 10   -t 10m -tshade --legend -title "Stereo 100E/10N" -tm ./newtmp/                     -pss 5 -a l             --keepopenps
       tectoplot -n -command -RJ S -80 -10  -t 10m -tshade --legend -title "Stereo 80W/10S" -pos  0i -6.5i -ips ./newtmp/map.ps  -pss 5 -a l -o example2
       rm -rf ./newtmp/
     ;;
 
-    3)
-      # Example 3: Solomon Islands, SRTM30 topo, Slab2 contours, ANSS hypocenters, CMT, coastlines, title, legend
+    3) # Example 3: Solomon Islands, SRTM30 topo, Slab2 contours,
+       # ANSS hypocenters, CMT, coastlines, title, legend
       tectoplot -n -t -b c -z -c -a f -command -title "Solomon Islands seismicity" \
                 --legend -author -o example3
     ;;
 
-    4)
-      # Example 4: Greece, GEBCO20 topo 50% transparent, GBM blocks, UTM projection, GPS velocities relative to Africa, legend"
+    4) # Example 4: Greece, GEBCO20 topo 50% transparent, GBM blocks,
+       # UTM projection, GPS velocities relative to Africa, legend"
       tectoplot -n -r GR -t GEBCO20 -tt 50 -RJ UTM -p GBM Nubia -pe -pl -g AF -i 2 \
                 -setvars { GPS_FILLCOLOR black PLATELABEL_SIZE 10p } -author -command \
                 --legend -title "Aegean GPS velocities and blocks" -o example4
     ;;
 
-    5)
-      # Example 5: Southern Taiwan, GMRT/SRTM topo, GDAL slopeshade, labeled ISC seismicity, CMT at ORIGIN, legend"
+    5) # Example 5: Southern Taiwan, GMRT/SRTM topo, GDAL slopeshade, labeled
+       # ISC seismicity, CMT at ORIGIN, legend"
       tectoplot -n -r 120.5 120.8 22.4 23 -t BEST -gdalt -pgo -pgs 0.1 -pss 4 \
                 -zcat ISC -z -c ORIGIN --legend -author -command \
                 -setvars { SEISSTRETCH_REFMAG 4 } -eqlabel 5.5 mag -o example5
     ;;
 
-    6)
-      # Example 6: Automated profile across the Izu-Ogasawaram Trench (Japan), one-to-one, CMT+seis+swath bathymetry, SLAB2, UTM projection
-      #            Makes oblique profile using endpoint codes, and then adjusts view/vexag
+    6) # Example 6: Automated profile across the Izu-Ogasawaram Trench (Japan),
+       #            one-to-one, CMT+seis+swath bathymetry, SLAB2, UTM projection
+       #            Makes oblique profile using endpoint codes, and then adjusts view/vexag
       tectoplot -n -r 135 145 25 35 -RJ UTM -t -tt 50 -z -c -b c -a l \
                 -aprof BW 100k 1k -oto -pss 7 -author -mob 220 20 5 1 -o example6
 
@@ -91,17 +89,17 @@ for i in ${MAKENUMS[@]}; do
       cd ..
     ;;
 
-    7)
-      # Example 7: Seismicity of Chile, SLAB2 contours, texture shaded topography, eq labels for M7+ events (datemag format)
+    7) # Example 7: Seismicity of Chile, SLAB2 contours, texture shaded topography,
+       # eq labels for M7+ events (datemag format)
       tectoplot -n -r CL -t -tshade -RJ UTM -b c -z -c ORIGIN \
                 -eqlabel 7.5 datemag -author -command -o example7
     ;;
 
-    8)
-      # Example 8: Stacked swath profiles across a forearc wedge in the Philippines.
-      # Profiles are defined by aprof codes, MAX/MIN elevation are set using -setvars, align to trench using -alignxy
-      # author and command info are offset to bottom of page using -authoryx
-      # This is an XY line of the trench
+    8) # Example 8: Stacked swath profiles across a forearc wedge in the Philippines.
+       # Profiles are defined by aprof codes, MAX/MIN elevation are set using
+       # -setvars, align to trench using -alignxy
+       # author and command info are offset to bottom of page using -authoryx
+       # This is an XY line of the trench
 
       cat <<-EOF > trench.xy
       119.2408936906884 17.61597125516211
@@ -132,11 +130,10 @@ EOF
 
     ;;
 
-    9)
-      # Example 9: Stacked gravity profiles across the Example 8 using a profile.control file.
-      # Color land areas dark green, overlay rescaled gravity onto a grayscale hillshade,
-      # contour bathymetry. Profiles have different colors. setvars is used to adjust the
-      # DEM transparency (alpha)
+    9) # Example 9: Stacked gravity profiles across the Example 8 using a profile.control file.
+       # Color land areas dark green, overlay rescaled gravity onto a grayscale hillshade,
+       # contour bathymetry. Profiles have different colors. setvars is used to adjust the
+       # DEM transparency (alpha)
       cat <<-EOF > trench.xy
       119.2408936906884 17.61597125516211
       119.2409490926293 17.71465347829429
@@ -174,9 +171,8 @@ EOF
                 -command --legend -setvars { DEM_ALPHA 0.01 } -o example9
     ;;
 
-    10)
-      # Example 10: Litho1 Vp profile and oblique perspective diagram across Tasmania.
-      # Uses aprofcode to define profile and place scale bar.
+    10) # Example 10: Litho1 Vp profile and oblique perspective diagram across Tasmania.
+        # Uses aprofcode to define profile and place scale bar.
       tectoplot -r 141 152 -45 -38 -t -RJ UTM -z -zcat ISC -c -scale 150k A  \
                 -aprof CW 150k 1k -pss 7 -litho1 Vp --legend -mob 150 40 10  \
                 -o example10
@@ -184,31 +180,72 @@ EOF
       cp tempfiles_to_delete/profiles/P_CW_profile.pdf ./example10_profile_150_40_10.pdf
     ;;
 
-    11)
-      # Example 11: Oceanic crust age, topo, country borders, smaller PS size, raster resolution restricted to 72dpi
-      tectoplot -RJ S 120 0 -t 05m -gres 72 -pss 4 -oca --legend -author -command -pgo -a l -acb black 0.5p l -o example11
+    11) # Example 11: Oceanic crust age, topo, country borders, smaller PS size, raster resolution restricted to 72dpi
+      tectoplot -RJ S 120 0 -t 05m -gres 72 -pss 4 -oca --legend -author  \
+                -command -pgo -a l -acb black 0.5p l -o example11
     ;;
 
-    12)
-      # Example 12:
-      tectoplot -RJ S 120 0 -t 05m -gres 72 -pss 4 -oca --legend -author -command -pgo -a l -acb black 0.5p l -o example12
+    12) # Example 12:
+      tectoplot -RJ S 120 0 -t 05m -gres 72 -pss 4 -oca --legend -author \
+                -command -pgo -a l -acb black 0.5p l -o example12
     ;;
 
-    13)
-      # Example 13: MORVEL57 NNR plate velocities on a Van der Grinten projection. Kind of strange.
+    13) # Example 13: MORVEL57 NNR plate velocities on a Van der Grinten projection. Kind of strange.
       tectoplot -n -r g -p MORVEL NNR -pvg -a l -pf 1200 -i 1 \
                 -setvars { PLATELINE_COLOR white PLATEVEC_COLOR black  \
                 PLATEVEC_TRANS 30 PLATEVELRES 0.25d COAST_KM2 1000 } -pe  \
-                -RJ V -title "MORVEL57 NNR velocity" -pss 4 -author -command  \
+                -RJ G -title "MORVEL57 NNR velocity" -pss 4 -author -command  \
                 -o example13
     ;;
-    14)
-      # Example 14: Extract IDs for large earthquakes within a 1°x1° box surrounding an event,
-      # then plot a map of a wider region around that event, labeling only those earthquakes.
+    14) # Example 14: Extract IDs for large earthquakes within a 1°x1° box surrounding an event,
+        # then plot a map of a wider region around that event, labeling only those earthquakes.
       tectoplot -r eq iscgem913230 1.0 -z -zmag 6.5 10 -noplot
       tectoplot -query eqs.txt data id noheader > extract_eqs.txt
-      tectoplot -r eq iscgem913230 1.5 -t -z -zsort mag down -c ORIGIN -eqlist extract_eqs.txt -eqlabel mag -o example14
+      tectoplot -r eq iscgem913230 1.5 -t -b c -z -zsort mag down -c ORIGIN  \
+                -eqlist extract_eqs.txt -eqlabel datemag -o example14
       rm -f extract_eqs.txt
+    ;;
+    15) # Example 15: Use local seismicity and focal mechanism datasets to make a map of Lombok
+        # (Data from Lythgoe et al., 2021). Seismicity is in lon lat depth mag format,
+        # CMT data are in Aki and Richards (psmeca) format.
+        # Currently we need to specify -pos 0i 0i to get the map to overplot correctly
+      if [[ -e ../example_data/LombokHypodd.dat && -e ../example_data/LombokFocals_aki.dat ]]; then
+        tectoplot -n -t BEST -r 115.8 117.2 -9.2 -7.8 -z \
+                  -c ORIGIN -pss 7 -cw -zfill black \
+                  -tshade -author -command --keepopenps
+        tectoplot -n -r 115.8 117.2 -9.2 -7.8 -ips ./tempfiles_to_delete/map.ps \
+                  -z -zadd ../example_data/LombokHypodd.dat replace -pos 0i 0i \
+                  -c ORIGIN -cadd ../example_data/LombokFocals_aki.dat a replace -pss 7 \
+                  -setvars { EQMAXDEPTH_COLORSCALE 25 EQMINDEPTH_COLORSCALE 5 }  \
+                  -o example15
+      fi
+    ;;
+    16) # Example 16: Plot a focal mechanism database from an NDK file
+      if [[ -e ../example_data/quick.ndk ]]; then
+        tectoplot -n -RJ V -ac lightbrown lightblue -a l -c \
+        -cadd ../example_data/quick.ndk K replace -zmag 7 10  \
+        -title "Large QuickCMT earthquakes" -author -command -o example16
+      fi
+    ;;
+    17) # Example 17: Convert a focal mechanism from NDK to psmeca moment tensor format
+        # without plotting anything.
+      if [[ -e ../example_data/quick.ndk ]]; then
+        tectoplot -n -RJ V -c CENTROID -cadd ../example_data/quick.ndk K replace -cf MomentTensor -noplot
+        echo "NDK format CMT1:"
+        head -n 5 ../example_data/quick.ndk
+        echo "Moment Tensor format CMT (CENTROID):"
+        head -n 1 tempfiles_to_delete/focal_mechanisms/cmt.dat
+        tectoplot -RJ V -c ORIGIN -cadd ../example_data/quick.ndk K replace -cf MomentTensor -noplot
+        echo "Moment Tensor format CMT (ORIGIN):"
+        head -n 1 tempfiles_to_delete/focal_mechanisms/cmt.dat
+      fi
+    ;;
+    18) # Plot the Southeast Asian Ring of Fire and the Pacific Ring of Fire
+
+    ;;
+    19) # Compare topography visualizations
+      tectoplot -r 28.6 30.6 67.7 69.5 -t --open
+
     ;;
     *)
     echo "Unknown example number $i"
@@ -216,4 +253,8 @@ EOF
   esac
 done
 
+# # Make the images for the Git README
+# gs -dNOSAFER -dQUIET -dNOPLATFONTS -dNOPAUSE -dBATCH -sOutputFile="example14" -dBackgroundColor=white \
+#   -r300 -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -dUseCIEColor -dUseTrimBox -dFirstPage=1 -dLastPage=1 \
+#   example14.pdf
 # rm -rf ./tempfiles_to_delete/

@@ -13,7 +13,7 @@ ILLUM="-I+d"                     # Default option for shaded relief (not used no
 ################################################################################
 # Control options
 CLEANUP_FILES=1             # If set to 1, delete files on exit that are marked for cleanup
-
+HIGHLIGHT_CUSTOM_CMT=1      # If set to 1, draw custom CMT with a wider border
 GRID_PRINT_RES=""           # Set to -Exxx where xxx is a dpi to control output resolution of grdimage
 
 ################################################################################
@@ -24,7 +24,6 @@ DATE_FORMAT="-u"
 
 # Page layout and element formatting options
 PLOTFILE="map.ps"            # name of PS file bearing plot data
-PLOTORIGIN=1                 # Plot the origin locations of focal mechanisms. 1 = origin, 0 = centroid
 PLOTSHIFTX="1i"              # GMT shift of origin, X direction
 PLOTSHIFTY="c"               # GMT shift of origin, Y direction
 PLOTTITLE="BlankMapTitle"    # title (default will be replaced with no title)
@@ -261,6 +260,7 @@ TOPOCONTOURMINPTS="500"
 
 ################################################################################
 ##### Seismicity
+ZSFILLCOLOR="white"          # Default fill color for solid fill hypocenters
 EQ_MINMAG=0
 EQ_MAXMAG=10
 EQLINEWIDTH="0.25p"
@@ -271,7 +271,9 @@ EQCUTMAXDEPTH=6000           # Ignore seismicity and CMT data below this depth
 REMOVE_DEFAULTDEPTHS=1       # Should we remove events with D=10,5,33,etc
 REMOVE_DEFAULTDEPTHS_WITHPLOT=1   # Should we plot the removed events separately?
 REMOVE_EQUIVS=1              # Should we remove equivalent earthquakes if CMT exists?
-EQMAXDEPTH_COLORSCALE=80   # maximum earthquake depth
+
+EQMINDEPTH_COLORSCALE=0      # minimum earthquake color depth
+EQMAXDEPTH_COLORSCALE=80     # maximum earthquake color depth (~transition to blue)
 SEISSIZE="0.05i"             # seismicity scale
 SEISTRANS=0                  # transparency of seismic data
 SCALEEQS=1                   # if 1, use magnitude to scale points in size
@@ -284,6 +286,7 @@ SEISSTRETCH_REFMAG=6         # earthquakes of this size will not be scaled by si
 
 ################################################################################
 ##### Focal mechanisms
+PLOTORIGIN=1                 # Plot the origin locations of focal mechanisms. 1 = origin, 0 = centroid
 CMTFORMAT="GlobalCMT"        # Choose from GlobalCMT / MomentTensor/ PrincipalAxes
 #CMTFORMAT="MomentTensor"    # Choose from GlobalCMT / MomentTensor/ PrincipalAxes
 #CMTFORMAT="PrincipalAxes"   # Choose from GlobalCMT / MomentTensor/ PrincipalAxes

@@ -7,15 +7,17 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 # Kyle Bradley, Nanyang Technological University (kbradley@ntu.edu.sg)
 # Prefers GS 9.26 (and no later) for transparency
 
-# NOTE: You have to be carefull with culling earthquakes because it will remove
+# NOTE: You have to be careful with culling earthquakes because it will remove
 #       ORIGIN seismicity in favor of CENTROID focal mechanisms which may result
 #       in non-plotting of the preserved CMT if the centroid is far away.
 
-# Current initiative: Use subdirectories in the temporary folder to segregate
-# data types.
+# ISSUE: If no top tile grid is given, various parts of the profile script will
+# fail to work as we won't have the profile width and scale factors set correctly
+# and won't generate the top plot script. 
 
 # CHANGELOG
 
+# December 31, 2020: Updated external dataset routines (Seis+Cmt), bug fixes
 # December 30, 2020: Fixed a bug in EQ culling that dropped earliest seismic events
 # December 30, 2020: Added -noplot option to skip plotting and just output data
 # December 30, 2020: Updated info_msg to save file, started building subdirectory structure
@@ -243,10 +245,13 @@ esac
 . gmt_shell_functions.sh
 
 ################################################################################
-# These variables are array indices and must be equal to ZERO at start
+# These variables are array indices used to plot multiple versions of the same
+# data type and must be equal to ZERO at start
 
 plotpointnumber=0
 cmtfilenumber=0
+seisfilenumber=0
+usergridfilenumber=0
 
 ################################################################################
 # If an old tectoplot.info_msg file exists, save it as a copy
@@ -263,11 +268,11 @@ RJOK="-R -J -O -K"
 # TECTOPLOTDIR is where the actual script resides
 SOURCE="${BASH_SOURCE[0]}"
 while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
-  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
   SOURCE="$(readlink "$SOURCE")"
   [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
 done
-TECTOPLOTDIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"/
+TECTOPLOTDIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd )"/
 
 DEFDIR=$TECTOPLOTDIR"tectoplot_defs/"
 
@@ -281,9 +286,8 @@ TECTOPLOT_COLORS=$DEFDIR"tectoplot.gmtcolors"
 TECTOPLOT_CPTDEFS=$DEFDIR"tectoplot.cpts"
 TECTOPLOT_AUTHOR=$DEFDIR"tectoplot.author"
 
-
 ################################################################################
-# Load default file stored in the same directory as tectoplot
+# Load CPT defaults, paths, and defaults
 
 if [[ -e $TECTOPLOT_CPTDEFS ]]; then
   . $TECTOPLOT_CPTDEFS
@@ -518,27 +522,31 @@ cat <<-EOF
     -acl                                                 label country centroids
     -af              [[AFLINEWIDTH]] [[AFLINECOLOR]]     plot active fault traces
     -b|--slab2       [[layers string: c]]                plot Slab2 data; default is c
-          c: slab contours    d: slab depth grid
-    -g|--gps         [[RefPlateID]]                      plot GPS data from Kreemer 2014 / rel. to RefPlateID
+                     c: slab contours  d: slab depth grid
     -gcdm                                                plot Global Curie Depth Map
     -litho1_depth    [type] [depth]                      plot litho1 depth slice (positive depth in km)
     -m|--mag         [[transparency%]]                   plot crustal magnetization
     -oca             [[trans%]] [[MaxAge]]               oceanic crust age
-    -s|--srcmod                                          plot fused SRCMOD EQ slip distributions
-    -v|--gravity     [[FA | BG | IS]] [transparency%] [rescale]            rescale=rescale colors to min/max
-                      plot WGM12 gravity. FA = free air | BG == Bouguer | IS = Isostatic
-    -vc|--volc                                           plot Pleistocene volcanoes
     -pp|--cities     [[min population]]                  plot cities with minimum population, color by population
     -ppl             [[min population]]                  label cities with a minimum population
+    -s|--srcmod                                          plot fused SRCMOD EQ slip distributions
+    -v|--gravity     [[FA | BG | IS]] [transparency%] [rescale]            rescale=rescale colors to min/max
+                     plot WGM12 gravity. FA = free air | BG == Bouguer | IS = Isostatic
+    -vc|--volc                                           plot Pleistocene volcanoes
+
+  GPS velocities:
+    -g|--gps         [[RefPlateID]]                      plot GPS data from Kreemer 2014 / rel. to RefPlateID
+    -gadd|--extragps [filename]                          plot an additional GPS / psvelo format file
 
   Seismicity:
     -z|--seis        [[scale]]                           plot seismic epicenters (from scraped earthquake data)
-  ! -zd              [[scale]] [STARTTIME ENDTIME]       plot seismic epicenters (new download from ANSS for AOI)
     --time           [STARTTIME ENDTIME]                 select EQ/CMT between dates (midnight AM), format YYYY-MM-DD
     -zsort           [date|depth|mag] [up|down]          sort earthquake data before plotting
-    -zs              [file]                              add supplemental seismicity file [lon lat depth mag]
-    -zmag            [minmag] [maxmag]                   set minimum and maximum magnitude
+    -zadd            [file] [[replace]]                  add/replace seismicity [lon lat depth mag [timecode id epoch]]
+    -zmag            [minmag] [[maxmag]]                 set minimum and maximum magnitude
     -zcat            [ANSS or ISC]                       select the scraped EQ catalog to use
+    -zcolor          [mindepth] [maxdepth]               set range of color stretch for EQ+CMT data
+    -zfill           [color]                             set uniform fill color for seismicity
 
   Seismicity/focal mechanism data control:
     -reportdates                                         print date range of seismic, focal mechanism catalogs and exit
@@ -547,7 +555,7 @@ cat <<-EOF
     -eqlist          [[file]] { event1 event2 event3 ... }  highlight focal mechanisms/hypocenters with ID codes in file or list
     -eqlabel         [[list]] [[r]] [[minmag]] [format]  label earthquakes in eqlist or within magnitude range
                                                          r=EQ from -r eq; format=idmag | datemag | dateid | id | date | mag
-    -pg|--polygon    [polygon_file.xy] [[show]]          use a closed polygon to select data instead of AOI; show prints to map
+    -pg|--polygon    [polygon_file.xy] [[show]]          use a closed polygon to select data instead of AOI; show prints polygon to map
 
   Focal mechanisms:
     -c|--cmt         [[source]] [[scale]]                plot focal mechanisms from global databases
@@ -556,15 +564,15 @@ cat <<-EOF
     -cc                                                  plot dot and line connecting to alternative position (centroid/origin)
     -cd|--cmtdepth   [depth]                             maximum depth of CMTs, km
     -cf              [GlobalCMT | MomentTensor | TNP]    choose the format of focal mechanism to plot
-    -cm|--cmtmag     [minmag maxmag]                     magnitude bounds for cmt
+    -cmag            [minmag] [[maxmag]]                 magnitude bounds for cmt
     -cr|--cmtrotate) [lon] [lat]                         rotate CMTs based on back-azimuth to a point
     -cw                                                  plot CMTs with white compressive quads
     -ct|--cmttype    [nts | nt | ns | n | t | s]         sets earthquake types to plot CMTs
     -zr1|--eqrake1   [[scale]]                           color focal mechs by N1 rake
     -zr2|--eqrake2   [[scale]]                           color focal mechs by N2 rake
     -cs                                                  plot TNP axes on a stereonet (output to stereo.pdf)
-    -cadd            [file] [a,c]                        plot focal mechanisms from local data in psmeca format
-                             a=Aki/Richard format c=GCMT
+    -cadd            [file] [code] [[replace]]           plot focal mechanisms from local data file
+                             code: a,c,x,m,I,K           (GMT:AkiR,GCMT,p.axes,m.tensor; ISC:I; NDK:K)
 
   Focal mechanism kinematics (CMT):
     -kg|--kingeo                                         plot strike and dip of nodal planes
@@ -594,13 +602,13 @@ cat <<-EOF
     -pvg             [[res]] [[rescale]]                 plots a plate motion velocity grid. res=0.1d ; rescale=rescale colors to min/max
 
   User specified GIS datasets:
-    -im|--image      [filename] { gmtargs }              plot a RGB GeoTiff file
+    -cn|--contour    [gridfile] [interval] { gmtargs }   plot contours of a gridded dataset
+                                          gmtargs for -A -S and -C will replace defaults
+    -gr|--grid       [gridfile] [[cpt]] [[trans%]]       plot a gridded dataset colored with a CPT
+    -im|--image      [filename] { gmtargs }              plot a RGB GeoTiff file (georeferenced)
+    -li|--line       [filename] [[color]] [[width]]                data: > ID (z)\n x y\n x y\n > ID2 (z) x y\n ...
     -pt|--point      [filename] [[symbol]] [[size]] [[cptfile]]    data: x y z
-    -l|--line        [filename] [[color]] [[width]]                data: > ID (z)\n x y\n x y\n > ID2 (z) x y\n ...
     -sv|--slipvector [filename]                          plot data file of slip vector azimuths [Lon Lat Az]
-    -gg|--extragps   [filename]                          plot an additional GPS / psvelo format file
-    -cn              [gridfile] [interval] { gmtargs }   plot contours of a gridded dataset
-                                            gmtargs for -A -S and -C will replace defaults
 
   TDEFNODE block model
     --tdefnode       [folder path] [lbsovrfet ]          plot TDEFNODE output data.
@@ -1495,6 +1503,7 @@ do
       info_msg "[-authoryx]: No X shift indicated. Using $AUTHOR_XSHIFT (i)"
     fi
     ;;
+
 	-b|--slab2) # args: none || strong
 		if [[ ${2:0:1} == [-] || -z $2 ]]; then
 			info_msg "[-b]: Slab2 control string not specified. Using c"
@@ -1598,11 +1607,30 @@ do
 
   -cadd)
     cmtfilenumber=$(echo "$cmtfilenumber+1" | bc)
-    CMTADDFILE[$cmtfilenumber]=$(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")")
-    shift
-    CMTFORMATCODE[$cmtfilenumber]="${2}"
-    shift
-    CMTIDCODE[$cmtfilenumber]="C"
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-cadd]: CMT file must be specified"
+    else
+      CMTADDFILE[$cmtfilenumber]=$(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")")
+      if [[ ! -e "${CMTADDFILE[$cmtfilenumber]}" ]]; then
+        info_msg "CMT file ${CMTADDFILE[$cmtfilenumber]} does not exist"
+      fi
+      shift
+    fi
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-cadd]: CMT format code not specified. Using a (Aki and Richards)"
+      CMTFORMATCODE[$cmtfilenumber]="a"
+    else
+      CMTFORMATCODE[$cmtfilenumber]="${2}"
+      shift
+    fi
+    if [[ "${2}" != "replace" ]]; then
+      info_msg "[-cadd]: CMT replace flag not specified. Not replacing catalog CMTs."
+      cmtreplaceflag=0
+    else
+      cmtreplaceflag=1
+      shift
+    fi
+    CMTIDCODE[$cmtfilenumber]="c"   # custom ID
     addcustomcmtsflag=1
     calccmtflag=1
     ;;
@@ -1650,14 +1678,23 @@ do
     clipgravflag=1
     ;;
 
-  # -cm|--cmtmag) # args: number number
-  #   CMT_MINMAG="${2}"
-  #   CMT_MAXMAG="${3}"
-  #   shift
-  #   shift
-  #   ;;
+  -cmag) # args: number number
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-cmag]: No magnitudes speficied. Using $CMT_MINMAG - $CMT_MAGMAG"
+    else
+      CMT_MINMAG="${2}"
+      shift
+    fi
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-cmag]: No maximum magnitude speficied. Using $CMT_MAGMAG"
+    else
+      CMT_MAXMAG="${2}"
+      shift
+    fi
+    cmagflag=1
+    ;;
 
-  -cn)
+  -cn|--contour)
     if [[ ${2:0:1} == [-] || -z $2 ]]; then
       info_msg "[-cn]: Grid file not specified"
     else
@@ -1847,6 +1884,18 @@ do
 		plots+=("gps")
 		;;
 
+  -gadd|--extragps) # args: file
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-gadd]: No extra GPS file given. Exiting"
+      exit 1
+    else
+      EXTRAGPS=$(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")")
+      info_msg "[-gadd]: Plotting GPS velocities from $EXTRAGPS"
+      shift
+    fi
+    plots+=("extragps")
+    ;;
+
   -gcdm)
     plots+=("gcdm")
     cpts+=("gcdm")
@@ -1877,6 +1926,24 @@ do
     gdemtopoplotflag=1
     clipdemflag=1
     gdaltZEROHINGE=1
+    ;;
+
+  -gebcotid)
+    plots+=("gebcotid")
+    clipdemflag=1
+    ;;
+
+  -geotiff)
+    # Need to replicate the following commands to plot a geotiff: -Jx projection, -RMINLON/MAXLON/MINLAT/MAXLAT
+    #   -geotiff -RJ { -R88/98/17/30 -Jx5i } -gmtvars { MAP_FRAME_TYPE inside }
+    if [[ $regionsetflag -ne 1 ]]; then
+      info_msg "[-geotiff]: Region should be set with -r before -geotiff flag is set. Using default region."
+    fi
+    gmt gmtset MAP_FRAME_TYPE inside
+    RJSTRING="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -JX${PSSIZE}id"
+    usecustomrjflag=1
+    insideframeflag=1
+    tifflag=1
     ;;
 
   -getdata)
@@ -1955,36 +2022,6 @@ do
     exit 0
     ;;
 
-  -geotiff)
-    # Need to replicate the following commands to plot a geotiff: -Jx projection, -RMINLON/MAXLON/MINLAT/MAXLAT
-    #   -geotiff -RJ { -R88/98/17/30 -Jx5i } -gmtvars { MAP_FRAME_TYPE inside }
-    if [[ $regionsetflag -ne 1 ]]; then
-      info_msg "[-geotiff]: Region should be set with -r before -geotiff flag is set. Using default region."
-    fi
-    gmt gmtset MAP_FRAME_TYPE inside
-    RJSTRING="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -JX${PSSIZE}id"
-    usecustomrjflag=1
-    insideframeflag=1
-    tifflag=1
-    ;;
-
-  -gebcotid)
-    plots+=("gebcotid")
-    clipdemflag=1
-    ;;
-
-  -gg|--extragps) # args: file
-    if [[ ${2:0:1} == [-] || -z $2 ]]; then
-      info_msg "[-gg]: No extra GPS file given. Exiting"
-      exit 1
-    else
-      EXTRAGPS=$(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")")
-      info_msg "[-gg]: Plotting GPS velocities from $EXTRAGPS"
-      shift
-    fi
-    plots+=("extragps")
-    ;;
-
   -gmtvars)
     if [[ ${2:0:1} == [{] ]]; then
       info_msg "[-gmtvars]: GMT argument string detected"
@@ -2001,6 +2038,47 @@ do
     info_msg "[-gmtvars]: Custom GMT variables: ${GMVARS[@]}"
     ;;
 
+
+  -gr|--usergrid) #      [gridfile] [[cpt]] [[trans%]]
+    usergridfilenumber=$(echo "$usergridfilenumber+1" | bc)
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-gr]: Grid file must be specified"
+    else
+      GRIDADDFILE[$usergridfilenumber]=$(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")")
+      if [[ ! -e "${GRIDADDFILE[$usergridfilenumber]}" ]]; then
+        info_msg "GRID file ${GRIDADDFILE[$usergridfilenumber]} does not exist"
+      fi
+      shift
+    fi
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-gr]: GRID CPT file not specified. Using turbo."
+      GRIDADDCPT[$usergridfilenumber]="turbo"
+    else
+      if [[ -e ${2} ]]; then
+        GRIDADDCPT[$usergridfilenumber]=$(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")")
+      else
+        info_msg "CPT file ${2} cannot be found. Using default CPT."
+        GRIDADDCPT[$usergridfilenumber]="turbo"
+      fi
+      shift
+    fi
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-gr]: GRID transparency not specified. Using 0 percent"
+      GRIDADDTRANS[$usergridfilenumber]=0
+    else
+      GRIDADDTRANS[$usergridfilenumber]="${2}"
+      shift
+    fi
+    GRIDIDCODE[$usergridfilenumber]="c"   # custom ID
+    addcustomusergridsflag=1
+    plots+=("usergrid")
+    ;;
+
+  -gridlabels) # args: string (quoted)
+    GRIDCALL="${2}"
+    shift
+    ;;
+
   -gres)
     if [[ $2 =~ ^[+]?[0-9]*.*[0-9]+$ ]]; then
       info_msg "[-gres]: Set grid output resolution to ${2} dpi"
@@ -2009,11 +2087,6 @@ do
       info_msg "[-gres]: Cannot understand dpi value ${2}. Using native resolution."
       GRID_PRINT_RES=""
     fi
-    shift
-    ;;
-
-  -gridlabels) # args: string (quoted)
-    GRIDCALL="${2}"
     shift
     ;;
 
@@ -2160,7 +2233,7 @@ do
 		plots+=("kinsv")
  		;;
 
-  -l|--line) # args: file color
+  -li|--line) # args: file color
       GISLINEFILE=$(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")")
       GISLINECOLOR="${3}"
       GISLINEWIDTH="${4}"
@@ -2635,6 +2708,7 @@ do
   -pt|--point)
     # COUNTER plotpointnumber
     # Required arguments
+    plotpointnumber=$(echo "plotpointnumber + 1" | bc -l)
     POINTDATAFILE[$plotpointnumber]=$(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")")
     shift
     if [[ ! -e ${POINTDATAFILE[$plotpointnumber]} ]]; then
@@ -2687,7 +2761,6 @@ do
 
     info_msg "[-pt]: PT${plotpointnumber}: ${POINTDATAFILE[$plotpointnumber]}"
     plots+=("points")
-    plotpointnumber=$(echo "plotpointnumber + 1" | bc -l)
     ;;
 
   -pv) # args: none
@@ -3676,7 +3749,7 @@ do
         shift
       fi
     fi
-
+    eqmagflag=1
     ;;
 
   -zr1|--eqrake1) # args: number
@@ -3699,10 +3772,43 @@ do
     plots+=("seisrake2")
     ;;
 
-  -zs) # args: file   - supplemental seismicity catalog in lon lat depth mag [datestr] [id] format
-    suppseisflag=1
-    SUPSEISFILE=$(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")")
+  -zadd) # args: file   - supplemental seismicity catalog in lon lat depth mag [datestr] [id] format
+    seisfilenumber=$(echo "$seisfilenumber+1" | bc)
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-zadd]: Seismicity file must be specified"
+    else
+      SEISADDFILE[$seisfilenumber]=$(echo "$(cd "$(dirname "$2")"; pwd)/$(basename "$2")")
+      if [[ ! -e "${SEISADDFILE[$seisfilenumber]}" ]]; then
+        info_msg "Seismicity file ${SEISADDFILE[$seisfilenumber]} does not exist"
+      else
+        suppseisflag=1
+      fi
+      shift
+    fi
+
+    if [[ "${2}" != "replace" ]]; then
+      info_msg "[-zadd]: Seis replace flag not specified. Not replacing catalog hypocenters."
+      eqcatalogreplaceflag=0
+    else
+      eqcatalogreplaceflag=1
+      shift
+    fi
+    ;;
+
+  -zd)
+    EQCUTMAXDEPTH=${2}
     shift
+  ;;
+
+  -zfill)
+    seisfillcolorflag=1
+    if [[ ${2:0:1} == [-] || -z $2 ]]; then
+      info_msg "[-zfill]:  No color specified. Using black."
+      ZSFILLCOLOR="black"
+    else
+      ZSFILLCOLOR="${2}"
+      shift
+    fi
     ;;
 
   -zsort)
@@ -3884,6 +3990,12 @@ fi
 CENTERLON=$(echo "($MINLON + $MAXLON) / 2" | bc -l)
 CENTERLAT=$(echo "($MINLAT + $MAXLAT) / 2" | bc -l)
 
+if [[ $(echo "$MAXLON > 180 && $MINLON < 180" | bc) -eq 1 ]]; then
+  info_msg "AOI Range crosses 180 antimeridian. Need to adjust data selection method."
+  selectg180flag=1
+fi
+
+
 MSG=$(echo ">>>>>>>>> Plotting order is ${plots[@]} <<<<<<<<<<<<<")
 # echo $MSG
 [[ $narrateflag -eq 1 ]] && echo $MSG
@@ -3891,6 +4003,9 @@ MSG=$(echo ">>>>>>>>> Plotting order is ${plots[@]} <<<<<<<<<<<<<")
 legendwords=${plots[@]}
 MSG=$(echo ">>>>>>>>> Legend order is ${legendwords[@]} <<<<<<<<<<<<<")
 [[ $narrateflag -eq 1 ]] && echo $MSG
+
+##### EQ / CMT magnitudes
+
 
 
 
@@ -3991,7 +4106,8 @@ if [[ $gridfibonacciflag -eq 1 ]]; then
         longitude=longitude-360
       }
       latitude = asin((2 * i)/(2*n+1))*180/pi;
-      if ((longitude <= maxlon) && (longitude >= minlon) && (latitude <= maxlat) && (latitude >= minlat)) {
+      # LON EDIT TAG - TEST
+      if (((longitude <= maxlon && longitude >= minlon) || (longitude+360 <= maxlon && longitude+360 >= minlon)) && (latitude <= maxlat) && (latitude >= minlat)) {
         print longitude, latitude
       }
     }
@@ -4357,11 +4473,15 @@ if [[ $plotseis -eq 1 ]]; then
 
   ##############################################################################
   # Initial select of seismicity from the EQ catalog based on AOI and min/max depth
+  # Takes into account crossing of antimeridian (e.g lon in range [120 220])
 
-  gawk < $EQCATALOG -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG}   '{
-    if ($1 < maxlon && $1 > minlon && $2 < maxlat && $2 > minlat && $3 > mindepth && $3 < maxdepth && $4 < maxmag && $4 > minmag )
+  gawk < $EQCATALOG -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG}   '
     {
-      print
+    if ($2 < maxlat && $2 > minlat && $3 > mindepth && $3 < maxdepth && $4 < maxmag && $4 > minmag )
+    {
+      if (($1 <= maxlon && $1 >= minlon) || ($1+360 <= maxlon && $1+360 >= minlon)) {
+        print
+      }
     }
   }' > ${F_SEIS}eqs.txt
 
@@ -4372,7 +4492,21 @@ if [[ $plotseis -eq 1 ]]; then
 
   if [[ $suppseisflag -eq 1 ]]; then
     info_msg "Concatenating supplementary earthquake file $SUPSEISFILE"
-    gawk < $SUPSEISFILE '(NF==7) { print } ' >> ${F_SEIS}eqs.txt
+    if [[ $eqcatalogreplaceflag -eq 1 ]]; then
+      rm ${F_SEIS}eqs.txt
+    fi
+
+    for i in $(seq 1 $seisfilenumber); do
+      gawk < ${SEISADDFILE[$i]} '
+        (NF==7) { print }                                 # Full record exists
+        ((NF < 7) && (NF >=4)) {
+          if ($5=="") { $5=0 }
+          if ($6=="") { $6=0 }
+          if ($7=="") { $7="none" }
+            print $1, $2, $3, $4, $5, $6, $7
+          }
+      ' >> ${F_SEIS}eqs.txt
+    done
   fi
 
   ##############################################################################
@@ -4474,6 +4608,9 @@ if [[ $calccmtflag -eq 1 ]]; then
 
 # I need an gawk  script that does a lot of these steps in one go (after CMT combined database generation)
 
+
+
+
   # If we are plotting from a global database
   if [[ $plotcmtfromglobal -eq 1 ]]; then
 
@@ -4487,14 +4624,15 @@ if [[ $calccmtflag -eq 1 ]]; then
 
     gawk < $CMTFILE -v orig=$ORIGINFLAG -v cent=$CENTROIDFLAG -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '{
       doprint=0
+      # LON EDIT TEST
       if (cent==1) {
-        if (($7 >= mindepth && $7 <= maxdepth) && ($5 >= minlon && $5 <= maxlon) && ($6 >= minlat   && $6 <= maxlat))
+        if (($7 >= mindepth && $7 <= maxdepth) && (($5 <= maxlon && $5 >= minlon) || ($5+360 <= maxlon && $5+360 >= minlon)) && ($6 >= minlat   && $6 <= maxlat))
         {
           doprint=1
         }
       }
       if (orig==1) {
-        if (($10 >= mindepth && $10 <= maxdepth) && ($8 >= minlon && $8 <= maxlon) && ($9 >= minlat && $9 <= maxlat))
+        if (($10 >= mindepth && $10 <= maxdepth) && (($8 <= maxlon && $8 >= minlon) || ($8+360 <= maxlon && $8+360 >= minlon)) && ($9 >= minlat && $9 <= maxlat))
         {
           doprint=1
         }
@@ -4506,21 +4644,24 @@ if [[ $calccmtflag -eq 1 ]]; then
   fi
 
   # Perform an AOI scrape of any custom CMT databases
-  touch ${F_CMT}cmt_local_aoi.dat
-  if [[ $addcustomcmtsflag -eq 1 ]]; then
 
+  touch ${F_CMT}cmt_local_aoi.dat
+
+  if [[ $addcustomcmtsflag -eq 1 ]]; then
     for i in $(seq 1 $cmtfilenumber); do
-      info_msg "Slurping custom CMTs from $CMTADDFILE[$i] and appending to CMT file"
-      ${CMTSLURP} ${CMTADDFILE[$i]} ${CMTFORMATCODE[$i]} ${CMTIDCODE[$i]} | gawk  < $CMTFILE -v orig=$ORIGINFLAG -v cent=$CENTROIDFLAG -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '{
+      info_msg "Slurping custom CMTs from ${CMTADDFILE[$i]} and appending to CMT file"
+      ${CMTSLURP} ${CMTADDFILE[$i]} ${CMTFORMATCODE[$i]} ${CMTIDCODE[$i]} | gawk -v orig=$ORIGINFLAG -v cent=$CENTROIDFLAG -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '{
           doprint=0
           if (cent==1) {
-            if (($7 >= mindepth && $7 <= maxdepth) && ($5 >= minlon && $5 <= maxlon) && ($6 >= minlat   && $6 <= maxlat))
+            # LON EDIT TEST
+            if (($7 >= mindepth && $7 <= maxdepth) && (($5 <= maxlon && $5 >= minlon) || ($5+360 <= maxlon && $5+360 >= minlon)) && ($6 >= minlat   && $6 <= maxlat))
             {
               doprint=1
             }
           }
           if (orig==1) {
-            if (($10 >= mindepth && $10 <= maxdepth) && ($8 >= minlon && $8 <= maxlon) && ($9 >= minlat && $9 <= maxlat))
+            # LON EDIT TEST
+            if (($10 >= mindepth && $10 <= maxdepth) && (($8 <= maxlon && $8 >= minlon) || ($8+360 <= maxlon && $8+360 >= minlon)) && ($9 >= minlat && $9 <= maxlat))
             {
               doprint=1
             }
@@ -4529,12 +4670,17 @@ if [[ $calccmtflag -eq 1 ]]; then
             print
           }
         }' >> ${F_CMT}cmt_local_aoi.dat
+        highlightCMTs+=("${CMTIDCODE[$i]}")
     done
   fi
 
   # Concatenate the data
-  cat ${F_CMT}cmt_global_aoi.dat ${F_CMT}cmt_local_aoi.dat > ${F_CMT}cmt_combined_aoi.dat
-
+  if [[ $cmtreplaceflag -eq 0 ]]; then
+    cat ${F_CMT}cmt_global_aoi.dat ${F_CMT}cmt_local_aoi.dat > ${F_CMT}cmt_combined_aoi.dat
+  else
+    info_msg "Replacing global CMT data with local datasets"
+    cp ${F_CMT}cmt_local_aoi.dat ${F_CMT}cmt_combined_aoi.dat
+  fi
   # We don't usually keep the individually selected data
   cleanup ${F_CMT}cmt_global_aoi.dat ${F_CMT}cmt_local_aoi.dat
 
@@ -4580,7 +4726,7 @@ if [[ $calccmtflag -eq 1 ]]; then
 
   info_msg "Selecting focal mechanisms and kinematic mechanisms based on magnitude constraints"
 
-  gawk < $CMTFILE -v kminmag="${KIN_MINMAG}" -v kmaxmag="${KIN_MAXMAG}" -v minmag="${EQ_MINMAG}" -v maxmag="${EQ_MAXMAG}" '{
+  gawk < $CMTFILE -v kminmag="${KIN_MINMAG}" -v kmaxmag="${KIN_MAXMAG}" -v minmag="${CMT_MINMAG}" -v maxmag="${CMT_MAXMAG}" '{
     mw=$13
     if (mw < maxmag && mw > minmag) {
       print > "cmt_orig.dat"
@@ -4795,7 +4941,7 @@ if [[ $calccmtflag -eq 1 ]]; then
   # This should go into an external utility script that converts from tectoplot->psmeca format
 
   cd ${F_KIN}
-  gawk < $CMTFILE -v fmt=$CMTFORMAT -v cmttype=$CMTTYPE -v minmag="${KIN_MINMAG}" -v maxmag="${KIN_MAXMAG}" '
+  gawk < $CMTFILE -v fmt=$CMTFORMAT -v cmttype=$CMTTYPE -v minmag="${CMT_MINMAG}" -v maxmag="${CMT_MAXMAG}" '
     function abs(v) { return (v>0)?v:-v}
     BEGIN { pi=atan2(0,-1) }
     {
@@ -5307,7 +5453,8 @@ if [[ $plotplates -eq 1 ]]; then
 
     if [[ -e $MIDPOINTS ]]; then
       gawk < $MIDPOINTS -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '{
-        if ($1 >= minlon && $1 <= maxlon && $2 >= minlat && $2 <= maxlat) {
+        # LON EDIT TEST
+        if ((($1 <= maxlon && $1 >= minlon) || ($1+360 <= maxlon && $1+360 >= minlon)) && $2 >= minlat && $2 <= maxlat) {
           print
         }
       }' > ${F_PLATES}id_pts_euler.txt
@@ -5556,10 +5703,18 @@ for cptfile in ${cpts[@]} ; do
     seisdepth)
       info_msg "Making seismicity vs depth CPT: maximum depth EQs at ${EQMAXDEPTH_COLORSCALE}"
       touch $SEISDEPTH_CPT
-      SEISDEPTH_CPT=$(echo "$(cd "$(dirname "$SEISDEPTH_CPT")"; pwd)/$(basename "$SEISDEPTH_CPT")")
-      gmt makecpt -Cseis -Do -T0/"${EQMAXDEPTH_COLORSCALE}"/10 -Z -N $VERBOSE > $SEISDEPTH_CPT
+      # Make a constant color CPT
+      if [[ $seisfillcolorflag -eq 1 ]]; then
+        gmt makecpt -C${ZSFILLCOLOR} -Do -T0/6371 -Z $VERBOSE > $SEISDEPTH_CPT
+      else
+        # Make a color stretch CPT
+        SEISDEPTH_CPT=$(echo "$(cd "$(dirname "$SEISDEPTH_CPT")"; pwd)/$(basename "$SEISDEPTH_CPT")")
+        gmt makecpt -Cseis -Do -T"${EQMINDEPTH_COLORSCALE}"/"${EQMAXDEPTH_COLORSCALE}" -Z $VERBOSE > $SEISDEPTH_CPT
+        cp $SEISDEPTH_CPT $SEISDEPTH_NODEEPEST_CPT
+        echo "${EQMAXDEPTH_COLORSCALE}	0/17.937/216.21	6370	0/0/255" >> $SEISDEPTH_CPT
+      fi
       cp $SEISDEPTH_CPT $SEISDEPTH_NODEEPEST_CPT
-      echo "${EQMAXDEPTH_COLORSCALE}	0/17.937/216.21	6370	0/0/255" >> $SEISDEPTH_CPT
+
     ;;
 
   esac
@@ -5715,7 +5870,8 @@ MAP_PS_HEIGHT_IN_plus=$(echo "$MAP_PS_HEIGHT_IN+12/72" | bc -l )
 # These variables are array indices and must be zero at start. They allow multiple
 # instances of various commands.
 
-current_plotpointnumber=0
+current_plotpointnumber=1
+current_usergridnumber=1
 
 # Print the author information, date, and command used to generate the map,
 # beneath the map.
@@ -5791,7 +5947,12 @@ for plot in ${plots[@]} ; do
       ;;
     cities)
       info_msg "Plotting cities with minimum population ${CITIES_MINPOP}"
-      gawk < $CITIES -F, -v minpop=${CITIES_MINPOP} -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON"  'BEGIN{OFS=","}($1>=minlon && $1 <= maxlon && $2 >= minlat && $2 <= maxlat && $4>=minpop) {print $1, $2, $3, $4}' | sort -n -k 3 > cities.dat
+      gawk < $CITIES -F, -v minpop=${CITIES_MINPOP} -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON"  '
+        BEGIN{OFS=","}
+        # LON EDIT TEST
+        ((($1 <= maxlon && $1 >= minlon) || ($1+360 <= maxlon && $1+360 >= minlon)) && $2 >= minlat && $2 <= maxlat && $4>=minpop) {
+            print $1, $2, $3, $4
+        }' | sort -n -k 3 > cities.dat
 
       # Sort the cities so that dense areas plot on top of less dense areas
       # Could also do some kind of symbol scaling
@@ -6099,7 +6260,7 @@ for plot in ${plots[@]} ; do
 
           gawk < $GPS_FILE -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '{
             if ($1>180) { lon=$1-360 } else { lon=$1 }
-            if (lon >= minlon && lon <= maxlon && $2 >= minlat && $2 <= maxlat) {
+            if (((lon <= maxlon && lon >= minlon) || (lon+360 <= maxlon && lon+360 >= minlon)) && $2 >= minlat && $2 <= maxlat) {
               print
             }
           }' > gps.txt
@@ -6751,8 +6912,8 @@ for plot in ${plots[@]} ; do
         echo $REFPTLON $REFPTLAT| gmt psxy -W0.1,black -Gblack -St0.05i $RJOK $VERBOSE >> map.ps
         echo $REFPTLON $REFPTLAT| gmt psxy -W0.1,black -Sc0.1i $RJOK $VERBOSE >> map.ps
       fi
-
       ;;
+
     seis)
       info_msg "Plotting seismicity; should include options for CPT/fill color"
       OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
@@ -6766,7 +6927,6 @@ for plot in ${plots[@]} ; do
         gmt psxy ${F_SEIS}eqs.txt -C$SEISDEPTH_CPT -i0,1,2 -W${EQLINEWIDTH},${EQLINECOLOR} -S${SEISSYMBOL}${SEISSIZE} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
       fi
       gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
-
 			;;
 
     # seisrake1)
@@ -6849,7 +7009,8 @@ for plot in ${plots[@]} ; do
 			fi
 
 			info_msg "Identifying SRCMOD results falling within the AOI"
-		gawk < $SRCMODFSPLOCATIONS -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '($1 < maxlon-1 && $1 > minlon+1 && $2 < maxlat-1 && $2 > minlat+1) {print $3}' > srcmod_eqs.txt
+      # LON EDIT
+		    gawk < $SRCMODFSPLOCATIONS -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '((($1 <= (maxlon+1) && $1 >= (minlon-1) || ($1+360 <= (maxlon+1) && $1+360 >= (minlon-1))) && $2 < maxlat-1 && $2 > minlat+1) {print $3}' > srcmod_eqs.txt
 			[[ $narrateflag -eq 1 ]] && cat srcmod_eqs.txt
 
 			SLIPRESOL=300
@@ -7323,6 +7484,13 @@ for plot in ${plots[@]} ; do
       fi
       ;;
 
+    usergrid)
+      # Each time usergrid) is called, plot the grid and increment to the next
+      info_msg "Plotting user grid $current_usergridnumber: ${GRIDADDFILE[$current_usergridnumber]}"
+      gmt grdimage ${GRIDADDFILE[$current_usergridnumber]} -Q -C${GRIDADDCPT[$current_usergridnumber]} $GRID_PRINT_RES -t${GRIDADDTRANS[$current_usergridnumber]} $RJOK ${VERBOSE} >> map.ps
+      current_usergridnumber=$(echo "$current_usergridnumber + 1" | bc -l)
+      ;;
+
     volcanoes)
       info_msg "Volcanoes"
       gmt psxy ${F_VOLC}volcanoes.dat -W0.25p,"${V_LINEW}" -G"${V_FILL}" -St"${V_SIZE}"/0  $RJOK $VERBOSE >> map.ps
@@ -7387,6 +7555,8 @@ if [[ $makelegendflag -eq 1 ]]; then
 
 
   # First, plot the color bars in a column. How many could you possibly have anyway?
+  # We should probably be using -Bxaf for everything instead of overthinking things
+
   for plot in ${legendwords[@]} ; do
   	case $plot in
       cities)
@@ -7396,19 +7566,24 @@ if [[ $makelegendflag -eq 1 ]]; then
         ;;
 
       cmt|seis|slab2)
-        if [[ $plottedneiscptflag -eq 0 ]]; then
+        # Don't plot a color bar if we already have plotted one OR the seis CPT is a solid color
+        if [[ $plottedneiscptflag -eq 0 && ! $seisfillcolorflag -eq 1 ]]; then
           plottedneiscptflag=1
-          if [[ $(echo "$EQMAXDEPTH_COLORSCALE > 1000" | bc) -eq 1 ]]; then
-            EQXINT=500
-          elif [[ $(echo "$EQMAXDEPTH_COLORSCALE > 500" | bc) -eq 1 ]]; then
-            EQXINT=250
-          elif [[ $(echo "$EQMAXDEPTH_COLORSCALE > 100" | bc) -eq 1 ]]; then
-            EQXINT=50
-          else
-            EQXINT=20
-          fi
+          # if [[ $(echo "$EQMAXDEPTH_COLORSCALE > 1000" | bc) -eq 1 ]]; then
+          #   EQXINT=500
+          # elif [[ $(echo "$EQMAXDEPTH_COLORSCALE > 500" | bc) -eq 1 ]]; then
+          #   EQXINT=250
+          # elif [[ $(echo "$EQMAXDEPTH_COLORSCALE > 100" | bc) -eq 1 ]]; then
+          #   EQXINT=50
+          # elif [[ $(echo "$EQMAXDEPTH_COLORSCALE > 50" | bc) -eq 1 ]]; then
+          #   EQXINT=10
+          # elif [[ $(echo "$EQMAXDEPTH_COLORSCALE > 25" | bc) -eq 1 ]]; then
+          #   EQXINT=5
+          # elif [[ $(echo "$EQMAXDEPTH_COLORSCALE > 5" | bc) -eq 1 ]]; then
+          #   EQXINT=1
+          # fi
           echo "G 0.2i" >> legendbars.txt
-          echo "B $SEISDEPTH_NODEEPEST_CPT 0.2i 0.1i+malu -Bxa${EQXINT}+l\"Earthquake / slab depth (km)\"" >> legendbars.txt
+          echo "B $SEISDEPTH_NODEEPEST_CPT 0.2i 0.1i+malu+e -Bxaf+l\"Earthquake / slab depth (km)\"" >> legendbars.txt
           barplotcount=$barplotcount+1
         fi
         ;;
@@ -7733,15 +7908,15 @@ if [[ $makelegendflag -eq 1 ]]; then
         OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
         gmt gmtset PROJ_LENGTH_UNIT p
 
-        echo "$CENTERLON $CENTERLAT $MW_A DATESTR ID" | gmt psxy -W0.5p,black -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK ${VERBOSE} >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT $MW_A DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK ${VERBOSE} >> seissymbol.ps
         echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[0]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O -K >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT $MW_B DATESTR ID" | gmt psxy -W0.5p,black -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT $MW_B DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
         echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[1]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O -K >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT $MW_C DATESTR ID" | gmt psxy -W0.5p,black -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT $MW_C DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
         echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[2]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O -K >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT $MW_D DATESTR ID" | gmt psxy -W0.5p,black -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT $MW_D DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
         echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[3]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O -K >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT $MW_E DATESTR ID" | gmt psxy -W0.5p,black -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT $MW_E DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
         echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[4]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O >> seissymbol.ps
 
         gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
