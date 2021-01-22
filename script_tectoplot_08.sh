@@ -3272,7 +3272,7 @@ do
           Stereo|S)        rj+=("-JS${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i")     ;;
         esac
         RJSTRING="${rj[@]}"
-        recalcregionflag=1
+        recalcregionflag=0
       ;;
       # Oblique Mercator A (lon lat azimuth widthkm heightkm)
       ObMercA|OA)
@@ -4235,10 +4235,11 @@ fi
 info_msg "Recalculating AOI from map boundary"
 
 # Get the bounding box and normalize longitudes to the range [-180:180]
+
 gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '
   ($1!="NaN") {
     while ($1>180) { $1=$1-360 }
-    while ($1<-180) { $1=$1+180 }
+    while ($1<-180) { $1=$1+360 }
     if ($1==($1+0) && $2==($2+0)) {
       print
     }
@@ -4334,6 +4335,9 @@ cd "${TMP}"
 
 # Make subdirectories
 mkdir -p "${F_MAPELEMENTS}"
+
+echo "${RJSTRING[@]}" > ${F_MAPELEMENTS}rjstring.txt
+
 mkdir -p "${F_SEIS}"
 mkdir -p "${F_CPTS}"     # Defined in tectoplot.cpts
 

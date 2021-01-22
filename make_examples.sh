@@ -6,6 +6,15 @@
 
 NUMEXAMPLES=18
 
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+  DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+EXAMPLEDIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd )/examples/"
+EXAMPLEDATA="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd )/data_examples/"
+
 
 declare -a on_exit_items
 
@@ -31,8 +40,8 @@ function cleanup()
 
 cleanup trench.xy profile.control gmt.history
 
-mkdir -p ./examples
-cd ./examples
+mkdir -p $EXAMPLEDIR
+cd $EXAMPLEDIR
 
 if [[ $# -eq 0 ]]; then
   MAKENUMS=($(echo "$(seq 1 $NUMEXAMPLES)"))
@@ -209,33 +218,33 @@ EOF
         # (Data from Lythgoe et al., 2021). Seismicity is in lon lat depth mag format,
         # CMT data are in Aki and Richards (psmeca) format.
         # Currently we need to specify -pos 0i 0i to get the map to overplot correctly
-      if [[ -e ../example_data/LombokHypodd.dat && -e ../example_data/LombokFocals_aki.dat ]]; then
+      if [[ -e ${EXAMPLEDATA}LombokHypodd.dat && -e ${EXAMPLEDATA}LombokFocals_aki.dat ]]; then
         tectoplot -n -t BEST -r 115.8 117.2 -9.2 -7.8 -z \
                   -c ORIGIN -pss 7 -cw -zfill black \
                   -tshade -author -command --keepopenps
         tectoplot -n -r 115.8 117.2 -9.2 -7.8 -ips ./tempfiles_to_delete/map.ps \
-                  -z -zadd ../example_data/LombokHypodd.dat replace -pos 0i 0i \
-                  -c ORIGIN -cadd ../example_data/LombokFocals_aki.dat a replace -pss 7 \
+                  -z -zadd ${EXAMPLEDATA}LombokHypodd.dat replace -pos 0i 0i \
+                  -c ORIGIN -cadd ${EXAMPLEDATA}LombokFocals_aki.dat a replace -pss 7 \
                   -setvars { EQMAXDEPTH_COLORSCALE 25 EQMINDEPTH_COLORSCALE 5 }  \
                   -o example15
       fi
     ;;
     16) # Example 16: Plot a focal mechanism database from an NDK file
-      if [[ -e ../example_data/quick.ndk ]]; then
+      if [[ -e ${EXAMPLEDATA}quick.ndk ]]; then
         tectoplot -n -RJ V -ac lightbrown lightblue -a l -c \
-        -cadd ../example_data/quick.ndk K replace -cmag 7 10  \
+        -cadd ${EXAMPLEDATA}quick.ndk K replace -cmag 7 10  \
         -title "Large QuickCMT earthquakes" -author -command -o example16
       fi
     ;;
     17) # Example 17: Convert a focal mechanism from NDK to psmeca moment tensor format
         # without plotting anything.
-      if [[ -e ../example_data/quick.ndk ]]; then
-        tectoplot -n -RJ V -c CENTROID -cadd ../example_data/quick.ndk K replace -cf MomentTensor -noplot
+      if [[ -e ${EXAMPLEDATA}quick.ndk ]]; then
+        tectoplot -n -RJ V -c CENTROID -cadd ${EXAMPLEDATA}quick.ndk K replace -cf MomentTensor -noplot
         echo "NDK format CMT1:"
-        head -n 5 ../example_data/quick.ndk
+        head -n 5 ${EXAMPLEDATA}quick.ndk
         echo "Moment Tensor format CMT (CENTROID):"
         head -n 1 tempfiles_to_delete/focal_mechanisms/cmt.dat
-        tectoplot -RJ V -c ORIGIN -cadd ../example_data/quick.ndk K replace -cf MomentTensor -noplot
+        tectoplot -RJ V -c ORIGIN -cadd ${EXAMPLEDATA}quick.ndk K replace -cf MomentTensor -noplot
         echo "Moment Tensor format CMT (ORIGIN):"
         head -n 1 tempfiles_to_delete/focal_mechanisms/cmt.dat
       fi
