@@ -4,7 +4,7 @@
 # https://github.com/kyleedwardbradley/tectoplot
 # Kyle Bradley, Nanyang Technological University, Singapore
 
-NUMEXAMPLES=16
+NUMEXAMPLES=18
 
 
 declare -a on_exit_items
@@ -240,12 +240,12 @@ EOF
         head -n 1 tempfiles_to_delete/focal_mechanisms/cmt.dat
       fi
     ;;
-    18) # Plot the Southeast Asian Ring of Fire and the Pacific Ring of Fire
-
+    18) # Use an oblique Mercator projection defined by an center point and azimuth
+      tectoplot -RJ OA -88 12 122 800k 200k -t GEBCO20 -c -cmag 6.5 10 --open \
+                --legend -inset 1i 20 3.5i 2.7i -author -command -o example18
     ;;
     19) # Compare topography visualizations
       tectoplot -r 28.6 30.6 67.7 69.5 -t --open
-
     ;;
     *)
     echo "Unknown example number $i"

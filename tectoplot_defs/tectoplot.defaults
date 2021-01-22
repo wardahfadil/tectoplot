@@ -26,10 +26,10 @@ DATE_FORMAT="-u"
 PLOTFILE="map.ps"            # name of PS file bearing plot data
 PLOTSHIFTX="1i"              # GMT shift of origin, X direction
 PLOTSHIFTY="c"               # GMT shift of origin, Y direction
-PLOTTITLE=""    # title (default will be replaced with no title)
+PLOTTITLE=""                 # title (default will be replaced with no title)
 PSSCALE=1                    # fraction of PSSIZE to plot at (1=no scaling)
-PSSIZE=8                     # size of square page, inches
-PSSIZE_DEFAULT=8             # size of square page, inches
+PSSIZE=7                     # size of square page, inches
+PSSIZE_DEFAULT=7             # size of square page, inches
 MARGIN=0.5                   # page margin, inches
 ARROWFMT="0.03/0.12/0.06"    # format for velocity arrows, GMT 4 style
 GRIDCALL="WESN"              # GMT axes code (-Bxxxx)
@@ -39,8 +39,8 @@ PVHEAD=0.1i                  # Head size for velocity vectors
 PVFORMAT="0.03/0.06/0.06"    # Experimental head size for plate relative V
 
 # GIS line options
-GISLINEWIDTH=black           # GIS line data file, line color
-GISLINECOLOR="0.5p"          # GIS line data file, line width
+USERLINECOLOR=black           # GIS line data file, line color
+USERLINEWIDTH="0.5p"          # GIS line data file, line width
 
 
 # Miscellaneous options that haven't been placed in their proper locations in this file
@@ -247,7 +247,12 @@ DEM_ALPHA=1
 TS_FRAC=0.7                 # Texture shader parameter 1
 TS_STRETCH=4                # Texture shader parameter 2, contrast stretch
 TS_TEXTUREBLEND=0.4         # Proportion of hillshade in final texture
-TS_GAMMA=1                # Gamma stretch of final texture
+TS_GAMMA=1                  # Gamma stretch of final texture
+
+# Shadowing options (-shadow)
+SUN_EL=2                    # Elevation angle of sun for shadowing
+SUN_AZ=$HS_AZ               # Shadow sun azimuth
+SUN_DARK=20                 # Value above 10 to darken/lighten cast shadows
 
 ################################################################################
 ##### Topographic contours

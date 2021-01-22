@@ -22,6 +22,7 @@ F_KIN="kinematics/"                   # Focal mechanism kinematics
 F_CMT="focal_mechanisms/"             # Focal mechanisms
 F_VOLC="volcanoes/"                   # Focal mechanisms
 F_GRAV="grav/"                        # Focal mechanisms
+F_SLAB="slab/"                         # Slab data
 
 ##### DATAROOT is the directory that contains all downloaded data directories.
 
@@ -41,6 +42,9 @@ TEXTURE_COMPILE_SCRIPT=${TEXTUREDIR}"compile_texture.sh"
 
 ##### Directory holding tectoplot default CPTs
 CPTDIR=$TECTOPLOTDIR"CPT/"
+
+##### List of GMT builtin CPT names
+GMTCPTS=${DEFDIR}"tectoplot.gmtcpts"
 
 ##### Location of CMT import / calculations script
 CMTTOOLS=$TECTOPLOTDIR"cmt_tools.sh"
@@ -222,6 +226,17 @@ WGMFREEAIR_BYTES="233410292"
 WGMFREEAIR_CPT=$WGMDIR"PALET_WGM_Freeair_Global.cpt"
 WGMFREEAIR_CPT_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/PALET_WGM_Freeair_Global.cpt"
 WGMFREEAIR_CPT_BYTES="538"
+
+
+##### Sandwell 2019 Free Air gravity
+
+SANDWELL_SOURCESTRING="Sandwell 2019 Free Air gravity, https://topex.ucsd.edu/pub/global_grav_1min/curv_30.1.nc"
+SANDWELL_SHORT_SOURCESTRING="SW2019"
+
+SANDWELLDIR=$DATAROOT"Sandwell2019/"
+SANDWELLFREEAIR=$SANDWELLDIR"grav_30.1.nc"
+SANDWELL2019_SOURCEURL="https://topex.ucsd.edu/pub/global_grav_1min/curv_30.1.nc"
+SANDWELL2019_bytes="829690416"
 
 ##### Global Curie Depth Map
 GCDM_SOURCESTRING="Global Curie Depth Map, Li et al., 2017, doi:10.1038/srep45129"

@@ -8,6 +8,9 @@ use Scalar::Util qw(looks_like_number);
 use List::Util qw[min max];
 use Math::MatrixReal;
 
+$r2d=180/pi();
+$d2r=pi()/180;
+
 # Modified by Kyle bradley, NTU, November 2020 to output principal axes and
 # nodal plane strike/dip/rake of moment tensors.
 
@@ -40,7 +43,7 @@ if (looks_like_number($Mxx) && looks_like_number($Mxy) && looks_like_number($Mxz
 	# print STDERR sprintf("\nlsum is %f\n", $lsum);
 
 	# Criteria are that the trace of the diagonalized matrix is small and the determinant of V is not small.
-	if ( ($l1 + $l2 + $l3 < 1e-2) && (abs($detV) > 1e-2 ) ) {
+	if ( ($l1 + $l2 + $l3 < 0.05) && (abs($detV) > 1e-2 ) ) {
 
 		# Rearrange the eigenvalues and eigenvectors so that l1>=l2>=l3
 		@lb=($l1,$l2,$l3);

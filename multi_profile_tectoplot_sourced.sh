@@ -557,7 +557,7 @@ for i in $(seq 1 $k); do
     PROFILE_XMIN=0
     PROFILE_XMAX=$PROFILE_LEN_KM
 
-    # Create swath width indicator for this track using the widest buffer
+    # Pair the data points using a shift and paste.
   	sed 1d < ${F_PROFILES}${LINEID}_trackfile.txt > ${F_PROFILES}shift1_${LINEID}_trackfile.txt
   	paste ${F_PROFILES}${LINEID}_trackfile.txt ${F_PROFILES}shift1_${LINEID}_trackfile.txt | grep -v "\s>" > ${F_PROFILES}geodin_${LINEID}_trackfile.txt
 
@@ -609,7 +609,6 @@ for i in $(seq 1 $k); do
         diff = ( ( $5 - lastval + 180 + 360 ) % 360 ) - 180
         angle = (360 + lastval + ( diff / 2 ) ) % 360
         print $1, $2, angle, width, color, lineid >> "mid_points.txt"
-        thisval=lastval
         lastval=$5
       }
       END {
@@ -672,12 +671,8 @@ for i in $(seq 1 $k); do
 
       # Get the distance between the points, in km
     fi
-    # TMPDIST=$(gmt mapproject ${LINEID}_endprof.txt -G+uk+i | tail -n 1 | gawk '{print $3}')
-    # echo a TMPDIST is $TMPDIST
     TMPDIST=$(gmt mapproject ${F_PROFILES}${LINEID}_endprof.txt -G+uk+i | tail -n 1 | gawk '{print $3}')
-    # echo b TMPDIST is $TMPDIST
     XOFFSET_CROSS=$(echo "0 - ($TMPDIST / 2)" | bc -l)
-    # echo XOFFSET_CROSS is $XOFFSET_CROSS
 
     if [[ $litho1profileflag -eq 1 ]]; then
       info_msg "Extracting LITHO1.0 data for profile ${LINEID}"
@@ -913,10 +908,8 @@ for i in $(seq 1 $k); do
             END {
               printf "%d %d %d %d %f %f", minX, maxX, minY, maxY, minZ, maxZ > "./profilerange.txt"
             }' < ${F_PROFILES}${LINEID}_${grididnum[$i]]}_profiletable.txt | sed '1d' > ${F_PROFILES}${LINEID}_${grididnum[$i]}_data.csv
-        else
-          echo a
-        mv profilerange.txt ${F_PROFILES}/profilerange.txt
-        echo b
+        else  # DO_SIGNED_DISTANCE_DEM is 1
+          mv profilerange.txt ${F_PROFILES}/profilerange.txt
 
           # Turn the gridded profile data into dt, da, Z data, shifted by X offset
 
@@ -933,7 +926,7 @@ for i in $(seq 1 $k); do
             gmt sample1d ${F_PROFILES}${LINEID}_trackfile.txt -Af -fg -I${gridspacinglist[$i]} > ${F_PROFILES}line_trackinterp.txt
 
             # If this function can be sped up that would be great.
-            echo "Distance to and along track calc... (takes some time!)"
+            info_msg "Doing signed distance calculation... (takes some time!)"
             gmt mapproject ${F_PROFILES}${LINEID}_${grididnum[$i]]}_prepdata.txt -L${F_PROFILES}line_trackinterp.txt+p -fg -Vn > ${F_PROFILES}${LINEID}_${grididnum[$i]]}_dadtpre.txt
             # Output is Lon, Lat, Z, DistSign, DistX, ?, DecimalID
             # DecimalID * ${gridspacinglist[$i]} = distance along track
