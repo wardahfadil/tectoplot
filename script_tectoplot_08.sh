@@ -4003,64 +4003,6 @@ do
     echo $EQ_SHORT_SOURCESTRING >> tectoplot.shortsources
     ;;
 
-  -zcat) #            [ANSS or ISC]
-    if arg_is_flag $2; then
-      info_msg "[-zcat]: No catalog specified. Using default $EQCATALOG"
-    else
-      EQCATNAME="${2}"
-      shift
-      info_msg "[-z]: Seismicity scale updated to $SEIZSIZE * $SEISSCALE"
-      case $EQCATNAME in
-        ISC)
-          EQCATALOG=$ISC_EQ_CATALOG
-          EQ_SOURCESTRING=$ISC_EQ_SOURCESTRING
-          EQ_SHORT_SOURCESTRING=$ISC_EQ_SHORT_SOURCESTRING
-        ;;
-        ANSS0)
-          EQCATALOG=$ANSS_EQ_CATALOG
-          EQ_SOURCESTRING=$ANSS_EQ_SOURCESTRING
-          EQ_SHORT_SOURCESTRING=$ANSS_EQ_SHORT_SOURCESTRING
-        ;;
-      esac
-    fi
-    ;;
-
-  -zmag)
-    if arg_is_flag $2; then
-      info_msg "[-zmax]: No limits specified [minmag] [maxmag]"
-    else
-      EQ_MINMAG="${2}"
-      shift
-      if arg_is_flag $2; then
-        info_msg "[-zmax]: No maximum magnitude specified. Using default."
-      else
-        EQ_MAXMAG="${2}"
-        shift
-      fi
-    fi
-    eqmagflag=1
-    ;;
-
-  -zr1|--eqrake1) # args: number
-    if arg_is_flag $2; then
-      info_msg "[-zr]:  No rake color scale indicated. Using default: ${RAKE1SCALE}"
-    else
-      RAKE1SCALE="${2}"
-      shift
-    fi
-    plots+=("seisrake1")
-    ;;
-
-  -zr2|--eqrake2) # args: number
-    if arg_is_flag $2; then
-      info_msg "[-zr]:  No rake color scale indicated. Using default: ${RAKE2SCALE}"
-    else
-      RAKE2SCALE="${2}"
-      shift
-    fi
-    plots+=("seisrake2")
-    ;;
-
   -zadd) # args: file   - supplemental seismicity catalog in lon lat depth mag [datestr] [id] format
     seisfilenumber=$(echo "$seisfilenumber+1" | bc)
     if arg_is_flag $2; then
@@ -4098,6 +4040,79 @@ do
       ZSFILLCOLOR="${2}"
       shift
     fi
+    ;;
+
+  -zcat) #            [ANSS or ISC]
+    if arg_is_flag $2; then
+      info_msg "[-zcat]: No catalog specified. Using default $EQCATALOG"
+    else
+      EQCATNAME="${2}"
+      shift
+      info_msg "[-z]: Seismicity scale updated to $SEIZSIZE * $SEISSCALE"
+      case $EQCATNAME in
+        ISC)
+          EQCATALOG=$ISC_EQ_CATALOG
+          EQ_SOURCESTRING=$ISC_EQ_SOURCESTRING
+          EQ_SHORT_SOURCESTRING=$ISC_EQ_SHORT_SOURCESTRING
+        ;;
+        ANSS0)
+          EQCATALOG=$ANSS_EQ_CATALOG
+          EQ_SOURCESTRING=$ANSS_EQ_SOURCESTRING
+          EQ_SHORT_SOURCESTRING=$ANSS_EQ_SHORT_SOURCESTRING
+        ;;
+      esac
+    fi
+    ;;
+
+  -zcolor)
+    if arg_is_flag $2; then
+      info_msg "[-zcolor]: No min/max depth specified. Using default $EQMINDEPTH_COLORSCALE/$EQMAXDEPTH_COLORSCALE"
+    else
+      EQMINDEPTH_COLORSCALE=$2
+      shift
+    fi
+    if arg_is_flag $2; then
+      info_msg "[-zcolor]: No max depth specified. Using default $EQMAXDEPTH_COLORSCALE"
+    else
+      EQMAXDEPTH_COLORSCALE=$2
+      shift
+    fi
+    ;;
+
+  -zmag)
+    if arg_is_flag $2; then
+      info_msg "[-zmax]: No limits specified [minmag] [maxmag]"
+    else
+      EQ_MINMAG="${2}"
+      shift
+      if arg_is_flag $2; then
+        info_msg "[-zmax]: No maximum magnitude specified. Using default."
+      else
+        EQ_MAXMAG="${2}"
+        shift
+      fi
+    fi
+    eqmagflag=1
+    ;;
+
+  -zr1|--eqrake1) # args: number
+    if arg_is_flag $2; then
+      info_msg "[-zr]:  No rake color scale indicated. Using default: ${RAKE1SCALE}"
+    else
+      RAKE1SCALE="${2}"
+      shift
+    fi
+    plots+=("seisrake1")
+    ;;
+
+  -zr2|--eqrake2) # args: number
+    if arg_is_flag $2; then
+      info_msg "[-zr]:  No rake color scale indicated. Using default: ${RAKE2SCALE}"
+    else
+      RAKE2SCALE="${2}"
+      shift
+    fi
+    plots+=("seisrake2")
     ;;
 
   -zsort)
