@@ -176,9 +176,18 @@ tectoplot's cross section functionality supports multiple profiles incorporating
 
 ## Credits
 This script relies very heavily on GMT 6 (www.generic-mapping-tools.org), gdal (gdal.org), and GNU awk (gawk).
+
 NDK import in cmt_tools.sh is from a heavily modified version of ndk2meca.awk by Thorsten Becker (sourced from http://www-udc.ig.utexas.edu/external/becker/software/ndk2meca.awk)
+
 Moment tensor diagonalization via perl is heavily modified from diagonalize.pl by Utpal Kumar (IESAS)
+
 Various CMT calculations are modified from GMT's psmeca.c/ultimeca.c by G. Patau (IPGP)
+
+tectoplot includes source redistributions for:
+ Texture shading by Leland Brown and TIFF generation by Brett Casebolt (C source).
+ MatrixReal.pm by Steffen Beyer, Rodolphe Ortalo, and Jonathan Leto
+ 
+tectoplot will download and compile access_litho from LITHO1.0
 
 ## Setup
 
