@@ -160,8 +160,6 @@ At present, not all the data files linked in the script are downloadable from or
 <td><a href=examples/example9.pdf><img src=examples/example9.jpg height=100></a></td>
 </tr>
 
-```
-
 ### Note:
 While I am currently working on this script in my spare time, I have not validated all of its functions and there are certainly some bugs/unforseen effects, especially in lesser-used functions. Not all of the functions are even good ideas in the first place. If you use this script for your research, please sanity check your own results!
 

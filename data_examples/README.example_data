@@ -1,0 +1,8 @@
+The following files are used by make_examples.sh to demonstrate how to include
+your own data in tectoplot workflows.
+
+(Lythgoe et al., 2021)
+Seismicity: LombokHypodd.dat
+Focal mechanisms: LombokFocals.dat
+
+GCMT quickCMT in NDK format: quick.ndk
