@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Calculate a cast shadow raster from a NetCDF DEM.
 # Input raster is a regular grid of geographic coordinates
 
 if [[ ! $(command -v ncdump) ]]; then

@@ -4,7 +4,7 @@
 # https://github.com/kyleedwardbradley/tectoplot
 # Kyle Bradley, Nanyang Technological University, Singapore
 
-NUMEXAMPLES=18
+NUMEXAMPLES=19
 
 SOURCE="${BASH_SOURCE[0]}"
 while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
@@ -52,34 +52,38 @@ fi
 for i in ${MAKENUMS[@]}; do
   echo Example $i
   case $i in
-    1) # Example 1: Four global plots in one PDF
+    1)
+      echo "Example 1: Four global plots in one PDF" > example1.txt
       tectoplot -n -command -RJ N      -t 10m -gres 30 -title "Robinson"                                                    -pss 8 -a l --keepopenps    -z -zmag 7 10
       tectoplot -n -command -RJ W 45   -t 10m -gres 30 -title "Mollweide" -pos  9i    0i -ips ./tempfiles_to_delete/map.ps  -pss 8 -a l --keepopenps    -c -cmag 7 10
       tectoplot -n -command -RJ H 135  -t 10m -gres 30 -title "Hammer"    -pos -9i -5.5i -ips ./tempfiles_to_delete/map.ps  -pss 8 -a l --keepopenps    -z -zmag 8 10
       tectoplot -n -command -RJ R -180 -t 10m -gres 30 -title "Winkel"    -pos  9i -0.5i -ips ./tempfiles_to_delete/map.ps  -pss 8 -a l          -o example1
     ;;
 
-    2) # Example 2: Two stereographic global plots in one PDF
-      tectoplot -n -command -RJ S 100 10   -t 10m -tshade --legend -title "Stereo 100E/10N" -tm ./newtmp/                     -pss 5 -a l             --keepopenps
-      tectoplot -n -command -RJ S -80 -10  -t 10m -tshade --legend -title "Stereo 80W/10S" -pos  0i -6.5i -ips ./newtmp/map.ps  -pss 5 -a l -o example2
+    2)
+      echo "Example 2: Two stereographic global plots in one PDF" > example2.txt
+      tectoplot -n -command -RJ S 100 10   -t 10m -gres 120 -tshade --legend -title "Stereo 100E/10N" -tm ./newtmp/                     -pss 5 -a l             --keepopenps
+      tectoplot -n -command -RJ S -80 -10  -t 10m -gres 120 -tshade --legend -title "Stereo 80W/10S" -pos  0i -6.5i -ips ./newtmp/map.ps  -pss 5 -a l -o example2
       rm -rf ./newtmp/
     ;;
 
-    3) # Example 3: Solomon Islands, SRTM30 topo, Slab2 contours,
-       # ANSS hypocenters, CMT, coastlines, title, legend
-      tectoplot -n -t -b c -z -c -a f -command -title "Solomon Islands seismicity" \
+    3)
+      echo "Example 3: Regional seismotectonic map with Slab2" > example3.txt
+      tectoplot -n -t -gres 120 -b c -z -c -a f -command -title "Solomon Islands seismicity" \
                 --legend -author -o example3
     ;;
 
     4) # Example 4: Greece, GEBCO20 topo 50% transparent, GBM blocks,
        # UTM projection, GPS velocities relative to Africa, legend"
-      tectoplot -n -r GR -t GEBCO20 -tt 50 -RJ UTM -p GBM Nubia -pe -pl -g AF -i 2 \
+      echo "Example 4: GPS velocities and tectonic blocks" > example4.txt
+      tectoplot -n -r GR -t GEBCO20 -tt 50 -gres 100 -RJ UTM -p GBM Nubia -pe -pl -g AF -i 2 \
                 -setvars { GPS_FILLCOLOR black PLATELABEL_SIZE 10p } -author -command \
                 --legend -title "Aegean GPS velocities and blocks" -o example4
     ;;
 
     5) # Example 5: Southern Taiwan, GMRT/SRTM topo, GDAL slopeshade, labeled
        # ISC seismicity, CMT at ORIGIN, legend"
+      echo "Example 5: Topography and seismicity" > example5.txt
       tectoplot -n -r 120.5 120.8 22.4 23 -t BEST -gdalt -pgo -pgs 0.1 -pss 4 \
                 -zcat ISC -z -c ORIGIN --legend -author -command \
                 -setvars { SEISSTRETCH_REFMAG 4 } -eqlabel 5.5 mag -o example5
@@ -88,20 +92,28 @@ for i in ${MAKENUMS[@]}; do
     6) # Example 6: Automated profile across the Izu-Ogasawaram Trench (Japan),
        #            one-to-one, CMT+seis+swath bathymetry, SLAB2, UTM projection
        #            Makes oblique profile using endpoint codes, and then adjusts view/vexag
-      tectoplot -n -r 135 145 25 35 -RJ UTM -t -tt 50 -z -c -b c -a l \
-                -aprof BW 100k 1k -oto -pss 7 -author -mob 220 20 5 1 -o example6
+      echo "Example 6: Profile across subduction zone seismicity" > example6.txt
+      tectoplot -n -r 135 145 25 35 -RJ UTM -t GEBCO1 -gres 120 -tt 50 -z -c -b c -a l \
+                -aprof BW 100k 1k -pss 7 -author -mob 220 20 5 1 -setvars \
+                { SPROF_MINELEV -600 } -o example6
 
       cd tempfiles_to_delete/
       cp profiles/P_BW_profile.pdf ../example5_profile_220_20_5.pdf
+      echo "Example 6a: Oblique perspective of subduction zone seismicity" > example5_profile_220_20_5.txt
+
       ./make_oblique_plots.sh 140 30 8
       cp profiles/P_BW_profile.pdf ../example5_profile_140_30_8.pdf
+      echo "Example 6b: Oblique perspective of subduction zone seismicity" > example5_profile_140_30_8.txt
+
       cd ..
+
     ;;
 
     7) # Example 7: Seismicity of Chile, SLAB2 contours, texture shaded topography,
        # eq labels for M7+ events (datemag format)
-      tectoplot -n -r CL -t -tshade -RJ UTM -b c -z -c ORIGIN \
-                -eqlabel 7.5 datemag -author -command -o example7
+      echo "Example 7: Large earthquakes of Chile over Bouguer gravity" > example7.txt
+      tectoplot -n -r CL -v BG 0 -RJ UTM -b c -z -zmag 5 10 -cmag 5 10 -c ORIGIN \
+                -eqlabel 7.5 datemag --legend -author -command -o example7
     ;;
 
     8) # Example 8: Stacked swath profiles across a forearc wedge in the Philippines.
@@ -109,7 +121,7 @@ for i in ${MAKENUMS[@]}; do
        # -setvars, align to trench using -alignxy
        # author and command info are offset to bottom of page using -authoryx
        # This is an XY line of the trench
-
+      echo "Example 8: Stacked swath profiles" > example8.txt
       cat <<-EOF > trench.xy
       119.2408936906884 17.61597125516211
       119.2409490926293 17.71465347829429
@@ -143,6 +155,8 @@ EOF
        # Color land areas dark green, overlay rescaled gravity onto a grayscale hillshade,
        # contour bathymetry. Profiles have different colors. setvars is used to adjust the
        # DEM transparency (alpha)
+      echo "Example 9: Stacked gravity profiles" > example9.txt
+
       cat <<-EOF > trench.xy
       119.2408936906884 17.61597125516211
       119.2409490926293 17.71465347829429
@@ -182,24 +196,32 @@ EOF
 
     10) # Example 10: Litho1 Vp profile and oblique perspective diagram across Tasmania.
         # Uses aprofcode to define profile and place scale bar.
+      echo "Example 10: Litho1 profile / map and profile" > example10.txt
+
       tectoplot -r 141 152 -45 -38 -t -RJ UTM -z -zcat ISC -c -scale 150k A  \
                 -aprof CW 150k 1k -pss 7 -litho1 Vp --legend -mob 150 40 10  \
                 -o example10
 
       cp tempfiles_to_delete/profiles/P_CW_profile.pdf ./example10_profile_150_40_10.pdf
+      echo "Example 10b: Litho1 perspective diagram" > example10_profile_150_40_10.txt
+
     ;;
 
     11) # Example 11: Oceanic crust age, topo, country borders, smaller PS size, raster resolution restricted to 72dpi
+      echo "Example 11: Oceanic crust age" > example11.txt
+
       tectoplot -RJ S 120 0 -t 05m -gres 72 -pss 4 -oca --legend -author  \
                 -command -pgo -a l -acb black 0.5p l -o example11
     ;;
 
     12) # Example 12:
-      tectoplot -RJ S 120 0 -t 05m -gres 72 -pss 4 -oca --legend -author \
-                -command -pgo -a l -acb black 0.5p l -o example12
+      # tectoplot -RJ S 120 0 -t 05m -gres 72 -pss 4 -oca --legend -author \
+      #           -command -pgo -a l -acb black 0.5p l -o example12
     ;;
 
-    13) # Example 13: MORVEL57 NNR plate velocities on a Van der Grinten projection. Kind of strange.
+    13) # Example 13: MORVEL57 NNR plate velocities.
+      echo "Example 13: MORVEL57 NNR plate velocities" > example13.txt
+
       tectoplot -n -r g -p MORVEL NNR -pvg -a l -pf 1200 -i 1 \
                 -setvars { PLATELINE_COLOR white PLATEVEC_COLOR black  \
                 PLATEVEC_TRANS 30 PLATEVELRES 0.25d COAST_KM2 1000 } -pe  \
@@ -208,6 +230,7 @@ EOF
     ;;
     14) # Example 14: Extract IDs for large earthquakes within a 1°x1° box surrounding an event,
         # then plot a map of a wider region around that event, labeling only those earthquakes.
+      echo "Example 14: Large earthquakes near EQ event" > example14.txt
       tectoplot -r eq iscgem913230 1.0 -z -zmag 6.5 10 -noplot
       tectoplot -query eqs.txt data id noheader > extract_eqs.txt
       tectoplot -r eq iscgem913230 1.5 -t -b c -z -zsort mag down -c ORIGIN  \
@@ -218,8 +241,10 @@ EOF
         # (Data from Lythgoe et al., 2021). Seismicity is in lon lat depth mag format,
         # CMT data are in Aki and Richards (psmeca) format.
         # Currently we need to specify -pos 0i 0i to get the map to overplot correctly
+      echo "Example 15: Plot custom seismicity/CMT data" > example15.txt
+
       if [[ -e ${EXAMPLEDATA}LombokHypodd.dat && -e ${EXAMPLEDATA}LombokFocals_aki.dat ]]; then
-        tectoplot -n -t BEST -r 115.8 117.2 -9.2 -7.8 -z \
+        tectoplot -n -t BEST -gres 100 -r 115.8 117.2 -9.2 -7.8 -z \
                   -c ORIGIN -pss 7 -cw -zfill black \
                   -tshade -author -command --keepopenps
         tectoplot -n -r 115.8 117.2 -9.2 -7.8 -ips ./tempfiles_to_delete/map.ps \
@@ -230,6 +255,7 @@ EOF
       fi
     ;;
     16) # Example 16: Plot a focal mechanism database from an NDK file
+      echo "Example 16: Plot CMT from custom NDK file" > example16.txt
       if [[ -e ${EXAMPLEDATA}quick.ndk ]]; then
         tectoplot -n -RJ V -ac lightbrown lightblue -a l -c \
         -cadd ${EXAMPLEDATA}quick.ndk K replace -cmag 7 10  \
@@ -250,11 +276,17 @@ EOF
       fi
     ;;
     18) # Use an oblique Mercator projection defined by an center point and azimuth
-      tectoplot -RJ OA -88 12 122 800k 200k -t GEBCO20 -c -cmag 6.5 10 --open \
+     echo "Example 18: Oblique Mercator projection" > example18.txt
+
+      tectoplot -RJ OA -88 12 122 800k 200k -t GEBCO20 -gres 120 -c -cmag 6.5 10 \
                 --legend -inset 1i 20 3.5i 2.7i -author -command -o example18
     ;;
-    19) # Compare topography visualizations
-      tectoplot -r 28.6 30.6 67.7 69.5 -t --open
+    19) # Make an oblique view of topography with cast shadows
+      echo "Example 19: Topography with cast shadows - map" > example19.txt
+
+      tectoplot -t -tshade -shadow 45 2 10 -ob 120 20 4 fancy -o example19
+      cp tempfiles_to_delete/oblique.pdf ./example19_oblique.pdf
+      echo "Example 19: Topography with cast shadows - perspective" > example19_oblique.txt
     ;;
     *)
     echo "Unknown example number $i"
@@ -262,8 +294,25 @@ EOF
   esac
 done
 
-# # Make the images for the Git README
-# gs -dNOSAFER -dQUIET -dNOPLATFONTS -dNOPAUSE -dBATCH -sOutputFile="example14" -dBackgroundColor=white \
-#   -r300 -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -dUseCIEColor -dUseTrimBox -dFirstPage=1 -dLastPage=1 \
-#   example14.pdf
+echo "<table>"
+# # Make the images for the GitHub README
+for pdffile in *.pdf; do
+  id="${pdffile%.*}"
+  # echo "Converting $pdffile to ${id}.jpg"
+  gs -dNOSAFER -dQUIET -dNOPLATFONTS -dNOPAUSE -dBATCH -sDEVICE=jpeg -sOutputFile="$id.jpg" \
+  -r720 -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -dUseCIEColor -dUseTrimBox -dFirstPage=1 -dLastPage=1 \
+  -g1000x1000  -dPDFFitPage $pdffile
+
+  echo "<tr>"
+  echo -n "<td>"
+  cat $id.txt
+  echo "</td>"
+  echo "</tr>"
+  echo "<tr>"
+  echo "<td><img src=examples/$id.jpg</td>"
+  echo "</tr>"
+
+done
+
+
 # rm -rf ./tempfiles_to_delete/

@@ -553,7 +553,6 @@ cat <<-EOF
     -cpts                                                remake default CPT files
     -setvars         { VAR1 VAL1 VAR2 VAL2 }             set bash variable values
     -vars            [variables file]                    set bash variable values by sourcing file
-    -ob
     -tm|--tempdir    [tempdir]                           use tempdir as temporary directory
     -e|--execute     [bash script file]                  runs a script using source command
     -i|--vecscale    [value]                             scale all vectors (0.02)
@@ -631,6 +630,8 @@ cat <<-EOF
     -clipdem                                             save terrain as dem.nc in temporary directory
     -gebcotid                                            plot GEBCO TID raster
     -gdalt           [[gamma (0-1)]] [[% HS (0-1)]]      render colored multiple hillshade using gdal
+    -ob              [[az]] [[inc]] [[floor_elev]] [[frame]]   plot oblique view of topography
+                                                         frame="plain|fancy"
     -shadow          [[az]] [[alt]] [[dark]]             create cast shadows on topography (-gdalt only)
     -tshade          [frac] [stretch]                    render colored hillshade using texture shader/gdal
 
@@ -2577,6 +2578,7 @@ do
   -ob)
     info_msg "[-ob]: Plotting oblique view of bathymetry data."
     obliqueflag=1
+    OBBAXISTYPE="plain"
     if arg_is_flag $2; then
       info_msg "[-ob]: No azimuth/inc specified. Using default ${OBLIQUEAZ}/${OBLIQUEINC}."
     else
@@ -2589,16 +2591,36 @@ do
       OBLIQUEINC="${2}"
       shift
     fi
-    if arg_is_flag $2; then
-      info_msg "[-ob]: No floor level specified. Not plotting box."
-      obplotboxflag=0
-      OBBOXLEVEL=-9999
+    if arg_is_float $2; then
+      OBLIQUE_VEXAG="${2}"
+      shift
+      info_msg "[-ob]: Vertical exaggeration is ${OBLIQUE_VEXAG}."
     else
+      info_msg "[-ob]: No vertical exaggeration given. Using ${OBLIQUE_VEXAG}."
+    fi
+    if arg_is_float $2; then
       obplotboxflag=1
       OBBOXLEVEL="${2}"
       shift
       info_msg "[-ob]: Plotting box with base level ${OBBOXLEVEL}."
+    else
+      info_msg "[-ob]: No floor level specified. Not plotting box."
+      obplotboxflag=0
+      OBBOXLEVEL=-9999
     fi
+    if arg_is_flag $2; then
+      info_msg "[-ob]: No grid label indicated. Not labeling."
+      OBBCOMMAND=""
+    else
+      if [[ $2 == "plain" ]]; then
+        OBBCOMMAND="-Bxaf -Byaf -Bzaf"
+      elif [[ $2 == "fancy" ]]; then
+        OBBCOMMAND="-Bxaf -Byaf -Bzaf"
+        OBBAXISTYPE="fancy"
+      fi
+      shift
+    fi
+
     ;;
 
   -oca)
@@ -5093,7 +5115,6 @@ if [[ $calccmtflag -eq 1 ]]; then
   }' > ${F_CMT}cmt_typefilter.dat
   CMTFILE=$(abs_path ${F_CMT}cmt_typefilter.dat)
 
-
   if [[ $eqlistselectflag -eq 1 ]]; then
     info_msg "Selecting focal mechanisms from eqlist"
     for i in ${!eqlistarray[@]}; do
@@ -5237,7 +5258,6 @@ if [[ $calccmtflag -eq 1 ]]; then
     info_msg "Removing earthquake origins that have equivalent CMT"
 
     before_e=$(wc -l < ${F_SEIS}eqs.txt)
-  # echo "CMTFILE=$CMTFILE"
     # epoch is field 4 for CMTS
     gawk < $CMTFILE '{
       if ($10 != "none") {                       # Use origin location
@@ -5307,9 +5327,6 @@ if [[ $calccmtflag -eq 1 ]]; then
     # cleanup ${F_SEIS}eq_comp.dat ${F_SEIS}eq_comp_sort.dat ${F_SEIS}eq_comp_sort_m1.dat ${F_SEIS}eq_comp_sort_m2.dat ${F_SEIS}3comp.txt
   fi
 
-
-
-
   if [[ $dozsortflag -eq 1 ]]; then
     info_msg "Sorting focal mechanisms by $ZSORTTYPE"
       case $ZSORTTYPE in
@@ -5332,7 +5349,7 @@ if [[ $calccmtflag -eq 1 ]]; then
       esac
     [[ $ZSORTDIR =~ "down" ]] && sort -n -k $SORTFIELD,$SORTFIELD $CMTFILE > ${F_CMT}cmt_sort.dat
     [[ $ZSORTDIR =~ "up" ]] && sort -n -r -k $SORTFIELD,$SORTFIELD $CMTFILE > ${F_CMT}cmt_sort.dat
-    CMTFILE=$(abs_path cmt_sort.dat)
+    CMTFILE=$(abs_path ${F_CMT}cmt_sort.dat)
   fi
 
   CMTRESCALE=$(echo "$CMTSCALE * $SEISSCALE " | bc -l)  # * $SEISSCALE
@@ -5341,7 +5358,6 @@ if [[ $calccmtflag -eq 1 ]]; then
   # This function assumed that the CMT file included the seconds in the last field
   if [[ $SCALEEQS -eq 1 ]]; then
     info_msg "Scaling CMT earthquake magnitudes for display only"
-
     gawk < $CMTFILE -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
       mw=$13
       mwmod = (mw^str)/(sref^(str-1))
@@ -5493,7 +5509,6 @@ if [[ $calccmtflag -eq 1 ]]; then
   cd ..
 
 fi
-
 
 if [[ $REMOVE_DEFAULTDEPTHS -eq 1 && -e ${F_SEIS}eqs.txt ]]; then
   info_msg "Removing earthquakes with poorly determined origin depths"
@@ -7865,9 +7880,27 @@ for plot in ${plots[@]} ; do
         # Calculate the multidirectional hillshade
         gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}hs_md.tif -q
 
-        # Combine the hillshade and texture into a blended, gamma corrected image
-        # (A+B)/2
-        gdal_calc.py --quiet -A ${F_TOPO}hs_md.tif -B ${F_TOPO}texture.tif --outfile=${F_TOPO}intensity.tif --calc="uint8( ( ((A/255.)*(${TS_TEXTUREBLEND}) + (B/255.)*(1-${TS_TEXTUREBLEND}) ) )**(1/${TS_GAMMA}) * 255)"
+
+        if [[ $doshadowsflag -eq 1 ]]; then
+          # Compute and render the shadow map
+          shadow_nc.sh ${F_TOPO}dem.nc ${F_TOPO}shadow.nc ${SUN_AZ} ${SUN_EL}
+          shadowrange=$(gmt grdinfo ${F_TOPO}shadow.nc -C -L -Vn | awk '{print $7}')
+
+          echo "0 254 254 254" > ${F_TOPO}shadow.txt
+          echo "${SUN_DARK} 0 0 0" >> ${F_TOPO}shadow.txt
+          gdaldem color-relief ${F_TOPO}shadow.nc ${F_TOPO}shadow.txt ${F_TOPO}shadow.tif -q
+
+          # Combine hillshade and shadow
+          gdal_calc.py --overwrite --quiet -A ${F_TOPO}hs_md.tif -B ${F_TOPO}shadow.tif --allBands=B --outfile=${F_TOPO}hsshadow.tif --calc="uint8(255*((A/255.)*(B/255.))) "
+
+          # Combine the hillshade and texture into a blended, gamma corrected image
+          # (A+B)/2
+          gdal_calc.py --quiet -A ${F_TOPO}hsshadow.tif -B ${F_TOPO}texture.tif --outfile=${F_TOPO}intensity.tif --calc="uint8( ( ((A/255.)*(${TS_TEXTUREBLEND}) + (B/255.)*(1-${TS_TEXTUREBLEND}) ) )**(1/${TS_GAMMA}) * 255)"
+        else
+          # Combine the hillshade and texture into a blended, gamma corrected image
+          # (A+B)/2
+          gdal_calc.py --quiet -A ${F_TOPO}hs_md.tif -B ${F_TOPO}texture.tif --outfile=${F_TOPO}intensity.tif --calc="uint8( ( ((A/255.)*(${TS_TEXTUREBLEND}) + (B/255.)*(1-${TS_TEXTUREBLEND}) ) )**(1/${TS_GAMMA}) * 255)"
+        fi
 
         # Try a screen mode (1-(1-A)(1-B))
         # gdal_calc.py --quiet -A hs_md.tif -B texture.tif --outfile=intensity.tif --calc="uint8(255 * (1-(1-A/255.)*(1-B/255.))**(1/${TS_GAMMA}))"
@@ -8394,8 +8427,6 @@ if [[ $keepopenflag -eq 0 ]]; then
   [[ $openflag -eq 1 ]] && open -a $OPENPROGRAM "$THISDIR/$MAPOUT.pdf"
 fi
 
-[[ $obliqueflag -eq 1 ]] && tifflag=1
-
 ##### MAKE GEOTIFF
 if [[ $tifflag -eq 1 ]]; then
   gmt psconvert map.ps -Tt -A -W -E${GEOTIFFRES} ${VERBOSE}
@@ -8411,19 +8442,29 @@ if [[ $obliqueflag -eq 1 ]]; then
   info_msg "Oblique map (${OBLIQUEAZ}/${OBLIQUEINC})"
   PSSIZENUM=$(echo $PSSIZE | gawk  '{print $1+0}')
 
-  zrange=$(grid_zrange $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
-  DELTAZ_DEG=$(echo $zrange | gawk  -v pss=$PSSIZENUM -v ex=$OBLIQUE_VEXAG '{print ex * ($2-$1) / 111000 * pss}')
+  # zrange is the elevation change across the DEM
+  zrange=($(grid_zrange $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn))
 
   if [[ $obplotboxflag -eq 1 ]]; then
-    OBBOXCMD="/{$OBBOXLEVEL}"
+    OBBOXCMD="-N${OBBOXLEVEL}+gwhite"
+    # If the box goes upward for some reason???
+    if [[ $(echo "${zrange[1]} < $OBBOXLEVEL" | bc -l) -eq 1 ]]; then
+      zrange[1]=$OBBOXLEVEL;
+    elif [[ $(echo "${zrange[0]} > $OBBOXLEVEL" | bc -l) -eq 1 ]]; then
+      # The box base falls below the zrange minimum (typical example)
+      zrange[0]=$OBBOXLEVEL
+    fi
   else
     OBBOXCMD=""
   fi
 
-  if [[ $gdemtopoplotflag -eq 1 ]]; then
-    gmt grdview $BATHY  $NCALL -G${F_TOPO}colored_hillshade.tif -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JM${MINLON}/${PSSIZENUM}i -JZ${DELTAZ_DEG}i -Qi${OBLIQUERES} -p${OBLIQUEAZ}/${OBLIQUEINC}${OBBOXCMD} --GMT_HISTORY=false ${VERBOSE} > oblique.ps
+  DELTAZ_IN=$(echo "${OBLIQUE_VEXAG} * ${PSSIZENUM} * (${zrange[1]} - ${zrange[0]})/ ( (${MAXLON} - ${MINLON}) * 111000 )"  | bc -l)
+
+  if [[ $gdemtopoplotflag -eq 1 || $tshadetopoplotflag -eq 1 ]]; then
+    # gmt grdview $BATHY -G${F_TOPO}colored_hillshade.tif ${RJSTRING[@]} -JZ${DELTAZ_DEG}i -Qi${OBLIQUERES} -p${OBLIQUEAZ}/${OBLIQUEINC}${OBBOXCMD} --GMT_HISTORY=false ${VERBOSE} > oblique.ps
+    gmt grdview $BATHY -G${F_TOPO}colored_hillshade.tif -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JM${MINLON}/${PSSIZENUM}i -JZ${DELTAZ_IN}i ${OBBOXCMD} -Qi${OBLIQUERES} ${OBBCOMMAND} -p${OBLIQUEAZ}/${OBLIQUEINC} --GMT_HISTORY=false --MAP_FRAME_TYPE="$OBBAXISTYPE" ${VERBOSE} > oblique.ps
   else
-    gmt grdview $BATHY -C$TOPO_CPT -R$MINLON/$MAXLON/$MINLAT/$MAXLAT  -JM${MINLON}/${PSSIZENUM}i -JZ${DELTAZ_DEG}i -Qi${OBLIQUERES} -p${OBLIQUEAZ}/${OBLIQUEINC} -B --GMT_HISTORY=false ${VERBOSE} > oblique.ps # -Gmap.tif
+    gmt grdview $BATHY -C$TOPO_CPT -R$MINLON/$MAXLON/$MINLAT/$MAXLAT  -JM${MINLON}/${PSSIZENUM}i -JZ${DELTAZ_IN}i ${OBBOXCMD} -Qi${OBLIQUERES} ${OBBCOMMAND} -p${OBLIQUEAZ}/${OBLIQUEINC} --GMT_HISTORY=false --MAP_FRAME_TYPE="$OBBAXISTYPE" ${VERBOSE} > oblique.ps # -Gmap.tif
   fi
 
   gmt psconvert oblique.ps -Tf -A0.5i --GMT_HISTORY=false ${VERBOSE}
