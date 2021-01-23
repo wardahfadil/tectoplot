@@ -98,14 +98,15 @@ for i in ${MAKENUMS[@]}; do
                 { SPROF_MINELEV -600 } -o example6
 
       cd tempfiles_to_delete/
-      cp profiles/P_BW_profile.pdf ../example5_profile_220_20_5.pdf
-      echo "Example 6a: Oblique perspective of subduction zone seismicity" > example5_profile_220_20_5.txt
+      cp profiles/P_BW_profile.pdf ../example6_profile_220_20_5.pdf
 
       ./make_oblique_plots.sh 140 30 8
-      cp profiles/P_BW_profile.pdf ../example5_profile_140_30_8.pdf
-      echo "Example 6b: Oblique perspective of subduction zone seismicity" > example5_profile_140_30_8.txt
+      cp profiles/P_BW_profile.pdf ../example6_profile_140_30_8.pdf
 
       cd ..
+      echo "Example 6a: Oblique perspective of subduction zone seismicity" > example6_profile_220_20_5.txt
+      echo "Example 6b: Oblique perspective of subduction zone seismicity" > example6_profile_140_30_8.txt
+
 
     ;;
 
@@ -294,7 +295,7 @@ EOF
   esac
 done
 
-echo "<table>"
+echo "<table>" > examples.html
 # # Make the images for the GitHub README
 for pdffile in *.pdf; do
   id="${pdffile%.*}"
@@ -303,16 +304,16 @@ for pdffile in *.pdf; do
   -r720 -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -dUseCIEColor -dUseTrimBox -dFirstPage=1 -dLastPage=1 \
   -g1000x1000  -dPDFFitPage $pdffile
 
-  echo "<tr>"
-  echo -n "<td>"
-  cat $id.txt
-  echo "</td>"
-  echo "</tr>"
-  echo "<tr>"
-  echo "<td><img src=examples/$id.jpg</td>"
-  echo "</tr>"
-
+  echo "<tr>" >> examples.html
+  echo -n "<td>" >> examples.html
+  cat $id.txt >> examples.html
+  echo "</td>" >> examples.html
+  echo "</tr>" >> examples.html
+  echo "<tr>" >> examples.html
+  echo "<td><a href=examples/$id.pdf><img src=examples/$id.jpg height=100></a></td>" >> examples.html
+  echo "</tr>" >> examples.html
 done
 
-
+# Create the README.md with the example HTML inside
+sed -e '/REPLACEWITHEXAMPLEHTML/ {' -e 'r examples.html' -e 'd' -e '}' ../README.md.template > ../README.md
 # rm -rf ./tempfiles_to_delete/
