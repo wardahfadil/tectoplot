@@ -9,6 +9,8 @@ If you use this script, please keep an eye on your data and validate any plots a
 
 At present, not all the data files linked in the script are downloadable from original sources. This mainly includes the plate and plate motion models and GPS data, which do need a small amount of customization before use, like splitting polygons that cross the antimeridian, etc.
 
+## Examples
+
 <table>
 <tr>
 <td>Example 1: Four global plots in one PDF
@@ -116,25 +118,25 @@ At present, not all the data files linked in the script are downloadable from or
 <td><a href=examples/example5.pdf><img src=examples/example5.jpg height=100></a></td>
 </tr>
 <tr>
-<td>cat: example5_profile_140_30_8.txt: No such file or directory
-</td>
-</tr>
-<tr>
-<td><a href=examples/example5_profile_140_30_8.pdf><img src=examples/example5_profile_140_30_8.jpg height=100></a></td>
-</tr>
-<tr>
-<td>cat: example5_profile_220_20_5.txt: No such file or directory
-</td>
-</tr>
-<tr>
-<td><a href=examples/example5_profile_220_20_5.pdf><img src=examples/example5_profile_220_20_5.jpg height=100></a></td>
-</tr>
-<tr>
 <td>Example 6: Profile across subduction zone seismicity
 </td>
 </tr>
 <tr>
 <td><a href=examples/example6.pdf><img src=examples/example6.jpg height=100></a></td>
+</tr>
+<tr>
+<td>Example 6b: Oblique perspective of subduction zone seismicity
+</td>
+</tr>
+<tr>
+<td><a href=examples/example6_profile_140_30_8.pdf><img src=examples/example6_profile_140_30_8.jpg height=100></a></td>
+</tr>
+<tr>
+<td>Example 6a: Oblique perspective of subduction zone seismicity
+</td>
+</tr>
+<tr>
+<td><a href=examples/example6_profile_220_20_5.pdf><img src=examples/example6_profile_220_20_5.jpg height=100></a></td>
 </tr>
 <tr>
 <td>Example 7: Large earthquakes of Chile over Bouguer gravity
@@ -157,6 +159,7 @@ At present, not all the data files linked in the script are downloadable from or
 <tr>
 <td><a href=examples/example9.pdf><img src=examples/example9.jpg height=100></a></td>
 </tr>
+
 ```
 
 ### Note:
