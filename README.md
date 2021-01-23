@@ -15,147 +15,147 @@ At present, not all the data files linked in the script are downloadable from or
 </td>
 </tr>
 <tr>
-<td><img src=examples/example1.jpg</td>
+<td><img src=examples/example1.jpg></td>
 </tr>
 <tr>
 <td>Example 10: Litho1 profile / map and profile
 </td>
 </tr>
 <tr>
-<td><img src=examples/example10.jpg</td>
+<td><img src=examples/example10.jpg></td>
 </tr>
 <tr>
 <td>Example 10b: Litho1 perspective diagram
 </td>
 </tr>
 <tr>
-<td><img src=examples/example10_profile_150_40_10.jpg</td>
+<td><img src=examples/example10_profile_150_40_10.jpg></td>
 </tr>
 <tr>
 <td>Example 11: Oceanic crust age
 </td>
 </tr>
 <tr>
-<td><img src=examples/example11.jpg</td>
+<td><img src=examples/example11.jpg></td>
 </tr>
 <tr>
 <td>Example 13: MORVEL57 NNR plate velocities
 </td>
 </tr>
 <tr>
-<td><img src=examples/example13.jpg</td>
+<td><img src=examples/example13.jpg></td>
 </tr>
 <tr>
 <td>Example 14: Large earthquakes near EQ event
 </td>
 </tr>
 <tr>
-<td><img src=examples/example14.jpg</td>
+<td><img src=examples/example14.jpg></td>
 </tr>
 <tr>
 <td>Example 15: Plot custom seismicity/CMT data
 </td>
 </tr>
 <tr>
-<td><img src=examples/example15.jpg</td>
+<td><img src=examples/example15.jpg></td>
 </tr>
 <tr>
 <td>Example 16: Plot CMT from custom NDK file
 </td>
 </tr>
 <tr>
-<td><img src=examples/example16.jpg</td>
+<td><img src=examples/example16.jpg></td>
 </tr>
 <tr>
 <td>Example 18: Oblique Mercator projection
 </td>
 </tr>
 <tr>
-<td><img src=examples/example18.jpg</td>
+<td><img src=examples/example18.jpg></td>
 </tr>
 <tr>
 <td>Example 19: Topography with cast shadows - map
 </td>
 </tr>
 <tr>
-<td><img src=examples/example19.jpg</td>
+<td><img src=examples/example19.jpg></td>
 </tr>
 <tr>
 <td>Example 19: Topography with cast shadows - perspective
 </td>
 </tr>
 <tr>
-<td><img src=examples/example19_oblique.jpg</td>
+<td><img src=examples/example19_oblique.jpg></td>
 </tr>
 <tr>
 <td>Example 2: Two stereographic global plots in one PDF
 </td>
 </tr>
 <tr>
-<td><img src=examples/example2.jpg</td>
+<td><img src=examples/example2.jpg></td>
 </tr>
 <tr>
 <td>Example 3: Regional seismotectonic map with Slab2
 </td>
 </tr>
 <tr>
-<td><img src=examples/example3.jpg</td>
+<td><img src=examples/example3.jpg></td>
 </tr>
 <tr>
 <td>Example 4: GPS velocities and tectonic blocks
 </td>
 </tr>
 <tr>
-<td><img src=examples/example4.jpg</td>
+<td><img src=examples/example4.jpg></td>
 </tr>
 <tr>
 <td>Example 5: Topography and seismicity
 </td>
 </tr>
 <tr>
-<td><img src=examples/example5.jpg</td>
+<td><img src=examples/example5.jpg></td>
 </tr>
 <tr>
 <td>cat: example5_profile_140_30_8.txt: No such file or directory
 </td>
 </tr>
 <tr>
-<td><img src=examples/example5_profile_140_30_8.jpg</td>
+<td><img src=examples/example5_profile_140_30_8.jpg></td>
 </tr>
 <tr>
 <td>cat: example5_profile_220_20_5.txt: No such file or directory
 </td>
 </tr>
 <tr>
-<td><img src=examples/example5_profile_220_20_5.jpg</td>
+<td><img src=examples/example5_profile_220_20_5.jpg></td>
 </tr>
 <tr>
 <td>Example 6: Profile across subduction zone seismicity
 </td>
 </tr>
 <tr>
-<td><img src=examples/example6.jpg</td>
+<td><img src=examples/example6.jpg></td>
 </tr>
 <tr>
 <td>Example 7: Large earthquakes of Chile over Bouguer gravity
 </td>
 </tr>
 <tr>
-<td><img src=examples/example7.jpg</td>
+<td><img src=examples/example7.jpg></td>
 </tr>
 <tr>
 <td>Example 8: Stacked swath profiles
 </td>
 </tr>
 <tr>
-<td><img src=examples/example8.jpg</td>
+<td><img src=examples/example8.jpg></td>
 </tr>
 <tr>
 <td>Example 9: Stacked gravity profiles
 </td>
 </tr>
 <tr>
-<td><img src=examples/example9.jpg</td>
+<td><img src=examples/example9.jpg></td>
 </tr>
 
 ```
