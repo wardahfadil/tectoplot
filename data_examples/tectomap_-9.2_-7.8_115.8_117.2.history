@@ -1,5 +1,0 @@
-tectoplot -t -r 115.8 117.2 -9.2 -7.8 -cn out.nc 1000 --open
-gmt psxy -T -R115.8/117.2/-9.2/-7.8 -JQ115.8/8i -X0i -Y0i -K -Ve
-gmt grdimage topo/colored_hillshade.tif -t0 -R115.8/117.2/-9.2/-7.8 -JQ115.8/8i -O -K -Ve
-gmt grdcontour /Users/kylebradley/Dropbox/scripts/tectoplot/example_data/out.nc -A1000 -C1000 -S100 -W0.1p,black -R115.8/117.2/-9.2/-7.8 -JQ115.8/8i -O -K -Ve
-gmt psbasemap -R115.8/117.2/-9.2/-7.8 -JQ115.8/8i -O -Ve -Bxa0.2g0.2 -Bya0.2g0.2 -BWESN

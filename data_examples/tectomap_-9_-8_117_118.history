@@ -1,4 +1,0 @@
-tectoplot -r out.nc -t out.nc --open
-gmt psxy -T -R117/118/-9/-8 -JQ117/8i -X0i -Y0i -K -Ve
-gmt grdimage topo/colored_hillshade.tif -t0 -R117/118/-9/-8 -JQ117/8i -O -K -Ve
-gmt psbasemap -R117/118/-9/-8 -JQ117/8i -O -Ve -Bxa0.1g0.1 -Bya0.1g0.1 -BWESN
