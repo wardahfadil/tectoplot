@@ -108,7 +108,6 @@ for i in ${MAKENUMS[@]}; do
       echo "Example 6a: Oblique perspective of subduction zone seismicity" > example6_profile_220_20_5.txt
       echo "Example 6b: Oblique perspective of subduction zone seismicity" > example6_profile_140_30_8.txt
 
-
     ;;
 
     7) # Example 7: Seismicity of Chile, SLAB2 contours, texture shaded topography,
@@ -230,6 +229,7 @@ EOF
                 -RJ G -title "MORVEL57 NNR velocity" -pss 4 -author -command  \
                 -o example13
     ;;
+
     14) # Example 14: Extract IDs for large earthquakes within a 1°x1° box surrounding an event,
         # then plot a map of a wider region around that event, labeling only those earthquakes.
       echo "Example 14: Large earthquakes near EQ event" > example14.txt
@@ -239,6 +239,7 @@ EOF
                 -eqlist extract_eqs.txt -eqlabel datemag -o example14
       rm -f extract_eqs.txt
     ;;
+
     15) # Example 15: Use local seismicity and focal mechanism datasets to make a map of Lombok
         # (Data from Lythgoe et al., 2021). Seismicity is in lon lat depth mag format,
         # CMT data are in Aki and Richards (psmeca) format.
@@ -256,6 +257,7 @@ EOF
                   -o example15
       fi
     ;;
+
     16) # Example 16: Plot a focal mechanism database from an NDK file
       echo "Example 16: Plot CMT from custom NDK file" > example16.txt
       if [[ -e ${EXAMPLEDATA}quick.ndk ]]; then
@@ -264,6 +266,7 @@ EOF
         -title "Large QuickCMT earthquakes" -author -command -o example16
       fi
     ;;
+
     17) # Example 17: Convert a focal mechanism from NDK to psmeca moment tensor format
         # without plotting anything.
       if [[ -e ${EXAMPLEDATA}quick.ndk ]]; then
@@ -277,19 +280,23 @@ EOF
         head -n 1 tempfiles_to_delete/focal_mechanisms/cmt.dat
       fi
     ;;
+
     18) # Use an oblique Mercator projection defined by an center point and azimuth
      echo "Example 18: Oblique Mercator projection" > example18.txt
 
       tectoplot -RJ OA -88 12 122 800k 200k -t GEBCO20 -gres 120 -c -cmag 6.5 10 \
                 --legend -inset 1i 20 3.5i 2.7i -author -command -o example18
     ;;
-    19) # Make an oblique view of topography with cast shadows
-      echo "Example 19: Topography with cast shadows - map" > example19.txt
 
-      tectoplot -t -tshad 45 2 -ob 120 20 4 fancy -o example19
+    19) # Make an oblique view of topography with cast shadows, Sentinel cloud
+        # free imagery
+      echo "Example 19: Sentinel imagery on slopesky with cast shadows - map" > example19.txt
+
+      tectoplot -n -r 68 69 29 30 -t BEST --open -pgo -sent 0.8 -tsl -tsky -timg sentinel 0.8 -ob 120 20 3 -o example19
       cp tempfiles_to_delete/oblique.pdf ./example19_oblique.pdf
       echo "Example 19: Topography with cast shadows - perspective" > example19_oblique.txt
     ;;
+
     *)
     echo "Unknown example number $i"
     ;;
