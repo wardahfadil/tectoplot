@@ -20,6 +20,8 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 
 # CHANGELOG
 
+# February 04, 2021: Incomplete rework of DEM/hillshade/etc visualizations
+#                    Added -gls to list GPS plates; fixed path to GPS data
 # January  22, 2021: Added DEM shadowing option (-shade) in shadow_nc.sh, cleaned up code
 # January  13, 2021: Fixed 255>NaN in making topocolor.dat ()
 # January  06, 2021: Updated aprofcodes to work with any projection
@@ -622,18 +624,31 @@ cat <<-EOF
                      03s ~100m | 01s ~30m
                      BEST uses GMRT for elev < 0 and 01s for elev >= 0 (resampled to match GMRT)
     -ts                                                  don't plot shaded relief/topo grid
-    -ti              [off] | [azimuth (°)]               set parameters for grid illumination (GMT shading, not gdalt)
-    -tn              [interval (m)]                      plot topographic contours
     -tr              [[minelev maxelev]]                 rescale CPT using data range or specified limits
     -tc|--cpt        [cptfile]                           use custom cpt file for topo grid
-    -tt|--topotrans  [transparency%]                     transparency of topo grid
+    -tx                                                  don't color topography (plot intensity directly)
+    -tt|--topotrans  [transparency%]                     transparency of final plotted topo grid
     -clipdem                                             save terrain as dem.nc in temporary directory
+
+  Popular recipes for topo visualization
+    -t0              [[sun_el]] [[sun_az]]               single hillshade
+    -t1              [[sun_el]]                          combination multiple hs/slope map
+
+  Build your own topo visualization using these commands in sequence.
+    [[fact]] is the blending factor (0-1) used to combine each layer with existing intensity map
+
+    -tshadow         [[shad_az]] [[shad_el]] [[fact]]    add cast shadows to intensity (fact=opacity)
+    -ttext           [[frac]]   [[stretch]]  [[fact]]    add texture shade to intensity
+    -tmult           [[sun_el]]              [[fact]]    add multiple hillshade to intensity
+    -tuni            [[sun_az]] [[sun_el]]   [[fact]]    add unidirectional hillshade to intensity
+    -tsky            [[num_angles]]          [[fact]]    add sky view factor to intensity
+    -tgam            [[gamma]]                           add gamma correction to intensity
+    -timg            [[alpha]]                           overlay GeoTiff instead of color ramp
+
+    -tn              [interval (m)]                      plot topographic contours
     -gebcotid                                            plot GEBCO TID raster
-    -gdalt           [[gamma (0-1)]] [[% HS (0-1)]]      render colored multiple hillshade using gdal
     -ob              [[az]] [[inc]] [[floor_elev]] [[frame]]   plot oblique view of topography
-                                                         frame="plain|fancy"
-    -shadow          [[az]] [[alt]] [[dark]]             create cast shadows on topography (-gdalt only)
-    -tshade          [frac] [stretch]                    render colored hillshade using texture shader/gdal
+
 
   Additional map layers from downloadable data:
     -a|--coast       [[quality]] [[a,b]] { gmtargs }     plot coastlines [[a]] and borders [[b]]
@@ -655,9 +670,14 @@ cat <<-EOF
                      plot WGM12 gravity. FA = free air | BG == Bouguer | IS = Isostatic
     -vc|--volc                                           plot Pleistocene volcanoes
 
+  Layers from dynamically downloadable datasets:
+    -sent                                                Sentinel cloud free (EOX::Maps at eox.at)
+    -blue                                                NASA Blue Marble (EOX::Maps at eox.at)
+
   GPS velocities:
     -g|--gps         [[RefPlateID]]                      plot GPS data from Kreemer 2014 / rel. to RefPlateID
     -gadd|--extragps [filename]                          plot an additional GPS / psvelo format file
+    -gls                                                 list plate IDs for GPS data and exit
 
   Seismicity:
     -z|--seis        [[scale]]                           plot seismic epicenters (from scraped earthquake data)
@@ -1077,6 +1097,135 @@ function interval_and_subinterval_from_minmax_and_number () {
   #   print intval, intval/md
   # }'
   echo 100 50
+}
+
+### Image processing functions using gdal_calc.py
+
+# out=(A + alpha * (B - A)); = A*(1-alpha)+B*alpha    alpha=1-n   =A*n+B(1-n)
+#     (A*n + B(1-n))
+
+
+function multiply_combine() {
+  if [[ ! -e $2 ]]; then
+    info_msg "Multiply combine: Raster $2 doesn't exist. Copying $1 to $3."
+    cp $1 $3
+  else
+    info_msg "Executing multiply combine of $1 and $2 (1st can be multi-band) . Result=$3."
+    gdal_calc.py --overwrite --quiet -A ${1} -B ${2} --allBands=A --calc="uint8( ( \
+                   (A/255.)*(B/255.)
+                   ) * 255 )" --outfile=${3}
+  fi
+}
+
+function alpha_value() {
+  info_msg "Executing multiply combine of $1 and $2 [0-1]. Result=$3."
+  gdal_calc.py --overwrite --quiet -A ${1} --allBands=A --calc="uint8( ( \
+                 ((A/255.)*(1-$2)+(255/255.)*($2))
+                 ) * 255 )" --outfile=${3}
+}
+
+# function alpha_multiply_combine() {
+#   info_msg "Executing alpha $2 on $1 then multiplying with $3 (1st can be multi-band) . Result=$3."
+#
+# }
+
+function lighten_combine() {
+  info_msg "Executing lighten combine of $1 and $2 (1st can be multi-band) . Result=$3."
+  gdal_calc.py --overwrite --quiet -A ${1} -B ${2} --allBands=A --calc="uint8( ( \
+                 (A>=B)*A/255. + (A<B)*B/255.
+                 ) * 255 )" --outfile=${3}
+}
+
+function lighten_combine_alpha() {
+  info_msg "Executing lighten combine of $1 and $2 (1st can be multi-band)at alpha=$3 . Result=$4."
+  gdal_calc.py --overwrite --quiet -A ${1} -B ${2} --allBands=B --calc="uint8( ( \
+                 (A>=B)*(B/255. + (A/255.-B/255.)*${3}) + (A<B)*B/255.
+                 ) * 255 )" --outfile=${4}
+}
+
+function darken_combine_alpha() {
+  info_msg "Executing lighten combine of $1 and $2 (1st can be multi-band) . Result=$3."
+  gdal_calc.py --overwrite --quiet -A ${1} -B ${2} --allBands=A --calc="uint8( ( \
+                 (A<=B)*A/255. + (A>B)*B/255.
+                 ) * 255 )" --outfile=${3}
+}
+
+function weighted_average_combine() {
+  if [[ ! -e $2 ]]; then
+    info_msg "Weighted average combine: Raster $2 doesn't exist. Copying $1 to $4."
+    cp $1 $4
+  else
+    info_msg "Executing weighted average combine of $1(x$3) and $2(x1-$3) (1st can be multi-band) . Result=$4."
+    gdal_calc.py --overwrite --quiet -A ${1} -B ${2} --allBands=A --calc="uint8( ( \
+                   ((A/255.)*($3)+(B/255.)*(1-$3))
+                   ) * 255 )" --outfile=${4}
+  fi
+}
+
+function gdal_stats {
+  gdalinfo -stats $1 | grep "Minimum=" | awk -F, '{print $1; print $2; print $3; print $4}' | awk -F= '{print $2}'
+}
+
+# function normalize_sigma() {
+#   info_msg "Normalizing raster $1 by $2 sigma to [$3, $4], outputting to $5."
+#   gdal_rstats=($(gdal_stats $1))
+#   r_mean=${gdal_rstats[2]}
+#   r_sd=${gdal_rstats[3]}
+#   r_insd=${2}
+#   echo "${r_mean} - ${r_insd} * ${r_sd}"
+#   echo "${r_mean} + ${r_insd} * ${r_sd}"
+#   r_newmin=$(echo "${r_mean} - ${r_insd} * ${r_sd}" | bc -l)
+#   r_newmax=$(echo "${r_mean} + ${r_insd} * ${r_sd}" | bc -l)
+#
+#   if [[ $(echo "${r_newmin} < 0" | bc -l) -eq 1 ]]; then
+#     r_newmin=0
+#   fi
+#   if [[ $(echo "${r_newmax} > 255" | bc -l) -eq 1 ]]; then
+#     r_newax=255
+#   fi
+#
+# echo   histogram_rescale $1 $r_newmin $r_newmax $3 $4 $5
+#
+#   histogram_rescale $1 $3 $4 $r_newmin $r_newmax $5
+# }
+
+function gamma_stretch() {
+  info_msg "Executing gamma stretch of ($1^(1/(gamma=$2))). Output is $3"
+  gdal_calc.py --overwrite --quiet -A $1 --allBands=A --calc="uint8( ( \
+          (A/255.)**(1/${2})
+          ) * 255 )" --outfile=${3}
+}
+
+# Linearly rescale an image $1 from ($2, $3) to ($4, $5) output to $6
+function histogram_rescale() {
+  gdal_translate -q $1 $6 -scale $2 $3 $4 $5
+}
+
+# Linearly rescale an image $1 from ($2, $3) to ($4, $5), stretch by $6>0, output to $7
+function histogram_rescale_stretch() {
+  gdal_translate -q $1 $7 -scale $2 $3 $4 $5 -exponent $6
+}
+
+# Select cells from $1 within a [$2 $3] value range; else set to $4. Output to $5
+function histogram_select() {
+   gdal_calc.py --overwrite --quiet -A $1 --allBands=A --calc="uint8(( \
+           (A>=${2})*(A<=${3})*(A-$4) + $4
+           ))" --outfile=${5}
+}
+
+# Select cells from $1 within a [$2 $3] value range; set to $4 if so, else set to $5. Output to $6
+function histogram_select_set() {
+   gdal_calc.py --overwrite --quiet -A $1 --allBands=A --calc="uint8(( \
+           (A>=${2})*(A<=${3})*(${4}-${5}) + $5
+           ))" --outfile=${6}
+}
+
+function overlay_combine() {
+  info_msg "Overlay combining $1 and $2. Output is $3"
+  gdal_calc.py --overwrite --quiet -A $1 -B $2 --allBands=A --calc="uint8( ( \
+          (2 * (A/255.)*(B/255.)*(A<128) + \
+          (1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128))/2 \
+          ) * 255 )" --outfile=${3}
 }
 
 # DEFINE FLAGS (only those set to not equal zero are actually important to define)
@@ -1968,7 +2117,7 @@ do
 			GPSID="${2}"
 			info_msg "[-g]: Ovveriding GPS plate ID = ${GPSID}"
 			gpsoverride=1
-			GPS_FILE=`echo $GPS"/GPS_$GPSID.gmt"`
+			GPS_FILE=`echo $GPSDIR"/GPS_$GPSID.gmt"`
 			shift
       echo $GPS_SOURCESTRING >> tectoplot.sources
       echo $GPS_SHORT_SOURCESTRING >> tectoplot.shortsources
@@ -2015,9 +2164,10 @@ do
       info_msg "[-gdalt]: DEM alpha value set to ${DEM_ALPHA}"
       shift
     fi
-    gdemtopoplotflag=1
+    topocolorflag=1
     clipdemflag=1
     gdaltZEROHINGE=1
+    topoctrlstring="cmsg"   # color multi-hs slope
     ;;
 
   -gebcotid)
@@ -2114,7 +2264,6 @@ do
 
     check_and_download_dataset "SW2019" $SANDWELL2019_SOURCEURL "no" $SANDWELLDIR $SANDWELLFREEAIR "none" $SANDWELL2019_bytes "none"
 
-
     # Save the biggest downloads for last.
     check_and_download_dataset "GEBCO20" $GEBCO20_SOURCEURL "yes" $GEBCO20DIR $GEBCO20FILE $GEBCO20DIR"data.zip" $GEBCO20_BYTES $GEBCO20_ZIP_BYTES
     check_and_download_dataset "SRTM30" $SRTM30_SOURCEURL "yes" $SRTM30DIR $SRTM30FILE "none" $SRTM30_BYTES "none"
@@ -2124,6 +2273,14 @@ do
 
     exit 0
     ;;
+
+  -gls)
+      for gpsfile in $(ls ${GPSDIR}/GPS_*.gmt); do
+        echo "$(basename $gpsfile)" | gawk -F_ '{print $2}' | gawk -F. '{print $1}'
+      done
+      exit 0
+    ;;
+
 
   -gmtvars)
     if [[ ${2:0:1} == [{] ]]; then
@@ -3531,6 +3688,28 @@ do
     exit
     ;;
 
+  -sent)
+    SENTINEL_TYPE="s2cloudless-2019"
+
+    if arg_is_positive_float $2; then
+      info_msg "[-sent]: Sentinel image gamma correction set to $2"
+      SENTINEL_GAMMA=${2}
+      shift
+    fi
+    sentineldownloadflag=1
+    ;;
+
+  -blue)
+    SENTINEL_TYPE="bluemarble"
+    if arg_is_positive_float $2; then
+      info_msg "[-blue]: Blue Marble image gamma correction set to $2"
+      SENTINEL_GAMMA=${2}
+      shift
+    fi
+    sentineldownloadflag=1
+    ;;
+
+
   -setup)
     print_help_header
     print_setup
@@ -3556,7 +3735,7 @@ do
     ;;
 
   -shadow)
-    doshadowsflag=1
+    topoctrlstring=${topoctrlstring}"d"
     if arg_is_flag $2; then
       info_msg "[-shadow]: No sun azimuth specified. Using $SUN_AZ"
     else
@@ -3567,12 +3746,6 @@ do
       info_msg "[-shadow]: No sun elevation specified. Using $SUN_EL"
     else
       SUN_EL="${2}"
-      shift
-    fi
-    if arg_is_flag $2; then
-      info_msg "[-shadow]: No dark factor specified. Using $SUN_DARK"
-    else
-      SUN_DARK="${2}"
       shift
     fi
     ;;
@@ -3814,8 +3987,11 @@ do
         shift
       fi
       tshadetopoplotflag=1
+      topocolorflag=1
+
       clipdemflag=1
       tshadeZEROHINGE=1
+      topoctrlstring="cmt"   # color multi-hs texture
       ;;
 
   -ti)
@@ -3901,6 +4077,155 @@ do
     TOPOTRANS=${2}
     shift
     ;;
+
+  -tx) #                                                  don't color topography (plot intensity directly)
+    dontcolortopoflag=1
+    ;;
+
+  # Popular recipes for topo visualization
+  -t0)  #  Slope/50% Multiple hillshade 45°/50% Gamma=1.4
+    topoctrlstring="msg"
+    useowntopoctrlflag=1
+    SLOPE_FACT=0.5
+    HS_GAMMA=1.4
+    HS_ALT=45
+    ;;
+
+  -t1)  #            [[sun_el]]                          combination multiple hs/slope map
+    ;;
+  #Build your own topo visualization using these commands in sequence.
+  #  [[fact]] is the blending factor (0-1) used to combine each layer with existing intensity map
+
+  -tshad) #         [[sun_az]] [[sun_el]]   [[fact]]    add cast shadows to intensity (fact=opacity)
+    if arg_is_float $2; then   # first arg is a number
+      SUN_AZ="$2"
+      shift
+    fi
+    if arg_is_positive_float $2; then   #
+      SUN_EL=${2}
+      shift
+    fi
+    if arg_is_float $2; then
+      SHADOW_FACT=$2
+      shift
+    fi
+    info_msg "[-tshad]: Sun azimuth=${SUN_AZ}; elevation=${SUN_EL}; combine factor=${SHADOW_FACT}"
+    topoctrlstring=${topoctrlstring}"d"
+    useowntopoctrlflag=1
+    ;;
+
+  -ttext) #           [[frac]]   [[stretch]]  [[fact]]    add texture shade to intensity
+    if arg_is_positive_float $2; then   #
+      TS_FRAC=${2}
+      shift
+    fi
+    if arg_is_positive_float $2; then   #
+      TS_STRETCH=${2}
+      shift
+    fi
+    if arg_is_positive_float $2; then   #
+      TS_FACT=${2}
+      shift
+    fi
+    info_msg "[-ttext]: Texture detail=${TS_FRAC}; contrast stretch=${TS_STRETCH}; combine factor=${TS_FACT}"
+    topoctrlstring=${topoctrlstring}"t"
+    useowntopoctrlflag=1
+    ;;
+
+  -tmult) #           [[sun_el]]              [[fact]]    add multiple hillshade to intensity
+    if arg_is_positive_float $2; then   #
+      HS_ALT=${2}
+      shift
+    fi
+    if arg_is_float $2; then
+      MULTIHS_FACT=$2
+      shift
+    fi
+    info_msg "[-tmult]: Sun elevation=${SUN_EL}; combine factor=${MULTIHS_FACT}"
+    topoctrlstring=${topoctrlstring}"m"
+    useowntopoctrlflag=1
+    ;;
+
+  -tuni) #            [[sun_az]] [[sun_el]]   [[fact]]    add unidirectional hillshade to intensity
+    if arg_is_float $2; then   # first arg is a number
+      HS_AZ="$2"
+      shift
+    fi
+    if arg_is_positive_float $2; then   #
+      HS_ALT=${2}
+      shift
+    fi
+    if arg_is_float $2; then
+      UNIHS_FACT=$2
+      shift
+    fi
+    info_msg "[-tuni]: Sun azimuth=${SUN_AZ}; elevation=${SUN_EL}; combine factor=${UNIHS_FACT}"
+    topoctrlstring=${topoctrlstring}"h"
+    useowntopoctrlflag=1
+    ;;
+
+  -tsky) #            [[num_angles]]          [[fact]]    add sky view factor to intensity
+    if arg_is_float $2; then   # first arg is a number
+      NUM_ANGLES="$2"
+      shift
+    fi
+    if arg_is_float $2; then
+      SKYVIEW_FACT=$2
+      shift
+    fi
+    info_msg "[-tsky]: Number of angles=${NUM_ANGLES}; combine factor=${SKYVIEW_FACT}"
+    topoctrlstring=${topoctrlstring}"v"
+    useowntopoctrlflag=1
+    ;;
+
+  -tsl)
+    if arg_is_float $2; then
+      SLOPE_FACT=$2
+      shift
+    fi
+    info_msg "[-tsl]: Combine factor=${SLOPE_FACT}"
+
+    topoctrlstring=${topoctrlstring}"s"
+    useowntopoctrlflag=1
+    ;;
+
+  -ttri)
+    topoctrlstring=${topoctrlstring}"i"
+    useowntopoctrlflag=1
+    ;;
+
+  -timg)
+    if arg_is_flag $2; then
+      info_msg "[-timg]: No image given. Ignoring."
+    else
+      if [[ $2 == "sentinel" ]]; then
+        P_IMAGE="./sentinel.tif"
+        shift
+      else
+        P_IMAGE=$(abs_path ${2})
+        shift
+      fi
+      topoctrlstring=${topoctrlstring}"p"
+      useowntopoctrlflag=1
+    fi
+    if arg_is_positive_float $2; then
+      IMAGE_FACT=$2
+      shift
+    fi
+
+    ;;
+
+  -tgam) #            [gamma]                           add gamma correction to intensity
+    if arg_is_positive_float $2; then
+      HS_GAMMA=$2
+      shift
+    else
+      info_msg "[-tgam]: Positive number expected. Using ${HS_GAMMA}."
+    fi
+    topoctrlstring=${topoctrlstring}"g"
+    useowntopoctrlflag=1
+    ;;
+
 
 	-v|--gravity) # args: string number
 		GRAVMODEL="${2}"
@@ -4582,6 +4907,52 @@ legendwords=${plots[@]}
 MSG=$(echo ">>>>>>>>> Legend order is ${legendwords[@]} <<<<<<<<<<<<<")
 [[ $narrateflag -eq 1 ]] && echo $MSG
 
+
+################################################################################
+#####         Download Sentinel image                                      #####
+################################################################################
+
+
+if [[ $sentineldownloadflag -eq 1 ]]; then
+  SENT_RES=4096
+  LONDIFF=$(echo "${MAXLON} - ${MINLON}" | bc -l)
+  LATDIFF=$(echo "${MAXLAT} - ${MINLAT}" | bc -l)
+
+  if [[ $(echo "${LATDIFF} > ${LONDIFF}" | bc) -eq 1 ]]; then
+    # Taller than wide
+    SENT_YRES=$SENT_RES
+    SENT_XRES=$(echo $SENT_RES ${LATDIFF} ${LONDIFF} | gawk '
+      {
+        printf("%d", $1*$3/$2)
+      }
+      ')
+  else
+    # Wider than tall
+    SENT_XRES=$SENT_RES
+    SENT_YRES=$(echo $SENT_RES ${LATDIFF} ${LONDIFF} | gawk '
+      {
+        printf("%d", $1*$2/$3)
+      }
+      ')
+  fi
+
+  curl "https://tiles.maps.eox.at/wms?service=wms&request=getmap&version=1.1.1&layers=${SENTINEL_TYPE}&bbox=${MINLON},${MINLAT},${MAXLON},${MAXLAT}&width=$SENT_XRES&height=$SENT_YRES&srs=epsg:4326" > sentinel.jpg
+
+  # Create world file for JPG
+  echo "$LONDIFF / $SENT_XRES" | bc -l > sentinel.jgw
+  echo "0" >> sentinel.jgw
+  echo "0" >> sentinel.jgw
+  echo "- (${LATDIFF}) / $SENT_YRES" | bc -l >> sentinel.jgw
+  echo "$MINLON" >> sentinel.jgw
+  echo "$MAXLAT" >> sentinel.jgw
+
+  gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} -of GTiff sentinel.jpg sentinel.tif
+
+  echo $SENTINEL_SOURCESTRING >> tectoplot.sources
+  echo $SENTINEL_SHORT_SOURCESTRING >> tectoplot.shortsources
+
+fi
+
 ################################################################################
 #####          Manage SLAB2 data                                           #####
 ################################################################################
@@ -4813,8 +5184,6 @@ if [[ $gridcontourcalcflag -eq 1 ]]; then
   zrange=$(grid_zrange $CONTOURGRID -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
   MINCONTOUR=$(echo $zrange | gawk  '{print $1}')
   MAXCONTOUR=$(echo $zrange | gawk  '{print $2}')
-  # MINCONTOUR=$(gmt grdinfo $CONTOURGRID -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_min" | cut -d ":" -f 3 | gawk  '{print $1}')
-  # MAXCONTOUR=$(gmt grdinfo $CONTOURGRID -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_max" | cut -d ":" -f 4 | gawk  '{print $1}')
   CONTOURINTGRID=$(echo "($MAXCONTOUR - $MINCONTOUR) / $CONTOURNUMDEF" | bc -l)
   if [[ $(echo "$CONTOURINTGRID > 1" | bc -l) -eq 1 ]]; then
     CONTOURINTGRID=$(echo "$CONTOURINTGRID / 1" | bc)
@@ -4826,8 +5195,6 @@ if [[ $topocontourcalcflag -eq 1 ]]; then
   zrange=$(grid_zrange $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
   MINCONTOUR=$(echo $zrange | gawk  '{print $1}')
   MAXCONTOUR=$(echo $zrange | gawk  '{print $2}')
-  # MINCONTOUR=$(gmt grdinfo $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_min" | cut -d ":" -f 3 | gawk  '{print $1}')
-  # MAXCONTOUR=$(gmt grdinfo $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep "z_max" | cut -d ":" -f 4 | gawk  '{print $1}')
   TOPOCONTOURINT=$(echo "($MAXCONTOUR - $MINCONTOUR) / $TOPOCONTOURNUMDEF" | bc -l)
   if [[ $(echo "$TOPOCONTOURINT > 1" | bc -l) -eq 1 ]]; then
     TOPOCONTOURINT=$(echo "$TOPOCONTOURINT / 1" | bc)
@@ -6066,9 +6433,6 @@ for cptfile in ${cpts[@]} ; do
         info_msg "Grav raster range is: $zrange"
         MINZ=$(echo $zrange | gawk  '{print int($1/100)*100}')
         MAXZ=$(echo $zrange | gawk  '{print int($2/100)*100}')
-        # MINZ=$(gmt grdinfo $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep z_min | gawk  '{ print int($3/100)*100 }')
-        # MAXZ=$(gmt grdinfo $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE | grep z_min | gawk  '{print int($5/100)*100}')
-        # echo MINZ MAXZ $MINZ $MAXZ
         # GRAVCPT is set by the type of gravity we selected (BG, etc) and is not the same as GRAV_CPT
         info_msg "Rescaling gravity CPT to $MINZ/$MAXZ"
         gmt makecpt -C$GRAVCPT -T$MINZ/$MAXZ $VERBOSE > $GRAV_CPT
@@ -6116,7 +6480,17 @@ for cptfile in ${cpts[@]} ; do
       ;;
 
     topo)
-      info_msg "Plotting topo from $BATHY"
+
+
+      if [[ $useowntopoctrlflag -eq 0 ]]; then
+        topoctrlstring=$DEFAULT_TOPOCTRL
+      fi
+      if [[ $dontcolortopoflag -eq 0 ]]; then
+        info_msg "Adding color stretch to topoctrlstring"
+        topoctrlstring=${topoctrlstring}"c"
+      fi
+
+      info_msg "Plotting topo from $BATHY: control string is ${topoctrlstring}"
       touch $TOPO_CPT
       TOPO_CPT=$(abs_path $TOPO_CPT)
       if [[ customgridcptflag -eq 1 ]]; then
@@ -6130,10 +6504,6 @@ for cptfile in ${cpts[@]} ; do
         zrange=$(grid_zrange $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
         MINZ=$(echo $zrange | gawk  '{printf "%d\n", $1}')
         MAXZ=$(echo $zrange | gawk  '{printf "%d\n", $2}')
-        # # MINZ=$(gmt grdinfo $BATHY ${VERBOSE} | grep z_min | gawk  '{ print int($3/100)*100 }')
-        # # MAXZ=$(gmt grdinfo $BATHY ${VERBOSE} | grep z_min | gawk  '{print int($5/100)*100}')
-        # MINZ=$(gmt grdinfo -L $BATHY ${VERBOSE} | grep z_min | gawk  '{ print $3 }')
-        # MAXZ=$(gmt grdinfo -L $BATHY ${VERBOSE} | grep z_min | gawk  '{ print $5 }')
         info_msg "Rescaling topo $BATHY with CPT to $MINZ/$MAXZ with hinge at 0"
         gmt makecpt -Fr -C$TOPO_CPT_DEF -T$MINZ/$MAXZ/${TOPO_CPT_DEF_STEP}  ${VERBOSE} > topotmp.cpt
         mv topotmp.cpt $TOPO_CPT
@@ -6702,7 +7072,7 @@ for plot in ${plots[@]} ; do
           gawk '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' < gps.txt > gps.xy
           GPSMAXVEL=$(gawk < gps.xy 'BEGIN{ maxv=0 } {if ($4>maxv) { maxv=$4 } } END {print maxv}')
     		else
-  				info_msg "No relevant GPS data available for given plate model"
+  				info_msg "No relevant GPS data available for given plate model ($GPS_FILE)"
   				GPS_FILE="None"
   			fi
       fi
@@ -7716,6 +8086,24 @@ for plot in ${plots[@]} ; do
         mv dem_no_nan.nc ${F_TOPO}dem.nc
       fi
 
+      # If we are visualizing Sentinel imagery, upsample DEM to suit sentinel.tif
+      if [[ ${topoctrlstring} =~ .*p.* && ${P_IMAGE} =~ "sentinel.tif" ]]; then
+          # Absolute path is needed here as GMT 6.1.1 breaks for a relative path... BUG
+          sentinel_dim=($(gmt grdinfo ./sentinel.tif -C -L -Vn))
+          sent_dimx=${sentinel_dim[9]}
+          sent_dimy=${sentinel_dim[10]}
+          info_msg "Rescaling DEM to match downloaded Sentinel texture"
+          gdalwarp -r bilinear -of NetCDF -q -te ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -ts ${sent_dimx} ${sent_dimy} ${F_TOPO}dem.nc ${F_TOPO}dem_warp.nc
+          mv ${F_TOPO}dem_warp.nc ${F_TOPO}dem.nc
+      fi
+
+      if [[ $SMOOTHGRID -eq 1 ]]; then
+        info_msg "Smoothing grid before DEM calculations"
+        # Not implemented
+      fi
+
+      CELL_SIZE=$(gmt grdinfo -C ${F_TOPO}dem.nc -Vn | awk '{print $8}')
+      info_msg "Grid cell size = ${CELL_SIZE}"
       # We now do all color ramps via gdaldem and derive intensity maps from
       # the selected procedures. We fuse them using gdal_calc.py. This gives us
       # a more streamlined process for managing CPTs, etc.
@@ -7752,185 +8140,207 @@ for plot in ${plots[@]} ; do
         gawk < $TOPO_CPT '{ print $1, $2 }' | tr '/' ' ' > ${F_CPTS}topocolor.dat
       fi
 
-      # If we are doing hillshading by the GDAL-only method
-      if [[ $gdemtopoplotflag -eq 1 ]]; then
-        # # DEM will have been clipped already
-        # # if [[ $gdaltZEROHINGE -eq 1 ]]; then
-        # #   # We need to make a gdal color file that respects the CPT hinge value (usually 0)
-        # #   # gdaldem is a bit funny about coloring around the hinge, so do some magic to make
-        # #   # the color from land not bleed to the hinge elevation.
-        # #   CPTHINGE=0
-        # #   gawk < $TOPO_CPT -v hinge=$CPTHINGE '{
-        # #     if ($1 != "B" && $1 != "F" && $1 != "N" ) {
-        # #       if (count==1) {
-        # #         print $1+0.01, $2
-        # #         count=2
-        # #       } else {
-        # #         print $1, $2
-        # #       }
-        # #
-        # #       if ($3 == hinge) {
-        # #         if (count==0) {
-        # #           print $3-0.0001, $4
-        # #           count=1
-        # #         }
-        # #       }
-        # #     }
-        # #     }' | tr '/' ' ' > ${F_CPTS}topocolor.dat
-        # # else
-        # #   gawk < $TOPO_CPT '{ print $1, $2 }' | tr '/' ' ' > ${F_CPTS}topocolor.dat
-        # # fi
-        #
-        # # Calculate the color stretch
-        #
-        # # Calculate the multidirectional hillshade
-        # gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s 111120 ${F_TOPO}dem.nc hs_md.tif -q
-        # # gdaldem hillshade -combined -s 111120 ${F_TOPO}dem.nc hs_c.tif -q
-        #
-        # # Clip the hillshade to reduce extreme bright and extreme dark areas
-        #
-        #
-        # # Calculate the slope and shade the data
-        # gdaldem slope -compute_edges -s 111120 ${F_TOPO}dem.nc slope.tif -q
-        # echo "0 255 255 255" > slope.txt
-        # echo "90 0 0 0" >> slope.txt
-        # gdaldem color-relief slope.tif slope.txt slopeshade.tif -q
-        #
-        # # A hillshade is mostly gray (127) while a slope map is mostly white (255)
-        #
-        # # Combine the hillshade and slopeshade into a blended, gamma corrected image
-        # HSSLOPEBLEND=0.5
-        # gdal_calc.py --quiet -A hs_md.tif -B slopeshade.tif --outfile=intensity.tif --calc="uint8( ( ((A/255.)*(${HSSLOPEBLEND}) + (B/255.)*(1-${HSSLOPEBLEND}) ) )**(1/${HS_GAMMA}) * 255)"
+      demwidth=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $10}')
+      demheight=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $11}')
+      demxmin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $2}')
+      demxmax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $3}')
+      demymin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $4}')
+      demymax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $5}')
 
-        gdaldem hillshade -multidirectional -compute_edges -alt ${HS_ALT} -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}hillshade.tif -q
+      # ########################################################################
+      # Create and render a colored shaded relief map using a topoctrlstring
+      # command string = "csmhvdtg"
+      #
+
+      # c = color stretch  [ DEM_ALPHA CPT_NAME HINGE_VALUE HIST_EQ ]    [MULTIPLY]
+      # s = slope map                                                    [WEIGHTED AVE]
+      # m = multiple hillshade (gdaldem)  [ SUN_ELEV ]                   [WEIGHTED AVE]
+      # h = unidirectional hillshade (gdaldem)  [ SUN_ELEV SUN_AZ ]      [WEIGHTED AVE]
+      # v = sky view factor                                              [WEIGHTED AVE]
+      # i = terrain ruggedness index                                     [WEIGHTED AVE]
+      # d = cast shadows [ SUN_ELEV SUN_AZ ]                             [MULTIPLY]
+      # t = texture shade [ TFRAC TSTRETCH ]                             [WEIGHTED AVE]
+      # g = stretch/gamma on intensity [ HS_GAMMA ]                      [DIRECT]
+      # p = use TIFF image instead of color stretch
+
+      while read -n1 character; do
+        case $character in
+
+        i)
+          info_msg "Calculating terrain ruggedness index"
+          gdaldem TRI -q -of NetCDF ${F_TOPO}dem.nc ${F_TOPO}tri.nc
+          zrange=$(grid_zrange ${F_TOPO}tri.nc -C -Vn)
+          gdal_translate -of GTiff -ot Byte -a_nodata 0 -scale ${zrange[0]} ${zrange[1]} 254 1 ${F_TOPO}tri.nc ${F_TOPO}tri.tif -q
+          weighted_average_combine ${F_TOPO}tri.tif ${F_TOPO}intensity.tif ${TRI_FACT} ${F_TOPO}intensity.tif
+        ;;
+
+        t)
+          info_msg "Calculating and rendering texture map"
+
+          # Calculate the texture shade
+          # Project from WGS1984 to Mercator / HDF format
+          # The -dstnodata option is a kluge to get around unknown NaNs in dem.flt even if ${F_TOPO}dem.nc has NaNs filled.
+          [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${F_TOPO}dem.nc ${F_TOPO}dem.flt -q
+
+          # texture the DEM. Pipe output to /dev/null to silence the program
+          if [[ $(echo "$MAXLAT >= 90" | bc) -eq 1 ]]; then
+            MERCMAXLAT=89.999
+          else
+            MERCMAXLAT=$MAXLAT
+          fi
+          if [[ $(echo "$MINLAT <= -90" | bc) -eq 1 ]]; then
+            MERCMINLAT=-89.999
+          else
+            MERCMINLAT=$MINLAT
+          fi
+
+          ${TEXTURE} ${TS_FRAC} ${F_TOPO}dem.flt ${F_TOPO}texture.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
+          # make the image. Pipe output to /dev/null to silence the program
+          ${TEXTURE_IMAGE} +${TS_STRETCH} ${F_TOPO}texture.flt ${F_TOPO}texture_merc.tif > /dev/null
+          # project back to WGS1984
+
+          gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}texture_merc.tif ${F_TOPO}texture_2byte.tif -q
+
+          # Change to 8 bit unsigned format
+          gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 ${F_TOPO}texture_2byte.tif ${F_TOPO}texture.tif -q
+          cleanup ${F_TOPO}texture_2byte.tif ${F_TOPO}texture_merc.tif ${F_TOPO}dem.flt ${F_TOPO}dem.hdr ${F_TOPO}dem.flt.aux.xml ${F_TOPO}dem.prj ${F_TOPO}texture.flt ${F_TOPO}texture.hdr ${F_TOPO}texture.prj ${F_TOPO}texture_merc.prj ${F_TOPO}texture_merc.tfw
+
+          # Combine it with the existing intensity
+          weighted_average_combine ${F_TOPO}texture.tif ${F_TOPO}intensity.tif ${TS_FACT} ${F_TOPO}intensity.tif
+        ;;
+
+        m)
+          info_msg "Creating multidirectional hillshade"
+          gdaldem hillshade -multidirectional -compute_edges -alt ${HS_ALT} -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}multiple_hillshade.tif -q
+          weighted_average_combine ${F_TOPO}multiple_hillshade.tif ${F_TOPO}intensity.tif ${MULTIHS_FACT} ${F_TOPO}intensity.tif
+        ;;
+
+        # Compute and render a one-sun hillshade
+        h)
+          info_msg "Creating unidirectional hillshade"
+          gdaldem hillshade -compute_edges -alt ${HS_ALT} -az ${HS_AZ} -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}single_hillshade.tif -q
+          weighted_average_combine ${F_TOPO}single_hillshade.tif ${F_TOPO}intensity.tif ${UNI_FACT} ${F_TOPO}intensity.tif
+        ;;
 
         # Compute and render the slope map
-        gdaldem slope -compute_edges -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}slopedeg.tif -q
-        echo "0 255 255 255" > ${F_TOPO}slope.txt
-        echo "90 0 0 0" >> ${F_TOPO}slope.txt
-        gdaldem color-relief ${F_TOPO}slopedeg.tif ${F_TOPO}slope.txt ${F_TOPO}slope.tif -q
+        s)
+          info_msg "Creating slope map"
+          gdaldem slope -compute_edges -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}slopedeg.tif -q
+          echo "5 254 254 254" > ${F_TOPO}slope.txt
+          echo "80 30 30 30" >> ${F_TOPO}slope.txt
+          gdaldem color-relief ${F_TOPO}slopedeg.tif ${F_TOPO}slope.txt ${F_TOPO}slope.tif -q
+          weighted_average_combine ${F_TOPO}slope.tif ${F_TOPO}intensity.tif ${SLOPE_FACT} ${F_TOPO}intensity.tif
+        ;;
+
+        # Compute and render the sky view factor
+        v)
+          info_msg "Creating sky view factor"
 
 
-        if [[ $doshadowsflag -eq 1 ]]; then
-          # Compute and render the shadow map
-          shadow_nc.sh ${F_TOPO}dem.nc ${F_TOPO}shadow.nc ${SUN_AZ} ${SUN_EL}
-          shadowrange=$(gmt grdinfo ${F_TOPO}shadow.nc -C -L -Vn | awk '{print $7}')
+          [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${F_TOPO}dem.nc ${F_TOPO}dem.flt -q
 
-          echo "0 254 254 254" > ${F_TOPO}shadow.txt
-          echo "${SUN_DARK} 0 0 0" >> ${F_TOPO}shadow.txt
-          gdaldem color-relief ${F_TOPO}shadow.nc ${F_TOPO}shadow.txt ${F_TOPO}shadow.tif -q
+          # texture the DEM. Pipe output to /dev/null to silence the program
+          if [[ $(echo "$MAXLAT >= 90" | bc) -eq 1 ]]; then
+            MERCMAXLAT=89.999
+          else
+            MERCMAXLAT=$MAXLAT
+          fi
+          if [[ $(echo "$MINLAT <= -90" | bc) -eq 1 ]]; then
+            MERCMINLAT=-89.999
+          else
+            MERCMINLAT=$MINLAT
+          fi
 
-          # Combine slope and shadow
-          gdal_calc.py --overwrite --quiet -A ${F_TOPO}slope.tif -B ${F_TOPO}shadow.tif --allBands=B --outfile=${F_TOPO}slopeshadow.tif --calc="uint8(255*((A/255.)*(B/255.))) "
+          # start_time=`date +%s`
+          ${SVF} ${NUM_SVF_ANGLES} ${F_TOPO}dem.flt ${F_TOPO}svf.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
+          # echo run time is $(expr `date +%s` - $start_time) s
+          # project back to WGS1984
+          gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}svf.flt ${F_TOPO}svf_back.tif -q
 
-          # Combine hillshade and slopeshadow using multiply, then apply gamma stretch
-          gdal_calc.py --overwrite --quiet -A ${F_TOPO}hillshade.tif -B ${F_TOPO}slopeshadow.tif --allBands=B --outfile=${F_TOPO}intensity.tif --calc="uint8(255 * ((A/255.)*(B/255.))**(1/${HS_GAMMA}))"
-        else
-          # Combine hillshade and slope using multiply, then apply gamma stretch
-          gdal_calc.py --overwrite --quiet -A ${F_TOPO}hillshade.tif -B ${F_TOPO}slope.tif --allBands=B --outfile=${F_TOPO}intensity.tif --calc="uint8(255 * ((A/255.)*(B/255.))**(1/${HS_GAMMA}))"
-        fi
+          # Change to 8 bit unsigned format
+          gdal_translate -of GTiff -ot Byte -scale 1 -1 1 254 ${F_TOPO}svf_back.tif ${F_TOPO}svf.tif -q
 
-      elif [[ $tshadetopoplotflag -eq 1 ]]; then
-        # fill NaNs
+          # Combine it with the existing intensity
+          weighted_average_combine ${F_TOPO}svf.tif ${F_TOPO}intensity.tif ${SKYVIEW_FACT} ${F_TOPO}intensity.tif
+        ;;
 
-        # Code is failing when a global raster has (for example) -70:280 longitude extent
-        # This happens when plotting a global grid with a different meridian
+        # Compute and render the cast shadows
+        d)
+          info_msg "Creating cast shadow map"
 
+          [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${F_TOPO}dem.nc ${F_TOPO}dem.flt -q
 
-        # Calculate the color stretch
-        # gdaldem color-relief ${F_TOPO}dem.nc  ${F_CPTS}topocolor.dat ${F_TOPO}colordem.tif -q
+          # texture the DEM. Pipe output to /dev/null to silence the program
+          if [[ $(echo "$MAXLAT >= 90" | bc) -eq 1 ]]; then
+            MERCMAXLAT=89.999
+          else
+            MERCMAXLAT=$MAXLAT
+          fi
+          if [[ $(echo "$MINLAT <= -90" | bc) -eq 1 ]]; then
+            MERCMINLAT=-89.999
+          else
+            MERCMINLAT=$MINLAT
+          fi
 
-        # Get the size of the ${F_TOPO}dem.nc raster
-        demwidth=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $10}')
-        demheight=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $11}')
-        demxmin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $2}')
-        demxmax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $3}')
-        demymin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $4}')
-        demymax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $5}')
+          ${SHADOW} ${SUN_AZ} ${SUN_EL} ${F_TOPO}dem.flt ${F_TOPO}shadow.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
+          # project back to WGS1984
 
-        # Calculate the texture shade
-        # Project from WGS1984 to Mercator / HDF format
-        # The -dstnodata option is a kluge to get around unknown NaNs in dem.flt even if ${F_TOPO}dem.nc has NaNs filled.
-        gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${F_TOPO}dem.nc ${F_TOPO}dem.flt -q
-        gdalwarp -if netCDF -of netCDF -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -ts $demwidth $demheight ${F_TOPO}dem.nc ${F_TOPO}demwarp.nc -q
+          gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}shadow.flt ${F_TOPO}shadow_back.tif -q
 
-        # -ts <width> <height>
+          MAX_SHADOW=$(grep "max_value" ${F_TOPO}shadow.hdr | gawk '{print $2}')
 
-        # texture the DEM. Pipe output to /dev/null to silence the program
-        if [[ $(echo "$MAXLAT >= 90" | bc) -eq 1 ]]; then
-          MERCMAXLAT=89.999
-        else
-          MERCMAXLAT=$MAXLAT
-        fi
-        if [[ $(echo "$MINLAT <= -90" | bc) -eq 1 ]]; then
-          MERCMINLAT=-89.999
-        else
-          MERCMINLAT=$MINLAT
-        fi
+          # Change to 8 bit unsigned format
+          gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale $MAX_SHADOW 0 1 254 ${F_TOPO}shadow_back.tif ${F_TOPO}shadow.tif -q
 
-        ${TEXTURE} ${TS_FRAC} ${F_TOPO}dem.flt ${F_TOPO}texture.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
-        # make the image. Pipe output to /dev/null to silence the program
-        ${TEXTURE_IMAGE} +${TS_STRETCH} ${F_TOPO}texture.flt ${F_TOPO}texture_merc.tif > /dev/null
-        # project back to WGS1984
+          # Combine it with the existing intensity
+          multiply_combine ${F_TOPO}shadow.tif ${F_TOPO}intensity.tif ${F_TOPO}intensity.tif
+        ;;
 
-        gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}texture_merc.tif ${F_TOPO}texture_2byte.tif -q
+        # Rescale and gamma correct the intensity layer
+        g)
+          zrange=$(grid_zrange ${F_TOPO}intensity.tif -C -Vn)
+          histogram_rescale_stretch ${F_TOPO}intensity.tif ${zrange[0]} ${zrange[1]} 1 254 $HS_GAMMA ${F_TOPO}intensity_cor.tif
+          mv ${F_TOPO}intensity_cor.tif ${F_TOPO}intensity.tif
+        ;;
 
-        # Change to 8 bit unsigned format
-        gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 ${F_TOPO}texture_2byte.tif ${F_TOPO}texture.tif -q
-        # Calculate the multidirectional hillshade
-        gdaldem hillshade -compute_edges -multidirectional -alt ${HS_ALT} -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}hs_md.tif -q
+        esac
+      done < <(echo -n "$topoctrlstring")
 
+      INTENSITY_RELIEF=${F_TOPO}intensity.tif
 
-        if [[ $doshadowsflag -eq 1 ]]; then
-          # Compute and render the shadow map
-          shadow_nc.sh ${F_TOPO}dem.nc ${F_TOPO}shadow.nc ${SUN_AZ} ${SUN_EL}
-          shadowrange=$(gmt grdinfo ${F_TOPO}shadow.nc -C -L -Vn | awk '{print $7}')
+      if [[ ${topoctrlstring} =~ .*p.* ]]; then
+          dem_dim=($(gmt grdinfo ${F_TOPO}dem.nc -C -L -Vn))
+          dem_dimx=${dem_dim[9]}
+          dem_dimy=${dem_dim[10]}
+          info_msg "Rendering georeferenced RGB image ${P_IMAGE} as colored texture."
+          if [[ ${P_IMAGE} =~ "sentinel.tif" ]]; then
+            info_msg "Rendering Sentinel image"
+            gdalwarp -q -te ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -ts ${dem_dimx} ${dem_dimy} sentinel.tif ${F_TOPO}image_pre.tif
+            histogram_rescale_stretch ${F_TOPO}image_pre.tif 1 180 1 254 ${SENTINEL_GAMMA} ${F_TOPO}image.tif
+          else
+            gdalwarp -q -te ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -ts ${dem_dimx} ${dem_dimy} ${P_IMAGE} ${F_TOPO}image.tif
+          fi
+          # weighted_average_combine ${F_TOPO}image.tif ${F_TOPO}intensity.tif ${IMAGE_FACT} ${F_TOPO}intensity.tif
+          multiply_combine ${F_TOPO}image.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
+          INTENSITY_RELIEF=${F_TOPO}colored_intensity.tif
+      fi
 
-          echo "0 254 254 254" > ${F_TOPO}shadow.txt
-          echo "${SUN_DARK} 0 0 0" >> ${F_TOPO}shadow.txt
-          gdaldem color-relief ${F_TOPO}shadow.nc ${F_TOPO}shadow.txt ${F_TOPO}shadow.tif -q
-
-          # Combine hillshade and shadow
-          gdal_calc.py --overwrite --quiet -A ${F_TOPO}hs_md.tif -B ${F_TOPO}shadow.tif --allBands=B --outfile=${F_TOPO}hsshadow.tif --calc="uint8(255*((A/255.)*(B/255.))) "
-
-          # Combine the hillshade and texture into a blended, gamma corrected image
-          # (A+B)/2
-          gdal_calc.py --quiet -A ${F_TOPO}hsshadow.tif -B ${F_TOPO}texture.tif --outfile=${F_TOPO}intensity.tif --calc="uint8( ( ((A/255.)*(${TS_TEXTUREBLEND}) + (B/255.)*(1-${TS_TEXTUREBLEND}) ) )**(1/${TS_GAMMA}) * 255)"
-        else
-          # Combine the hillshade and texture into a blended, gamma corrected image
-          # (A+B)/2
-          gdal_calc.py --quiet -A ${F_TOPO}hs_md.tif -B ${F_TOPO}texture.tif --outfile=${F_TOPO}intensity.tif --calc="uint8( ( ((A/255.)*(${TS_TEXTUREBLEND}) + (B/255.)*(1-${TS_TEXTUREBLEND}) ) )**(1/${TS_GAMMA}) * 255)"
-        fi
-
-        # Try a screen mode (1-(1-A)(1-B))
-        # gdal_calc.py --quiet -A hs_md.tif -B texture.tif --outfile=intensity.tif --calc="uint8(255 * (1-(1-A/255.)*(1-B/255.))**(1/${TS_GAMMA}))"
-
-        # Multiply : A*B
-        # gdal_calc.py --quiet -A hs_md.tif -B texture.tif --outfile=intensity.tif --calc="uint8(255 * ((A/255.)*(B/255.))**(1/${TS_GAMMA}))"
+      if [[ ${topoctrlstring} =~ .*c.* && ! ${topoctrlstring} =~ .*p.* ]]; then
+        info_msg "Creating and blending color stretch (alpha=$DEM_ALPHA)."
+        gdaldem color-relief ${F_TOPO}dem.nc ${F_CPTS}topocolor.dat ${F_TOPO}colordem.tif -q
+        alpha_value ${F_TOPO}colordem.tif ${DEM_ALPHA} ${F_TOPO}colordem_alpha.tif
+        multiply_combine ${F_TOPO}colordem_alpha.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
+        COLORED_RELIEF=${F_TOPO}colored_intensity.tif
       else
-        # make regular hillshade intensity file here and apply the gamma stretch
-        gdaldem hillshade -compute_edges -alt ${HS_ALT} -az ${HS_AZ} -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}intensity_nostretch.tif -q
-
-        gdal_calc.py --quiet -A ${F_TOPO}intensity_nostretch.tif --outfile=${F_TOPO}intensity.tif --calc="uint8( ( (A/255.)**(1/${HS_GAMMA})) * 255)"
+        COLORED_RELIEF=$INTENSITY_RELIEF
       fi
 
       if [[ $dontplottopoflag -eq 0 ]]; then
-
-        # Apply transparency to dem stretch
-        gdaldem color-relief ${F_TOPO}dem.nc ${F_CPTS}topocolor.dat ${F_TOPO}colordem_noalpha.tif -q
-        gdal_calc.py --overwrite --quiet -A ${F_TOPO}colordem_noalpha.tif --allBands=A --outfile=${F_TOPO}colordem.tif --calc="uint8( 255 * ( ((A/255.)*${DEM_ALPHA})+((1-${DEM_ALPHA})*255./255.)  ))"
-
-        # Combine color stretch and intensity using an average of multiple and overlay techniques
-        gdal_calc.py --overwrite --quiet -A ${F_TOPO}intensity.tif -B ${F_TOPO}colordem.tif --allBands=B --calc="uint8( ( \
-                        (2 * (A/255.)*(B/255.)*(A<128) + \
-                        ( 1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128))/2 \
-                        + ((A/255.)*(B/255.)/2) \
-                      ) * 255 )" --outfile=${F_TOPO}colored_hillshade.tif
-
-        gmt grdimage ${F_TOPO}colored_hillshade.tif $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
+        gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
       else
         info_msg "Plotting of topo shaded relief suppressed by -ts"
       fi
+
       ;;
 
     usergrid)
@@ -7970,7 +8380,6 @@ if [[ $makelegendflag -eq 1 ]]; then
   plottedneiscptflag=0
 
   info_msg "Plotting colorbar legend items"
-
 
   # First, plot the color bars in a column. How many could you possibly have anyway?
   # We should probably be using -Bxaf for everything instead of overthinking things
@@ -8437,7 +8846,7 @@ if [[ $tifflag -eq 1 ]]; then
   [[ $openflag -eq 1 ]] && open -a $OPENPROGRAM "${THISDIR}/${MAPOUT}.tif"
 fi
 
-##### MAKE OBLIQUE VIEW OF TOPOGRAPHY
+##### MAKE SCRIPT TO PLOT OBLIQUE VIEW OF TOPOGRAPHY
 if [[ $obliqueflag -eq 1 ]]; then
   info_msg "Oblique map (${OBLIQUEAZ}/${OBLIQUEINC})"
   PSSIZENUM=$(echo $PSSIZE | gawk  '{print $1+0}')
@@ -8458,16 +8867,33 @@ if [[ $obliqueflag -eq 1 ]]; then
     OBBOXCMD=""
   fi
 
-  DELTAZ_IN=$(echo "${OBLIQUE_VEXAG} * ${PSSIZENUM} * (${zrange[1]} - ${zrange[0]})/ ( (${MAXLON} - ${MINLON}) * 111000 )"  | bc -l)
+  # make_oblique.sh takes up to three arguments: vertical exaggeration, azimuth, inclination
 
-  if [[ $gdemtopoplotflag -eq 1 || $tshadetopoplotflag -eq 1 ]]; then
-    # gmt grdview $BATHY -G${F_TOPO}colored_hillshade.tif ${RJSTRING[@]} -JZ${DELTAZ_DEG}i -Qi${OBLIQUERES} -p${OBLIQUEAZ}/${OBLIQUEINC}${OBBOXCMD} --GMT_HISTORY=false ${VERBOSE} > oblique.ps
-    gmt grdview $BATHY -G${F_TOPO}colored_hillshade.tif -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JM${MINLON}/${PSSIZENUM}i -JZ${DELTAZ_IN}i ${OBBOXCMD} -Qi${OBLIQUERES} ${OBBCOMMAND} -p${OBLIQUEAZ}/${OBLIQUEINC} --GMT_HISTORY=false --MAP_FRAME_TYPE="$OBBAXISTYPE" ${VERBOSE} > oblique.ps
-  else
-    gmt grdview $BATHY -C$TOPO_CPT -R$MINLON/$MAXLON/$MINLAT/$MAXLAT  -JM${MINLON}/${PSSIZENUM}i -JZ${DELTAZ_IN}i ${OBBOXCMD} -Qi${OBLIQUERES} ${OBBCOMMAND} -p${OBLIQUEAZ}/${OBLIQUEINC} --GMT_HISTORY=false --MAP_FRAME_TYPE="$OBBAXISTYPE" ${VERBOSE} > oblique.ps # -Gmap.tif
-  fi
+  echo "#!/bin/sh" >> ./make_oblique.sh
+  echo "if [[ \$# -ge 1 ]]; then" >> ./make_oblique.sh
+  echo "  OBLIQUE_VEXAG=\${1}" >> ./make_oblique.sh
+  echo "else" >> ./make_oblique.sh
+  echo "  OBLIQUE_VEXAG=${OBLIQUE_VEXAG}"  >> ./make_oblique.sh
+  echo "fi" >> ./make_oblique.sh
 
-  gmt psconvert oblique.ps -Tf -A0.5i --GMT_HISTORY=false ${VERBOSE}
+  echo "if [[ \$# -ge 2 ]]; then" >> ./make_oblique.sh
+  echo "  OBLIQUEAZ=\${2}" >> ./make_oblique.sh
+  echo "else" >> ./make_oblique.sh
+  echo "  OBLIQUEAZ=${OBLIQUEAZ}"  >> ./make_oblique.sh
+  echo "fi" >> ./make_oblique.sh
+
+  echo "if [[ \$# -ge 3 ]]; then" >> ./make_oblique.sh
+  echo "  OBLIQUEINC=\${3}" >> ./make_oblique.sh
+  echo "else" >> ./make_oblique.sh
+  echo "  OBLIQUEINC=${OBLIQUEINC}"  >> ./make_oblique.sh
+  echo "fi" >> ./make_oblique.sh
+
+  echo "DELTAZ_IN=\$(echo \"\${OBLIQUE_VEXAG} * ${PSSIZENUM} * (${zrange[1]} - ${zrange[0]})/ ( (${MAXLON} - ${MINLON}) * 111000 )\"  | bc -l)"  >> ./make_oblique.sh
+
+  echo "gmt grdview $BATHY -G${COLORED_RELIEF} -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JM${MINLON}/${PSSIZENUM}i -JZ\${DELTAZ_IN}i ${OBBOXCMD} -Qi${OBLIQUERES} ${OBBCOMMAND} -p\${OBLIQUEAZ}/\${OBLIQUEINC} --GMT_HISTORY=false --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > oblique.ps" >> ./make_oblique.sh
+  echo "gmt psconvert oblique.ps -Tf -A0.5i --GMT_HISTORY=false ${VERBOSE}" >> ./make_oblique.sh
+  chmod a+x ./make_oblique.sh
+  ./make_oblique.sh
 fi
 
 ##### MAKE KML
@@ -8517,3 +8943,69 @@ if [[ $scripttimeflag -eq 1 ]]; then
 fi
 
 exit 0
+
+
+
+
+# SHADOW ONTO TEXTURE = multiply
+# COLOR ONTO TEXTURE = multiply
+# TEXTURE ONTO TEXTURE = weighted average
+
+# # Record the mean value of the hillshade
+# MEANBEFORE=$(gdalinfo -stats ${F_TOPO}single_hillshade.tif | grep 'STATISTICS_MEAN' | awk -F= '{print $2}')
+#
+# #  Combine hillshade [middle=128] and slope [0-255]
+#
+# # RECIPE 1: unidirectional hillshade with slope and cast shadows and sun glint
+#
+
+#
+# histogram_select_set ${F_TOPO}single_hillshade.tif 240 255 254 0 sun_glint.tif
+# weighted_average_combine ${F_TOPO}slope.tif ${F_TOPO}single_hillshade.tif 0.7 ${F_TOPO}average_slope_single_hillshade.tif
+# weighted_average_combine ${F_TOPO}shadow.tif 0.5 ${F_TOPO}average_slope_hillshade.tif ${F_TOPO}h.tif
+# weighted_average_combine ${F_TOPO}colordem.tif $DEM_ALPHA ${F_TOPO}h.tif ${F_TOPO}color_multiply_slope_hillshade.tif
+# lighten_combine_alpha sun_glint.tif ${F_TOPO}color_multiply_slope_hillshade.tif 0.7 ${F_TOPO}g.tif
+#
+#
+#
+# # RECIPES:
+# # DEM_ALPHA PCTAB
+# # ONE TEXTURE+COLOR = weighted_average_combinecolor 0.5 texture
+#
+# # Two ways of making a slope map that look good.
+# weighted_average_combine ${F_TOPO}shadow.tif ${F_TOPO}slope.tif $SHADOW_ALPHA ${F_TOPO}h.tif
+# histogram_rescale_stretch ${F_TOPO}h.tif 0 180 30 250 1.5 ${F_TOPO}g.tif
+# weighted_average_combine ${F_TOPO}colordem.tif ${F_TOPO}g.tif $DEM_ALPHA ${F_TOPO}color_slope.tif
+# COLORED_RELIEF=${F_TOPO}color_slope.tif
+
+
+# # OK # # # A good way of making a slope-hillshade map
+
+# OK # # # A good way of making a texture
+# alpha_value ${F_TOPO}shadow.tif ${SHADOW_ALPHA} ${F_TOPO}shadow_alpha.tif
+# multiply_combine ${F_TOPO}shadow_alpha.tif ${F_TOPO}texture.tif ${F_TOPO}h.tif
+# alpha_value ${F_TOPO}colordem.tif ${DEM_ALPHA} ${F_TOPO}colordem_alpha.tif
+# multiply_combine ${F_TOPO}colordem_alpha.tif ${F_TOPO}h.tif ${F_TOPO}color_average_slope_hillshade.tif
+# COLORED_RELIEF=${F_TOPO}color_average_slope_hillshade.tif
+
+# # A good way of making a slope-svf map
+# weighted_average_combine ${F_TOPO}slope.tif ${F_TOPO}svf.tif 0.3 ${F_TOPO}average_slope_svf.tif
+# histogram_rescale_stretch ${F_TOPO}average_slope_svf.tif 0 180 30 250 1.5 ${F_TOPO}g.tif
+# weighted_average_combine ${F_TOPO}shadow.tif ${F_TOPO}g.tif $SHADOW_ALPHA  ${F_TOPO}h.tif
+# weighted_average_combine ${F_TOPO}colordem.tif ${F_TOPO}h.tif $DEM_ALPHA ${F_TOPO}color_average_slope_svf.tif
+# COLORED_RELIEF=${F_TOPO}color_average_slope_svf.tif
+#
+# # A good way of making a hillshade-svf map
+# weighted_average_combine ${F_TOPO}multiple_hillshade.tif ${F_TOPO}svf.tif 0.3 ${F_TOPO}average_hs_svf.tif
+# histogram_rescale_stretch ${F_TOPO}average_hs_svf.tif 0 180 30 250 1.5 ${F_TOPO}g.tif
+# weighted_average_combine ${F_TOPO}shadow.tif ${F_TOPO}g.tif $SHADOW_ALPHA ${F_TOPO}h.tif
+# weighted_average_combine ${F_TOPO}colordem.tif ${F_TOPO}h.tif $DEM_ALPHA ${F_TOPO}color_average_hs_svf.tif
+#
+# # # A good way of making a slope-texture map
+# weighted_average_combine ${F_TOPO}slope.tif ${F_TOPO}texture.tif 0.3 ${F_TOPO}average_slope_texture.tif
+# histogram_rescale_stretch ${F_TOPO}average_slope_texture.tif 0 180 20 250 1.8 ${F_TOPO}g.tif
+# weighted_average_combine ${F_TOPO}shadow.tif ${F_TOPO}g.tif $SHADOW_ALPHA ${F_TOPO}h.tif
+# weighted_average_combine ${F_TOPO}colordem.tif ${F_TOPO}h.tif $DEM_ALPHA ${F_TOPO}color_average_slope_texture.tif
+# COLORED_RELIEF=${F_TOPO}color_average_slope_texture.tif
+
+# Generate the intensity file based on visualization scheme

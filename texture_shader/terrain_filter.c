@@ -92,11 +92,11 @@ void terrain_image_data(
 
     double factor;
     double half_span, image_mean;
-    
+
     // Transform data values using the requested vertical enhancement:
-    
+
     factor = pow( 2.0, vertical_enhancement * 0.5 - 1.0 );
-    
+
     half_span  = 0.5 * (image_max - image_min);
     image_mean = 0.5 * (image_max + image_min);
 
@@ -108,10 +108,10 @@ void terrain_image_data(
         for (j=0; j<ncols; ++j) {
             // scale values to set contrast tradeoff
             double z = ptr[j] * factor;
-            
+
             // nonlinear mapping to range (-1,1)
             z = tanh(z);
-            
+
             // fit to desired range of image pixel values
             ptr[j] = z * half_span + image_mean;
         }
@@ -149,7 +149,7 @@ static double isometric_lat( double lat )
     double isolat = copysign( log( cos_conlat / ( 1.0+fabs(sin_conlat) ) ), sin_conlat );
                // = ( log(1.0+sin_conlat) - log(1.0-sin_conlat) ) * 0.5
                // = atanh( tan(conlat*0.5) ) * 2.0
-    
+
     return isolat;
 }
 
@@ -167,7 +167,7 @@ static double tan_lat_from_isometric( double isolat )
 {
     double temp = exp( fabs(isolat) );
     double tan_conlat = copysign( temp - 1.0/temp, isolat ) * 0.5;
-    
+
     return tan_lat_from_tan_conformal( tan_conlat );
 }
 
@@ -191,7 +191,7 @@ void geographic_scale(
     double temp1 = ecc * sin( lat );
     double temp2 = (1.0 - temp1) * (1.0 + temp1);
     double temp3 = (1.0 - ecc)   * (1.0 + ecc);
-    
+
     double normal_radius     = equatorial_radius / sqrt( temp2 );
     double meridional_radius = normal_radius * temp3 / temp2;
 
@@ -206,9 +206,9 @@ double geographic_aspect( double latdeg )
 // Determines graticule aspect ratio at given latitude
 {
     double xsize, ysize;
-    
+
     geographic_scale( latdeg, &xsize, &ysize );
-    
+
     // Return graticule aspect ratio (width/height in meters)
     return xsize / ysize;
 }
@@ -233,7 +233,7 @@ void fix_mercator(
     double pix2merc;
     double isolat0;
     double ypix0;
-    
+
     int i, j;
     float *ptr;
 
@@ -269,7 +269,7 @@ void fix_mercator(
         double isolat = isolat0 + (ypix - ypix0) * pix2merc;
         double tan_lat = tan_lat_from_isometric( isolat );
         double relscale = mercator_relscale_from_tan_lat( tan_lat );
-        
+
         double zfactor = pow( relscale, detail );
         for (j=0; j<ncols; ++j) {
             ptr[j] *= zfactor;
@@ -291,7 +291,7 @@ void fix_polar_stereographic(
 
     double relscale;
     double zfactor;
-    
+
     int i, j;
     float *ptr;
 
@@ -321,7 +321,7 @@ void fix_polar_stereographic(
             } else {
                 relscale = 1.0;
             }
-            
+
             zfactor = pow( relscale, detail );
             ptr[j] *= zfactor;
         }
@@ -348,9 +348,9 @@ double polar_stereographic_center_res(
     double temp;
     double rcorner;
     double center_res;
-    
+
     double corner_lat = (M_PI/180.0) * corner_latdeg;
-    
+
     switch (registration) {
         case TERRAIN_REG_GRID:
             // assume pole is in center of array
@@ -366,13 +366,13 @@ double polar_stereographic_center_res(
             // invalid data registration type
             return 0.0;
     }
-    
+
     rcorner = sqrt( idiff*idiff + jdiff*jdiff );
     conlat = conformal_lat( corner_lat );
     temp = cos(conlat) / ( 1.0 + fabs( sin(conlat) ) );
              // = exp( -fabs(isometric_lat) )
     center_res = temp / rcorner * (equatorial_radius / rfactor);
-    
+
     return center_res;
 }
 
@@ -397,10 +397,10 @@ void fix_terrain_output(
 {
     int i, j;
     float *ptr;
-    
+
     double xres,  yres;
     double xsize, ysize;
-    
+
     if (coord_type == TERRAIN_DEGREES) {
         geographic_scale( center_lat, &xsize, &ysize );
         // convert degrees to meters (approximately)
@@ -469,13 +469,13 @@ static int setup_operator(
 {
     int m2, n2;
     int i, j;
-    
+
     float *ptr;
-    
+
     double *storage;
-    
+
     double xfactor, yfactor;
-    
+
     double nux, xfreq, cosx, tempx;
     double nuy, yfreq, cosy, tempy;
 
@@ -493,16 +493,16 @@ static int setup_operator(
         default:
             return TERRAIN_FILTER_INVALID_PARAM;
     }
-    
+
     info->factor *= pow( 2.0*M_PI, detail );    // constant factor for fractional Laplacian
 
     info->power = detail * 0.5;
 
     xfactor = 1.0 / (double)m2;
     yfactor = 1.0 / (double)n2;
-    
+
     // Allocate array storage
-    
+
     storage = (double *)malloc( sizeof( double ) * ((m2+n2+2) * 3 + ncols + nrows) );
     if (!storage) {
         return TERRAIN_FILTER_MALLOC_ERROR;
@@ -536,11 +536,11 @@ static int setup_operator(
 
     for (i=0; i<ncols; ++i) {
         info->separablex[i] = info->splinex[i] * info->xx[i] + info->splinex[m2-i] * info->xx[m2-i];
-    }    
+    }
     for (j=0; j<nrows; ++j) {
         info->separabley[j] = info->spliney[j] * info->yy[j] + info->spliney[n2-j] * info->yy[n2-j];
     }
-    
+
     return TERRAIN_FILTER_SUCCESS;
 }
 
@@ -556,7 +556,7 @@ static void apply_operator(
     int i = col;
     int j;
     float *ptr = data + (LONG)i * (LONG)nrows;
-    
+
     // Fractional Laplacian operator
 
     #if TERRAIN_OPERATOR_METHOD == 1
@@ -587,7 +587,7 @@ static void cleanup_operator(
 
 
 static void two_dcts(
-    float *ptr, 
+    float *ptr,
     int    length,
     const struct Dct_Plan *plan
 )
@@ -601,7 +601,7 @@ static void two_dcts(
     for (j=0; j<length; ++j) {
         plan->in_data[1][j] = (double)ptr2[j];
     }
-    
+
     perform_dcts( plan );
 
     for (j=0; j<length; ++j) {
@@ -615,17 +615,17 @@ static void two_dcts(
 // Note: single_dct() takes the same time as two_dcts() but does half the work,
 // so it is preferred to use two_dcts() whenever possible.
 static void single_dct(
-    float *ptr, 
+    float *ptr,
     int    length,
     const struct Dct_Plan *plan
 )
 {
     int j;
-    
+
     for (j=0; j<length; ++j) {
         plan->in_data[0][j] = plan->in_data[1][j] = (double)ptr[j];
     }
-    
+
     perform_dcts( plan );
 
     for (j=0; j<length; ++j) {
@@ -664,7 +664,7 @@ init_progress(
 {
     struct Terrain_Progress_Info info;
     int i;
-    
+
     info.progress    = progress;
     info.step_times  = step_times;
     info.total_steps = total_steps;
@@ -765,43 +765,43 @@ int terrain_filter(
 // On input, vertical units (data array values) should be in meters.
 {
     enum Terrain_Reg registration = TERRAIN_REG_CELL;
-    
+
     int num_threads = 1;    // number of threads used to parallelize the three DCT loops
-    
+
     // approximate relative amount of time spent in each step
     // (actual times vary with data array size, memory size, and DCT algorithms chosen):
     const float step_times[6] =
         { 0.5, 2.0/num_threads, 1.0, 4.0/num_threads, 1.0, 2.0/num_threads };
-    
+
     const int total_steps = sizeof( step_times ) / sizeof( *step_times );
-    
+
     struct Terrain_Progress_Info
         progress_info = init_progress( progress, step_times, total_steps );
-    
+
     struct Transpose_Progress_Callback
         sub_progress = { relay_progress, &progress_info };
 
     const double steepness = 2.0;
-    
+
     int error;
 
     int type_fwd, type_bwd;
-    
+
     int i, j;
     float *ptr;
-    
+
     float data_min, data_max;
-    
+
     double normalizer;
-    
+
     double xres,   yres;
     double xscale, yscale;
     double xsize,  ysize;
-    
+
     struct Terrain_Operator_Info info;
 
     // Determine pixel dimensions:
-    
+
     if (coord_type == TERRAIN_DEGREES) {
         geographic_scale( center_lat, &xsize, &ysize );
 
@@ -835,7 +835,7 @@ int terrain_filter(
 
     data_min = data[0];
     data_max = data[0];
-    
+
     for (i=0, ptr=data; i<nrows; ++i, ptr+=ncols) {
         //float *ptr = data + (LONG)i * (LONG)ncols;
         for (j=0; j<ncols; ++j) {
@@ -846,7 +846,7 @@ int terrain_filter(
             }
         }
     }
-    
+
     normalizer  = pow( 2.0 / (data_max - data_min), 1.0 - detail );
     normalizer *= pow( steepness, -detail );
 
@@ -863,7 +863,7 @@ int terrain_filter(
     }
 
     set_progress( &progress_info, 1 );
-    
+
     if (progress && report_progress( &progress_info )) {
         return TERRAIN_FILTER_CANCELED;
     }
@@ -873,11 +873,11 @@ int terrain_filter(
     // its own dct_plan with separate calls to setup_dcts() and cleanup_dcts().
     {
         struct Dct_Plan dct_plan = setup_dcts( type_fwd, ncols );
-        
+
         if (!dct_plan.dct_buffer) {
             return TERRAIN_FILTER_MALLOC_ERROR;
         }
-        
+
         for (i=0; i<nrows-1; i+=2) {
             float *ptr = data + (LONG)i * (LONG)ncols;
             two_dcts( ptr, ncols, &dct_plan );
@@ -890,12 +890,12 @@ int terrain_filter(
             float *ptr = data + (LONG)(nrows - 1) * (LONG)ncols;
             single_dct( ptr, ncols, &dct_plan );
         }
-        
+
         cleanup_dcts( &dct_plan );
     }
 
     set_progress( &progress_info, 2 );
-    
+
     if (progress && report_progress( &progress_info )) {
         return TERRAIN_FILTER_CANCELED;
     }
@@ -910,7 +910,7 @@ int terrain_filter(
     }
 
     set_progress( &progress_info, 3 );
-    
+
     if (progress && report_progress( &progress_info )) {
         return TERRAIN_FILTER_CANCELED;
     }
@@ -922,25 +922,25 @@ int terrain_filter(
     {
         struct Dct_Plan fwd_plan = setup_dcts( type_fwd, nrows );
         struct Dct_Plan bwd_plan = setup_dcts( type_bwd, nrows );
-                
+
         if (!fwd_plan.dct_buffer || !bwd_plan.dct_buffer) {
             return TERRAIN_FILTER_MALLOC_ERROR;
         }
 
         for (i=0; i<ncols-1; i+=2) {
             float *ptr = data + (LONG)i * (LONG)nrows;
-            
+
             two_dcts( ptr, nrows, &fwd_plan );
             apply_operator( data, i,   nrows, info );
             apply_operator( data, i+1, nrows, info );
             two_dcts( ptr, nrows, &bwd_plan );
-            
+
             if (progress && update_progress( &progress_info, i+2, ncols ))
             {
                 return TERRAIN_FILTER_CANCELED;
             }
         }
-        
+
         if (ncols & 1) {
             float *ptr = data + (LONG)(ncols - 1) * (LONG)nrows;
 
@@ -948,17 +948,17 @@ int terrain_filter(
             apply_operator( data, ncols-1, nrows, info );
             single_dct( ptr, nrows, &bwd_plan );
         }
-    
+
         cleanup_dcts( &bwd_plan );
         cleanup_dcts( &fwd_plan );
     }
-    
+
     if (flt_isnan( data[0] )) {
         return TERRAIN_FILTER_NULL_VALUES;
     }
 
     set_progress( &progress_info, 4 );
-    
+
     if (progress && report_progress( &progress_info )) {
         return TERRAIN_FILTER_CANCELED;
     }
@@ -973,7 +973,7 @@ int terrain_filter(
     }
 
     set_progress( &progress_info, 5 );
-    
+
     if (progress && report_progress( &progress_info )) {
         return TERRAIN_FILTER_CANCELED;
     }
@@ -1007,7 +1007,7 @@ int terrain_filter(
     cleanup_operator( info );
 
     set_progress( &progress_info, 6 );
-    
+
     if (progress) {
         // report final progress; ignore any cancel request at this point
         report_progress( &progress_info );

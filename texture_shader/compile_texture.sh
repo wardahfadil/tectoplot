@@ -14,6 +14,8 @@ cd $TEXTURE_DIR
 
 ${CC} -DNOMAIN -c *.c
 ${CC} ${CFLAGS} *.o texture.c -o texture
+${CC} ${CFLAGS} *.o shadow.c -o shadow
+${CC} ${CFLAGS} *.o svf.c -o svf
 ${CC} ${CFLAGS} *.o texture_image.c -o texture_image
 
 # Cleanup

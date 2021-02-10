@@ -40,6 +40,12 @@ TEXTURE=${TEXTUREDIR}"texture"
 TEXTURE_IMAGE=${TEXTUREDIR}"texture_image"
 TEXTURE_COMPILE_SCRIPT=${TEXTUREDIR}"compile_texture.sh"
 
+##### SVF is the path to the sky view factor executable
+SVF=${TEXTUREDIR}"svf"
+
+##### SHADOW is the path to the cast shadows executable
+SHADOW=${TEXTUREDIR}"shadow"
+
 ##### Directory holding tectoplot default CPTs
 CPTDIR=$TECTOPLOTDIR"CPT/"
 
@@ -83,6 +89,10 @@ EULERADD_AWK=$TECTOPLOTDIR"euleradd.awk"
 
 ##### Location of the multiple profile / oblique view tool script
 MPROFILE_SH_SRC=$TECTOPLOTDIR"multi_profile_tectoplot_sourced.sh"
+
+#####
+SENTINEL_SOURCESTRING="Sentinel-2 cloudless by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016). Retrieved from https://tiles.maps.eox.at/wms?service=wms&request=getmap&version=1.1.1&layers=s2cloudless-2019"
+SENTINEL_SHORT_SOURCESTRING="Sentinel-2/EOX/2019"
 
 ################################################################################
 #### Data sets and tools that we download and manage ourselves
@@ -323,16 +333,6 @@ GFZ_SHORT_SOURCESTRING="GFZ"
 #ISC_ORIGIN=$DATAROOT"ISC/isc_nogcmt_origin.txt"
 #ISC_CENTROID=$DATAROOT"ISC/isc_nogcmt_centroid.txt"
 
-##### GPS velocities
-
-GPS_SOURCESTRING="GPS velocities from Kreemer et al. 2014 doi:10.1002/2014GC005407"
-GPS_SHORT_SOURCESTRING="GPS-GSRM"
-
-GPS=$DATAROOT"Kreemer/KreemerGPS"
-
-# GPS will only plot if the REFPLATE exists in the Kreemer dataset with the same ID code...
-GPS_FILE=`echo $GPS"/GPS_ITRF08.gmt"`
-
 ##### Smithsonian Pleistocene volcanoes database
 
 GVP_PLEISTOCENE_SOURCEURL="https://volcano.si.edu/database/list_volcano_pleistocene_excel.cfm"
@@ -427,3 +427,13 @@ GBMPLATEEDGES=$PLATEMODELSDIR"GBM/block.180.dat"
 
 # Communication cables data
 CABLES=$DATAROOT"gregs_cable_map_v1.58/Cables.gmt"
+
+##### GPS velocities
+
+GPS_SOURCESTRING="GPS velocities from Kreemer et al. 2014 doi:10.1002/2014GC005407"
+GPS_SHORT_SOURCESTRING="GPS-GSRM"
+
+GPSDIR=$PLATEMODELSDIR"GSRM"
+
+# GPS will only plot if the REFPLATE exists in the Kreemer dataset with the same ID code...
+GPS_FILE=`echo $GPSDIR"/GPS_ITRF08.gmt"`

@@ -4,6 +4,7 @@
 # https://github.com/kyleedwardbradley/tectoplot
 # Kyle Bradley, Nanyang Technological University, Singapore
 
+
 NUMEXAMPLES=19
 
 SOURCE="${BASH_SOURCE[0]}"
@@ -81,10 +82,10 @@ for i in ${MAKENUMS[@]}; do
                 --legend -title "Aegean GPS velocities and blocks" -o example4
     ;;
 
-    5) # Example 5: Southern Taiwan, GMRT/SRTM topo, GDAL slopeshade, labeled
+    5) # Example 5: Southern Taiwan, GMRT/SRTM topo, slopeshade, labeled
        # ISC seismicity, CMT at ORIGIN, legend"
       echo "Example 5: Topography and seismicity" > example5.txt
-      tectoplot -n -r 120.5 120.8 22.4 23 -t BEST -gdalt -pgo -pgs 0.1 -pss 4 \
+      tectoplot -n -r 120.5 120.8 22.4 23 -t BEST -tsl -pgo -pgs 0.1 -pss 4 \
                 -zcat ISC -z -c ORIGIN --legend -author -command \
                 -setvars { SEISSTRETCH_REFMAG 4 } -eqlabel 5.5 mag -o example5
     ;;
@@ -189,7 +190,7 @@ EOF
       P P3 red 0 N 119.75 19.7 120.75 18.5
 EOF
 
-      tectoplot -n -r 118.5 121 17 20 -pss 7 -RJ UTM -t GEBCO20 -gdalt 10 1 0.01 \
+      tectoplot -n -r 118.5 121 17 20 -pss 7 -RJ UTM -t GEBCO20 -t1 \
                 -v BG 50 rescale -ac darkgreen -a f -tn 1000 -clipgrav \
                 -mprof profile.control -title "Bouguer anomaly" -author -authoryx -3.25 \
                 -command --legend -setvars { DEM_ALPHA 0.01 } -o example9
@@ -285,7 +286,7 @@ EOF
     19) # Make an oblique view of topography with cast shadows
       echo "Example 19: Topography with cast shadows - map" > example19.txt
 
-      tectoplot -t -tshade -shadow 45 2 10 -ob 120 20 4 fancy -o example19
+      tectoplot -t -tshad 45 2 -ob 120 20 4 fancy -o example19
       cp tempfiles_to_delete/oblique.pdf ./example19_oblique.pdf
       echo "Example 19: Topography with cast shadows - perspective" > example19_oblique.txt
     ;;

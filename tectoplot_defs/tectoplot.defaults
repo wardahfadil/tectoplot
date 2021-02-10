@@ -4,11 +4,29 @@
 # This file will be sourced by the main tectoplot script to load various default values.
 # Assignments should be in bash format
 
+SENTINEL_GAMMA=0.7
+
+DEFAULT_TOPOCTRL="m"   # Default topography visualization string
+UNI_FACT=0.7
+SKYVIEW_FACT=0.7
+MULTIHS_FACT=0.7
+TS_FACT=0.7
+SLOPE_FACT=0.7
+TRI_FACT=0.7
+IMAGE_FACT=1
+
+topocolorflag=1
+
+SLOPEMAXDEG=5
+SLOPEMINDEG=0
+
+NUM_SVF_ANGLES=8  # Sky view factor number of look angles
+DEM_ALPHA=0.5       # Alpha of color stretch
+SHADOW_ALPHA=0.5      # Alpha of cast shadows
+
 ################################################################################
 # Not sure what these variables do currently or whether they are used...
-NCALL=""
-###NCALL="-N-6000+gwhite"
-ILLUM="-I+d"                     # Default option for shaded relief (not used now?)
+ILLUM="-I+d"                # Default option for shaded relief (not used now?)
 
 ################################################################################
 # Control options
@@ -241,16 +259,13 @@ HS_AZ=325
 HS_ALT=40                    # Altitude of sun for multiple hillshade
 HS_VEXAG=1                   # Vertical exaggeration applied to terrain for hillshading
 HS_Z_FACTOR=2.5
-DEM_ALPHA=1
 
 # Texture shading options (-tshade)
 TS_FRAC=0.7                 # Texture shader parameter 1
 TS_STRETCH=4                # Texture shader parameter 2, contrast stretch
-TS_TEXTUREBLEND=0.4         # Proportion of hillshade in final texture
-TS_GAMMA=1                  # Gamma stretch of final texture
 
 # Shadowing options (-shadow)
-SUN_EL=2                    # Elevation angle of sun for shadowing
+SUN_EL=10                    # Elevation angle of sun for shadowing
 SUN_AZ=$HS_AZ               # Shadow sun azimuth
 SUN_DARK=20                 # Value above 10 to darken/lighten cast shadows
 
