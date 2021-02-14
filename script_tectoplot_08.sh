@@ -20,6 +20,8 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 
 # CHANGELOG
 
+# February 12, 2021: Large update to terrain visualizations
+#                  : Added -rdel, -rlist, and -radd for custom regions
 # February 04, 2021: Incomplete rework of DEM/hillshade/etc visualizations
 #                    Added -gls to list GPS plates; fixed path to GPS data
 # January  22, 2021: Added DEM shadowing option (-shade) in shadow_nc.sh, cleaned up code
@@ -459,7 +461,7 @@ function print_help_header() {
   www.github.com/kyleedwardbradley/tectoplot
   kbradley@ntu.edu.sg
 
-  Requires: GMT6+, gawk, perl, grep, data, sed, ls
+  Requires: GMT6+, gdal (with gdal_calc.py), geod, gawk, perl, grep, data, sed, ls
 
   Open-source code that is redistributed alongside tectoplot:
    1. texture_shader (c) 2010-2013 Leland Brown, (c) 2013 Brett Casebolt
@@ -505,6 +507,10 @@ cat <<-EOF
     [opt] is required if the flag is present
     [[opt]] if not specified will assume a default value or will not be used
 
+  Common command recipes:
+
+    -seismo                -t -t1 -z -c
+    -topog                 -t -t1 -mob 45 20 3
 
   Data control, installation, information
     -addpath               add the tectoplot source directory to your ~.profile
@@ -562,8 +568,13 @@ cat <<-EOF
   Area of Interest options. The lat/lon AOI box is the region from which data are selected
     -r|--range       [MinLon MaxLon MinLat MaxLat]       area of interest, degrees
                      [g]                                 global domain [-180:180/-90:90]
-                     [ID]                                AOI of 2 character country code, breaks if crosses dateline!
+                     [2 character ID]                    AOI of 2 character country code, breaks if crosses dateline!
                      [raster_file]                       take the limits of the given raster file
+                     [customID]                          AOI defined in tectoplot.customrange
+
+    -radd            [customID; no whitespace]           set customID based on -r arguments
+    -rdel            [customID; no whitespace]           delete customID from custom region file and exit
+    -rlist                                               print customIDs and extends and exit
 
   Map projection definition. Default projection is Plate Carrée [GMT -JQ, reference latitude is 0].
   Note that the width of the map in inches should be set using the -J command.
@@ -1494,7 +1505,7 @@ fi
 rm -f tectoplot.sources
 rm -f tectoplot.shortsources
 
-##### Look for high priority arguments that need to be executed first.
+##### Look for high priority arguments that need to be executed first
 
 saved_args=( "$@" );
 while [[ $# -gt 0 ]]
@@ -1532,6 +1543,20 @@ do
   key="${1}"
   case ${key} in
 
+  # Command 'recipes'
+
+  -seismo)
+    shift
+    set -- "blank" "-t" "-t1" "-z" "-c" "-cmag" "$@"
+    ;;
+  -topog)
+    shift
+    set -- "blank" "-t" "-t1" "-ob" "45" "20" "3" "$@"
+    ;;
+  -sunlit)
+    shift
+    set -- "blank" "-t" "-tuni" "-tshad" "-ob" "45" "20" "3" "$@"
+    ;;
   -a) # args: none || string
     plotcoastlines=1
     if arg_is_flag $2; then
@@ -2039,11 +2064,13 @@ do
           eqlistarray+=("${REGION_EQ}")
           labeleqlistflag=1
           shift
-        elif [[ $2 == "idmag" || $2 == "datemag" || $2 == "dateid" || $2 == "id" || $2 == "date" || $2 == "mag" ]]; then
+        elif [[ $2 == "idmag" || $2 == "datemag" || $2 == "dateid" || $2 == "id" || $2 == "date" || $2 == "mag" || $2 == "year" ]]; then
           EQ_LABELFORMAT="${2}"
           shift
         else
           info_msg "[-eqlabel]: Label class $2 not recognized."
+          EQ_LABELFORMAT="datemag"
+          shift
         fi
       done
       # If we don't specify a source type, use the list assuming that -r eq or similar was used
@@ -3201,15 +3228,19 @@ do
         # First check if it is a text file with X Y coordinates in the first two columns
         case $(file "${2}") in
           (*\ text|*\ text\ *)
-              info_msg "Input file is text: assuming X Y data"
+              info_msg "[-r]: Input file is text: assuming X Y data"
               XYRANGE=($(xy_range "${2}"))
               MINLON=${XYRANGE[0]}
               MAXLON=${XYRANGE[1]}
               MINLAT=${XYRANGE[2]}
               MAXLAT=${XYRANGE[3]}
               ;;
+          (*\ directory|*\ directory\ *)
+              info_msg "[-r]: Input file is an existing directory. Not a valid extent."
+              exit 1
+              ;;
           (*)
-              info_msg "Input file is binary: assuming it is a grid file"
+              info_msg "[-r]: Input file is binary: assuming it is a grid file"
               rasrange=$(gmt grdinfo $(abs_path $2) -C -Vn)
               MINLON=$(echo $rasrange | gawk  '{print $2}')
               MAXLON=$(echo $rasrange | gawk  '{print $3}')
@@ -3226,33 +3257,66 @@ do
 
         shift
 
-      # Option 4: A single argument which doesn't match any of the above is a country ID
+      # Option 4: A single argument which doesn't match any of the above is a country ID OR a custom ID
+      # Custom IDs override region IDs, so we search for that first
       else
         # Option 5: No arguments means no region
         if arg_is_flag $2; then
-          info_msg "[-r]: No country code specified."
+          info_msg "[-r]: No country code or custom region ID specified."
           exit 1
         fi
-        COUNTRYID=${2}
-        shift
-        COUNTRYNAME=$(gawk -v cid="${COUNTRYID}" -F, '(index($0,cid)==1) { print $4 }' $COUNTRY_CODES)
-        if [[ $COUNTRYNAME == "" ]]; then
-          info_msg "Country code ${COUNTRYID} is not a valid code. Use tectoplot -printcountries"
-          exit 1
-        fi
-        RCOUNTRY=($(gmt pscoast -E${COUNTRYID}+r1 ${VERBOSE} | gawk  '{v=substr($0,3,length($0)); split(v,w,"/"); print w[1], w[2], w[3], w[4]}'))
 
-        # info_msg "RCOUNTRY=${RCOUNTRY[@]}"
-        if [[ $(echo "${RCOUNTRY[0]} >= -180 && ${RCOUNTRY[1]} <= 360 && ${RCOUNTRY[2]} >= -90 && ${RCOUNTRY[3]} <= 90" | bc) -eq 1 ]]; then
-          MINLON=${RCOUNTRY[0]}
-          MAXLON=${RCOUNTRY[1]}
-          MINLAT=${RCOUNTRY[2]}
-          MAXLAT=${RCOUNTRY[3]}
-          info_msg "Country [$COUNTRYNAME] bounding box set to $MINLON/$MAXLON/$MINLAT/$MAXLAT"
-          # echo RC MINLON MAXLON MINLAT MAXLAT $MINLON $MAXLON $MINLAT $MAXLAT
+        ISCUSTOMREGION=($(grep "${2}" $CUSTOMREGIONS))
+
+
+        if [[ -z ${ISCUSTOMREGION[0]} ]]; then
+          # Assume that the string is a country ID code (only option left)
+          COUNTRYID=${2}
+          shift
+          COUNTRYNAME=$(gawk -v cid="${COUNTRYID}" -F, '(index($0,cid)==1) { print $4 }' $COUNTRY_CODES)
+          if [[ $COUNTRYNAME == "" ]]; then
+            info_msg "Country code ${COUNTRYID} is not a valid code. Use tectoplot -printcountries"
+            exit 1
+          fi
+          RCOUNTRY=($(gmt pscoast -E${COUNTRYID}+r1 ${VERBOSE} | gawk  '{v=substr($0,3,length($0)); split(v,w,"/"); print w[1], w[2], w[3], w[4]}'))
+
+          # info_msg "RCOUNTRY=${RCOUNTRY[@]}"
+          if [[ $(echo "${RCOUNTRY[0]} >= -360 && ${RCOUNTRY[1]} <= 360 && ${RCOUNTRY[2]} >= -90 && ${RCOUNTRY[3]} <= 90" | bc) -eq 1 ]]; then
+            MINLON=${RCOUNTRY[0]}
+            MAXLON=${RCOUNTRY[1]}
+            MINLAT=${RCOUNTRY[2]}
+            MAXLAT=${RCOUNTRY[3]}
+            info_msg "Country [$COUNTRYNAME] bounding box set to $MINLON/$MAXLON/$MINLAT/$MAXLAT"
+            # echo RC MINLON MAXLON MINLAT MAXLAT $MINLON $MAXLON $MINLAT $MAXLAT
+          else
+            info_msg "[]-r]: MinLon is malformed: $3"
+            exit 1
+          fi
+
         else
-          info_msg "[]-r]: MinLon is malformed: $3"
-          exit 1
+          shift
+          if [[ $(echo "${ISCUSTOMREGION[1]} >= -360 && ${ISCUSTOMREGION[2]} <= 360 && ${ISCUSTOMREGION[3]} >= -90 && ${ISCUSTOMREGION[4]} <= 90" | bc) -eq 1 ]]; then
+            MINLON=${ISCUSTOMREGION[1]}
+            MAXLON=${ISCUSTOMREGION[2]}
+            MINLAT=${ISCUSTOMREGION[3]}
+            MAXLAT=${ISCUSTOMREGION[4]}
+            info_msg "Region ID [${2}] bounding box set to $MINLON/$MAXLON/$MINLAT/$MAXLAT"
+            ind=5
+            while ! [[ -z ${ISCUSTOMREGION[${ind}]} ]]; do
+              CUSTOMREGIONRJSTRING+=("${ISCUSTOMREGION[${ind}]}")
+              ind=$(echo "$ind+1"| bc)
+              usecustomregionrjstringflag=1
+            done
+            if [[ $usecustomregionrjstringflag -eq 1 ]]; then
+              info_msg "[-r]: customID ${2} has RJSTRING: ${CUSTOMREGIONRJSTRING[@]}"
+            else
+              info_msg "[-r]: customID ${2} has no RJSTRING"
+            fi
+          else
+            info_msg "[-r]: MinLon is malformed: $3"
+            exit 1
+          fi
+
         fi
       fi
     # Option 0: Four numbers in lonmin lonmax latmin latmax order
@@ -3309,6 +3373,39 @@ do
       regionsetflag=1
     fi # If the region is not centered on an earthquake and still needs to be determined
 
+    ;;
+
+  -radd)
+    if arg_is_flag $2; then
+      info_msg "[-radd]: No region ID code specified. Ignoring."
+    else
+      REGIONTOADD=$(echo ${2} | awk '{print $1}')
+      addregionidflag=1
+      info_msg "[-radd]: Adding or updating custom region ${REGIONTOADD} from -r arguments"
+      shift
+    fi
+    ;;
+
+  -rdel)
+    if arg_is_flag $2; then
+      info_msg "[-rdel]: No region ID code to delete was specified."
+    else
+      REGIONTODEL=$(echo ${2} | awk '{print $1}')
+      info_msg "[-rdel]: Deleting region ID ${REGIONTODEL} and exiting."
+      shift
+    fi
+    awk -v id=${REGIONTODEL} < $CUSTOMREGIONS '{
+      if ($1 != id) {
+        print
+      }
+    }' > ./regions.tmp
+    mv ./regions.tmp ${CUSTOMREGIONS}
+    exit
+    ;;
+
+  -rlist)
+    cat ${CUSTOMREGIONS}
+    exit
     ;;
 
   -recenteq) # args: none | days
@@ -3735,7 +3832,11 @@ do
     ;;
 
   -shadow)
-    topoctrlstring=${topoctrlstring}"d"
+
+    if ! [[ ${topoctrlstring} =~ .*d.* ]]; then
+      topoctrlstring=${topoctrlstring}"d"
+    fi
+
     if arg_is_flag $2; then
       info_msg "[-shadow]: No sun azimuth specified. Using $SUN_AZ"
     else
@@ -3767,6 +3868,19 @@ do
     shift
     shift
     clipdemflag=1
+    ;;
+
+  -sun)
+    if arg_is_float $2; then
+      SUN_AZ=$2
+      HS_AZ=$2
+      shift
+    fi
+    if arg_is_positive_float $2; then
+      SUN_EL=$2
+      HS_EL=$2
+      shift
+    fi
     ;;
 
   -sv|--slipvector) # args: filename
@@ -4646,6 +4760,29 @@ else
   MAPOUTLEGEND="legend.pdf"
 fi
 
+##### If we are adding a region code to the custom regions file, do it now #####
+
+if [[ $addregionidflag -eq 1 ]]; then
+  #REGIONTOADD
+  awk -v id=${REGIONTOADD} < $CUSTOMREGIONS '{
+    if ($1 != id) {
+      print
+    }
+  }' > ./regions.tmp
+  echo "${REGIONTOADD} ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${RJSTRING[@]}" >> ./regions.tmp
+  mv ./regions.tmp ${CUSTOMREGIONS}
+fi
+
+if [[ $usecustomregionrjstringflag -eq 1 ]]; then
+  unset RJSTRING
+  ind=0
+  while ! [[ -z ${CUSTOMREGIONRJSTRING[$ind]} ]]; do
+    RJSTRING+=("${CUSTOMREGIONRJSTRING[$ind]}")
+    ind=$(echo "$ind+1" | bc)
+  done
+  info_msg "[-r]: Using customID RJSTRING: ${RJSTRING[@]}"
+fi
+
 ################################################################################
 #####          Create and change into the temporary directory              #####
 ################################################################################
@@ -5070,9 +5207,12 @@ if [[ $plottopo -eq 1 ]]; then
       done
     done
 
+    # We apparently need to fill NaNs when making the GMRT mosaic grid with gdal_merge.py...
     if [[ ! -e $GMRTDIR"GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.nc" ]]; then
       info_msg "Merging tiles to form GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.nc: " ${filelist[@]}
-      echo gdal_merge.py -o $GMRTDIR"GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.nc" -of "NetCDF" ${filelist[@]} -q > ./merge.sh
+      echo gdal_merge.py -o tmp.nc -of "NetCDF" ${filelist[@]} -q > ./merge.sh
+      echo gdal_fillnodata.py  -of NetCDF tmp.nc $GMRTDIR"GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.nc" >> ./merge.sh
+      echo rm -f ./tmp.nc >> ./merge.sh
       . ./merge.sh
       # gdal_merge.py -o $GMRTDIR"GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.nc" ${filelist[@]}
 
@@ -5137,12 +5277,14 @@ fi
 if [[ $besttopoflag -eq 1 && $bestexistsflag -eq 0 ]]; then
   info_msg "Combining GMRT ($NEGBATHYGRID) and 01s ($BATHY) grids to form best topo grid"
   # grdsample might return NaN?
-  gmt grdsample -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -I2s $NEGBATHYGRID -Gneg.nc -fg ${VERBOSE}
-  # Use -Rneg.nc to avoid pixel size mismatches
-  gmt grdsample -Rneg.nc $BATHY -Gpos.nc -fg ${VERBOSE}
-  gmt grdclip -Sb0/0 pos.nc -Gposclip.nc ${VERBOSE}
-  gmt grdclip -Si0/10000000/0 neg.nc -Gnegclip.nc ${VERBOSE}
-  gmt grdmath posclip.nc negclip.nc ADD = merged.nc ${VERBOSE}
+  # gmt grdsample -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -I2s $NEGBATHYGRID -Gneg.nc -fg ${VERBOSE}
+  gdalwarp -q -dstnodata NaN -te $MINLON $MINLAT $MAXLON $MAXLAT -tr .00055555555 .00055555555 -of NetCDF $NEGBATHYGRID neggdal.nc
+  gdalwarp -q -dstnodata NaN -te $MINLON $MINLAT $MAXLON $MAXLAT -tr .00055555555 .00055555555 -of NetCDF $BATHY posgdal.nc
+  gdal_calc.py --overwrite --type=Float32 --format=NetCDF --quiet -A posgdal.nc -B neggdal.nc --calc="((A>=0)*A + (B<=0)*B)" --outfile=merged.nc
+  # gmt grdsample -Rneg.nc $BATHY -Gpos.nc -fg ${VERBOSE}
+  # gmt grdclip -Sb0/0 pos.nc -Gposclip.nc ${VERBOSE}
+  # gmt grdclip -Si0/10000000/0 neg.nc -Gnegclip.nc ${VERBOSE}
+  # gmt grdmath posclip.nc negclip.nc ADD = merged.nc ${VERBOSE}
   mv merged.nc $bestname
   BATHY=$bestname
 fi
@@ -6627,6 +6769,7 @@ gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > plate.ps
 gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > mecaleg.ps
 gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > seissymbol.ps
 gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > volcanoes.ps
+gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > eqlabel.ps
 gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > velarrow.ps
 gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > velgps.ps
 
@@ -6881,14 +7024,14 @@ for plot in ${plots[@]} ; do
 
       FONTSTR=$(echo "${EQ_LABEL_FONTSIZE},${EQ_LABEL_FONT},${EQ_LABEL_FONTCOLOR}")
 
-      if [[ -e ${F_CMT}cmt_orig.dat ]]; then
+      if [[ -e $CMTFILE ]]; then
         if [[ $labeleqlistflag -eq 1 && ${#eqlistarray[@]} -ge 1 ]]; then
           for i in ${!eqlistarray[@]}; do
-            grep -- "${eqlistarray[$i]}" ${F_CMT}cmt_orig.dat >> ${F_CMT}cmtlabel.sel
+            grep -- "${eqlistarray[$i]}" $CMTFILE >> ${F_CMT}cmtlabel.sel
           done
         fi
         if [[ $labeleqmagflag -eq 1 ]]; then
-          gawk < ${F_CMT}cmt_orig.dat -v minmag=$labeleqminmag '($13>=minmag) {print}'  >> ${F_CMT}cmtlabel.sel
+          gawk < $CMTFILE -v minmag=$labeleqminmag '($13>=minmag) {print}'  >> ${F_CMT}cmtlabel.sel
         fi
 
         # 39 fields in cmt file. NR=texc NR-1=font
@@ -6915,6 +7058,8 @@ for plot in ${plots[@]} ; do
             [[ $EQ_LABELFORMAT == "dateid" ]] && gawk  < ${F_CMT}cmtlabel_pos.sel '{ split($3,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $8, $9, $(NF-1), 0, $(NF), tmp[1], $2 }' >> ${F_CMT}cmt.labels
             [[ $EQ_LABELFORMAT == "id" ]] && gawk  < ${F_CMT}cmtlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s\n", $8, $9, $(NF-1), 0, $(NF), $2   }' >> ${F_CMT}cmt.labels
             [[ $EQ_LABELFORMAT == "date" ]] && gawk  < ${F_CMT}cmtlabel_pos.sel '{ split($3,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s\n",  $8, $9, $(NF-1), 0, $(NF), tmp[1] }' >> ${F_CMT}cmt.labels
+            [[ $EQ_LABELFORMAT == "year" ]] && gawk  < ${F_CMT}cmtlabel_pos.sel '{ split($3,tmp,"T"); split(tmp[1],tmp2,"-"); printf "%s\t%s\t%s\t%s\t%s\t%s\n",  $8, $9, $(NF-1), 0, $(NF), tmp2[1] }' >> ${F_CMT}cmt.labels
+
             [[ $EQ_LABELFORMAT == "mag" ]] && gawk  < ${F_CMT}cmtlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%0.1f\n",  $8, $9, $(NF-1), 0, $(NF), $13  }' >> ${F_CMT}cmt.labels
             ;;
           CENTROID)
@@ -6923,6 +7068,7 @@ for plot in ${plots[@]} ; do
             [[ $EQ_LABELFORMAT == "dateid"   ]] && gawk  < ${F_CMT}cmtlabel_pos.sel '{ split($3,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $5, $6, $(NF-1), 0, $(NF), tmp[1], $2 }' >> ${F_CMT}cmt.labels
             [[ $EQ_LABELFORMAT == "id"   ]] && gawk  < ${F_CMT}cmtlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s\n", $5, $6, $(NF-1), 0, $(NF), $2   }' >> ${F_CMT}cmt.labels
             [[ $EQ_LABELFORMAT == "date"   ]] && gawk  < ${F_CMT}cmtlabel_pos.sel '{ split($3,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s\n",  $5, $6, $(NF-1), 0, $(NF), tmp[1] }' >> ${F_CMT}cmt.labels
+            [[ $EQ_LABELFORMAT == "year" ]] && gawk  < ${F_CMT}cmtlabel_pos.sel '{ split($3,tmp,"T"); split(tmp[1],tmp2,"-"); printf "%s\t%s\t%s\t%s\t%s\t%s\n",  $5, $6, $(NF-1), 0, $(NF), tmp2[1] }' >> ${F_CMT}cmt.labels
             [[ $EQ_LABELFORMAT == "mag"   ]] && gawk  < ${F_CMT}cmtlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%0.1f\n",  $5, $6, $(NF-1), 0, $(NF), $13  }' >> ${F_CMT}cmt.labels
             ;;
         esac
@@ -6958,6 +7104,7 @@ for plot in ${plots[@]} ; do
         [[ $EQ_LABELFORMAT == "dateid"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $1, $2, $8, 0, $9, tmp[1], $6 }' >> ${F_SEIS}eq.labels
         [[ $EQ_LABELFORMAT == "id"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $8, 0, $9, $6  }' >> ${F_SEIS}eq.labels
         [[ $EQ_LABELFORMAT == "date"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $8, 0, $9, tmp[1] }' >> ${F_SEIS}eq.labels
+        [[ $EQ_LABELFORMAT == "year"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ split($5,tmp,"T"); split(tmp[1],tmp2,"-"); printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $8, 0, $9, tmp2[1] }' >> ${F_SEIS}eq.labels
         [[ $EQ_LABELFORMAT == "mag"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%0.1f\n", $1, $2, $8, 0, $9, $4  }' >> ${F_SEIS}eq.labels
         uniq -u ${F_SEIS}eq.labels | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite  -F+f+a+j -W0.5p,black $RJOK $VERBOSE >> map.ps
 
@@ -8522,7 +8669,7 @@ if [[ $makelegendflag -eq 1 ]]; then
       cmt)
         info_msg "Legend: cmt"
 
-        MEXP_TRIPLE=$(awk < ${F_CMT}cmt_orig.dat '
+        MEXP_TRIPLE=$(awk < $CMTFILE '
           function ceil(x){return int(x)+(x>int(x))}
           BEGIN {
             getline;
@@ -8532,6 +8679,9 @@ if [[ $makelegendflag -eq 1 ]]; then
             maxmag=($13>maxmag)?$13:maxmag
           }
           END {
+            if (maxmag>9) {
+              maxmag=9
+            }
             printf "%0.1d %0.1d %0.1d", ceil(maxmag)-2, ceil(maxmag)-1, ceil(maxmag)
           }')
 
@@ -8551,7 +8701,7 @@ if [[ $makelegendflag -eq 1 ]]; then
             [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 342 0.23" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 129 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
           fi
-          echo "$CENTERLON $CENTERLAT N/${MEXP_V_N}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT N/${MEXP_V_N}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.14i -O -K >> mecaleg.ps
           echo "$CENTERLON $CENTERLAT 14 92 82 2 1 88 172 $MEXP_S 125.780000 8.270000 B082783A" | gmt psmeca -E"${CMT_SSCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.35i -Y-0.15i ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtssflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 316 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
@@ -8565,7 +8715,7 @@ if [[ $makelegendflag -eq 1 ]]; then
             [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 229 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 139 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
           fi
-          echo "$CENTERLON $CENTERLAT R/${MEXP_V_T}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT R/${MEXP_V_T}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.16i -O >> mecaleg.ps
         fi
         if [[ $CMTLETTER == "m" ]]; then
           echo "$CENTERLON $CENTERLAT 10 -3.19 1.95 1.24 -0.968 -0.425 $MEXP_N 0 0 " | gmt psmeca -E"${CMT_NORMALCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK ${VERBOSE} >> mecaleg.ps
@@ -8574,7 +8724,7 @@ if [[ $makelegendflag -eq 1 ]]; then
             [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 342 0.23" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 129 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
           fi
-          echo "$CENTERLON $CENTERLAT N/${MEXP_V_N}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT N/${MEXP_V_N}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.14i -O -K >> mecaleg.ps
           echo "$CENTERLON $CENTERLAT 10 0.12 -1.42 1.3 0.143 -0.189 $MEXP_S 0 0 " | gmt psmeca -E"${CMT_SSCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.35i -Y-0.15i ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtssflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 316 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
@@ -8588,7 +8738,7 @@ if [[ $makelegendflag -eq 1 ]]; then
             [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 229 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 139 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
           fi
-          echo "$CENTERLON $CENTERLAT R/${MEXP_V_T}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT R/${MEXP_V_T}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.16i -O >> mecaleg.ps
         fi
 
         PS_DIM=$(gmt psconvert mecaleg.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
@@ -8603,14 +8753,16 @@ if [[ $makelegendflag -eq 1 ]]; then
       eqlabel)
         info_msg "Legend: eqlabel"
 
+
         [[ $EQ_LABELFORMAT == "idmag"   ]]  && echo "$CENTERLON $CENTERLAT ID Mw" | gawk  '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'      > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "datemag" ]]  && echo "$CENTERLON $CENTERLAT DATE Mw" | gawk  '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "dateid"  ]]  && echo "$CENTERLON $CENTERLAT DATE ID" | gawk  '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "datemag" ]]  && echo "$CENTERLON $CENTERLAT Date Mw" | gawk  '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "dateid"  ]]  && echo "$CENTERLON $CENTERLAT Date ID" | gawk  '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
         [[ $EQ_LABELFORMAT == "id"      ]]  && echo "$CENTERLON $CENTERLAT ID" | gawk  '{ printf "%s %s %s\n", $1, $2, $3 }'                 > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "date"    ]]  && echo "$CENTERLON $CENTERLAT DATE" | gawk  '{ printf "%s %s %s\n", $1, $2, $3 }'               > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "date"    ]]  && echo "$CENTERLON $CENTERLAT Date" | gawk  '{ printf "%s %s %s\n", $1, $2, $3 }'               > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "year"    ]]  && echo "$CENTERLON $CENTERLAT Year" | gawk  '{ printf "%s %s %s\n", $1, $2, $3 }'               > eqlabel.legend.txt
         [[ $EQ_LABELFORMAT == "mag"     ]]  && echo "$CENTERLON $CENTERLAT Mw" | gawk  '{ printf "%s %s %s\n", $1, $2, $3 }'                 > eqlabel.legend.txt
 
-        cat eqlabel.legend.txt | gmt pstext -Gwhite -W0.5p,black -F+f${EQ_LABEL_FONTSIZE},${EQ_LABEL_FONT},${EQ_LABEL_FONTCOLOR}+j${EQ_LABEL_JUST} -R -J -O $VERBOSE >> eqlabel.ps
+        cat eqlabel.legend.txt | gmt pstext -Gwhite -W0.5p,black -F+f${EQ_LABEL_FONTSIZE},${EQ_LABEL_FONT},${EQ_LABEL_FONTCOLOR}+j${EQ_LABEL_JUST} -R -J -O ${VERBOSE} >> eqlabel.ps
         PS_DIM=$(gmt psconvert eqlabel.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
         PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
         PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
@@ -8656,7 +8808,7 @@ if [[ $makelegendflag -eq 1 ]]; then
         NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
         ;;
 
-    kinsv)
+      kinsv)
         info_msg "Legend: kinsv"
         echo "$CENTERLON $CENTERLAT" |  gmt psxy -Sc0.01i -W0p,white -Gwhite $RJOK $VERBOSE >> kinsv.ps
         echo "$CENTERLON $CENTERLAT" |  gmt psxy -Ss0.4i -W0p,lightblue -Glightblue $RJOK -X0.4i $VERBOSE >> kinsv.ps
@@ -8704,17 +8856,36 @@ if [[ $makelegendflag -eq 1 ]]; then
       seis)
         info_msg "Legend: seis"
 
-        SEIS_QUINT=$(awk < ${F_SEIS}eqs.txt '
-          BEGIN {
-            getline;
-            maxmag=$4
-          }
-          {
-            maxmag=($4>maxmag)?$4:maxmag
-          }
-          END {
-            print (maxmag>8)?"5.0 6.0 7.0 8.0 9.0":(maxmag>7)?"4.0 5.0 6.0 7.0 8.0":(maxmag>6)?"3.0 4.0 5.0 6.0 7.0":(maxmag>5)?"2.0 3.0 4.0 5.0 6.0":"1.0 2.0 3.0 4.0 5.0"
-          }')
+        if [[ -e $CMTFILE ]]; then
+          # Get magnitude range from CMT
+          SEIS_QUINT=$(awk < $CMTFILE '
+            function ceil(x){return int(x)+(x>int(x))}
+            BEGIN {
+              getline;
+              maxmag=$13
+            }
+            {
+              maxmag=($13>maxmag)?$13:maxmag
+            }
+            END {
+              if (maxmag>9) {
+                maxmag=9
+              }
+              print (maxmag>8)?"5.0 6.0 7.0 8.0 9.0":(maxmag>7)?"4.0 5.0 6.0 7.0 8.0":(maxmag>6)?"3.0 4.0 5.0 6.0 7.0":(maxmag>5)?"2.0 3.0 4.0 5.0 6.0":"1.0 2.0 3.0 4.0 5.0"
+            }')
+        else  # Get magnitude range from seismicity
+          SEIS_QUINT=$(awk < ${F_SEIS}eqs.txt '
+            BEGIN {
+              getline;
+              maxmag=$4
+            }
+            {
+              maxmag=($4>maxmag)?$4:maxmag
+            }
+            END {
+              print (maxmag>8)?"5.0 6.0 7.0 8.0 9.0":(maxmag>7)?"4.0 5.0 6.0 7.0 8.0":(maxmag>6)?"3.0 4.0 5.0 6.0 7.0":(maxmag>5)?"2.0 3.0 4.0 5.0 6.0":"1.0 2.0 3.0 4.0 5.0"
+            }')
+        fi
 
         SEIS_ARRAY=($(echo $SEIS_QUINT))
 
@@ -8732,11 +8903,11 @@ if [[ $makelegendflag -eq 1 ]]; then
         echo "$CENTERLON $CENTERLAT $MW_B DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
         echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[1]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O -K >> seissymbol.ps
         echo "$CENTERLON $CENTERLAT $MW_C DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[2]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O -K >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[2]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.14i -O -K >> seissymbol.ps
         echo "$CENTERLON $CENTERLAT $MW_D DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[3]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O -K >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT $MW_E DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.25i ${VERBOSE} >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[4]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.13i -O >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[3]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT $MW_E DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.3i ${VERBOSE} >> seissymbol.ps
+        echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[4]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.16i -O >> seissymbol.ps
 
         gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
 
@@ -8890,7 +9061,8 @@ if [[ $obliqueflag -eq 1 ]]; then
 
   echo "DELTAZ_IN=\$(echo \"\${OBLIQUE_VEXAG} * ${PSSIZENUM} * (${zrange[1]} - ${zrange[0]})/ ( (${MAXLON} - ${MINLON}) * 111000 )\"  | bc -l)"  >> ./make_oblique.sh
 
-  echo "gmt grdview $BATHY -G${COLORED_RELIEF} -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JM${MINLON}/${PSSIZENUM}i -JZ\${DELTAZ_IN}i ${OBBOXCMD} -Qi${OBLIQUERES} ${OBBCOMMAND} -p\${OBLIQUEAZ}/\${OBLIQUEINC} --GMT_HISTORY=false --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > oblique.ps" >> ./make_oblique.sh
+  # echo "gmt grdview $BATHY -G${COLORED_RELIEF} -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JM${MINLON}/${PSSIZENUM}i -JZ\${DELTAZ_IN}i ${OBBOXCMD} -Qi${OBLIQUERES} ${OBBCOMMAND} -p\${OBLIQUEAZ}/\${OBLIQUEINC} --GMT_HISTORY=false --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > oblique.ps" >> ./make_oblique.sh
+  echo "gmt grdview $BATHY -G${COLORED_RELIEF} ${RJSTRING[@]} -JZ\${DELTAZ_IN}i ${OBBOXCMD} -Qi${OBLIQUERES} ${OBBCOMMAND} -p\${OBLIQUEAZ}/\${OBLIQUEINC} --GMT_HISTORY=false --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > oblique.ps" >> ./make_oblique.sh
   echo "gmt psconvert oblique.ps -Tf -A0.5i --GMT_HISTORY=false ${VERBOSE}" >> ./make_oblique.sh
   chmod a+x ./make_oblique.sh
   ./make_oblique.sh
@@ -8943,69 +9115,3 @@ if [[ $scripttimeflag -eq 1 ]]; then
 fi
 
 exit 0
-
-
-
-
-# SHADOW ONTO TEXTURE = multiply
-# COLOR ONTO TEXTURE = multiply
-# TEXTURE ONTO TEXTURE = weighted average
-
-# # Record the mean value of the hillshade
-# MEANBEFORE=$(gdalinfo -stats ${F_TOPO}single_hillshade.tif | grep 'STATISTICS_MEAN' | awk -F= '{print $2}')
-#
-# #  Combine hillshade [middle=128] and slope [0-255]
-#
-# # RECIPE 1: unidirectional hillshade with slope and cast shadows and sun glint
-#
-
-#
-# histogram_select_set ${F_TOPO}single_hillshade.tif 240 255 254 0 sun_glint.tif
-# weighted_average_combine ${F_TOPO}slope.tif ${F_TOPO}single_hillshade.tif 0.7 ${F_TOPO}average_slope_single_hillshade.tif
-# weighted_average_combine ${F_TOPO}shadow.tif 0.5 ${F_TOPO}average_slope_hillshade.tif ${F_TOPO}h.tif
-# weighted_average_combine ${F_TOPO}colordem.tif $DEM_ALPHA ${F_TOPO}h.tif ${F_TOPO}color_multiply_slope_hillshade.tif
-# lighten_combine_alpha sun_glint.tif ${F_TOPO}color_multiply_slope_hillshade.tif 0.7 ${F_TOPO}g.tif
-#
-#
-#
-# # RECIPES:
-# # DEM_ALPHA PCTAB
-# # ONE TEXTURE+COLOR = weighted_average_combinecolor 0.5 texture
-#
-# # Two ways of making a slope map that look good.
-# weighted_average_combine ${F_TOPO}shadow.tif ${F_TOPO}slope.tif $SHADOW_ALPHA ${F_TOPO}h.tif
-# histogram_rescale_stretch ${F_TOPO}h.tif 0 180 30 250 1.5 ${F_TOPO}g.tif
-# weighted_average_combine ${F_TOPO}colordem.tif ${F_TOPO}g.tif $DEM_ALPHA ${F_TOPO}color_slope.tif
-# COLORED_RELIEF=${F_TOPO}color_slope.tif
-
-
-# # OK # # # A good way of making a slope-hillshade map
-
-# OK # # # A good way of making a texture
-# alpha_value ${F_TOPO}shadow.tif ${SHADOW_ALPHA} ${F_TOPO}shadow_alpha.tif
-# multiply_combine ${F_TOPO}shadow_alpha.tif ${F_TOPO}texture.tif ${F_TOPO}h.tif
-# alpha_value ${F_TOPO}colordem.tif ${DEM_ALPHA} ${F_TOPO}colordem_alpha.tif
-# multiply_combine ${F_TOPO}colordem_alpha.tif ${F_TOPO}h.tif ${F_TOPO}color_average_slope_hillshade.tif
-# COLORED_RELIEF=${F_TOPO}color_average_slope_hillshade.tif
-
-# # A good way of making a slope-svf map
-# weighted_average_combine ${F_TOPO}slope.tif ${F_TOPO}svf.tif 0.3 ${F_TOPO}average_slope_svf.tif
-# histogram_rescale_stretch ${F_TOPO}average_slope_svf.tif 0 180 30 250 1.5 ${F_TOPO}g.tif
-# weighted_average_combine ${F_TOPO}shadow.tif ${F_TOPO}g.tif $SHADOW_ALPHA  ${F_TOPO}h.tif
-# weighted_average_combine ${F_TOPO}colordem.tif ${F_TOPO}h.tif $DEM_ALPHA ${F_TOPO}color_average_slope_svf.tif
-# COLORED_RELIEF=${F_TOPO}color_average_slope_svf.tif
-#
-# # A good way of making a hillshade-svf map
-# weighted_average_combine ${F_TOPO}multiple_hillshade.tif ${F_TOPO}svf.tif 0.3 ${F_TOPO}average_hs_svf.tif
-# histogram_rescale_stretch ${F_TOPO}average_hs_svf.tif 0 180 30 250 1.5 ${F_TOPO}g.tif
-# weighted_average_combine ${F_TOPO}shadow.tif ${F_TOPO}g.tif $SHADOW_ALPHA ${F_TOPO}h.tif
-# weighted_average_combine ${F_TOPO}colordem.tif ${F_TOPO}h.tif $DEM_ALPHA ${F_TOPO}color_average_hs_svf.tif
-#
-# # # A good way of making a slope-texture map
-# weighted_average_combine ${F_TOPO}slope.tif ${F_TOPO}texture.tif 0.3 ${F_TOPO}average_slope_texture.tif
-# histogram_rescale_stretch ${F_TOPO}average_slope_texture.tif 0 180 20 250 1.8 ${F_TOPO}g.tif
-# weighted_average_combine ${F_TOPO}shadow.tif ${F_TOPO}g.tif $SHADOW_ALPHA ${F_TOPO}h.tif
-# weighted_average_combine ${F_TOPO}colordem.tif ${F_TOPO}h.tif $DEM_ALPHA ${F_TOPO}color_average_slope_texture.tif
-# COLORED_RELIEF=${F_TOPO}color_average_slope_texture.tif
-
-# Generate the intensity file based on visualization scheme

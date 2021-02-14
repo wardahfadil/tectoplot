@@ -2101,9 +2101,11 @@ maxzval=$(gawk -v maxz=$max_z -v minz=$min_z 'BEGIN {print (maxz+minz)/2}')
 echo "echo \"0 $maxzval\" | gmt psxy -J -R -K -O -St0.1i -Ya${PROFHEIGHT_OFFSET}i -W0.7p,black -Gwhite >> ${PSFILE}" >> plot.sh
 
 
-LINETEXT=$(cat ${F_PROFILES}IDfile.txt)
-# echo LINETEXT is "${LINETEXT}"
-
+if [[ $plotprofiletitleflag -eq 1 ]]; then
+  LINETEXT=$(cat ${F_PROFILES}IDfile.txt)
+else
+  LINETEXT=""
+fi
 # FOR THE MAP
 # Plot the frame. This sets -R and -J for the actual plotting script commands in plot.sh
 

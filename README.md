@@ -118,7 +118,7 @@ Installation and setup information can be found by running the script from its s
 <td><a href=examples/example18.pdf><img src=examples/example18.jpg height=100></a></td>
 </tr>
 <tr>
-<td>Example 19: Topography with cast shadows - map
+<td>Example 19: Sentinel imagery on slopesky with cast shadows - map
 </td>
 </tr>
 <tr>

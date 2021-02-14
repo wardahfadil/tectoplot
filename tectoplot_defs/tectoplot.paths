@@ -31,6 +31,8 @@ DATAROOT=$(head -n 1 $DEFDIR"tectoplot.dataroot")
 TECTOPLOT_FORMATS=$DEFDIR"tectoplot.formats"
 TECTOPLOT_HEADERS=$DEFDIR"tectoplot.headers"
 
+CUSTOMREGIONS=$DEFDIR"tectoplot.customregions"
+
 ##### OPENPROGRAM is the program to call from the command line to view PDF file
 OPENPROGRAM=$(head -n 1 $DEFDIR"tectoplot.pdfviewer")
 
