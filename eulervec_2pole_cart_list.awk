@@ -1,3 +1,6 @@
+# Kyle Bradley, Nanyang Technological University, kbradley@ntu.edu.sg
+# February 2021
+
 # Function to calculate Euler velocity vectors (azimuth, velocity) for points within an input file
 # This function uses two poles of rotation given in the form A->B  C->B -- to find -->  A->C
 # This function skips lines that begin with >
@@ -9,15 +12,21 @@
 # 1   2   3       4      5      6      7     8     9      10    11		12		 13 14
 # lon lat azimuth seglen plate1 plate2 p1lat p1lon p1rate p2lat p2lon p2rate VN VE
 
-# VN  VE
-# -0.00864352 -0.0539648
 
-# VN  VE
-# 5.77	-0.96
+# A spherical Earth with a radius of 6371 km is assumed.
 
-# VN and VE are in mm/yr if rates are in deg/Myr?
+# ***** NOT YET IMPLEMENTED: To account for the
+# (small) effect of ellipticity, input geodetic site coordinates should be
+# converted to spherical latitude/longitude before calculating velocities
+# using lat'=atan((1-e*e)*tan(lat)) with e=0.081819 *****
 
-# Call like this: awk -f eulervec_2pole_list.awk listdata.txt
+# Example:
+# awk -f eulervec_2pole_list.awk listdata.txt
+
+
+
+
+
 
 function atan(x) { return atan2(x,1) }
 function acos(x) { return atan2(sqrt(1-x*x), x) }

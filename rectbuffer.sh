@@ -1,13 +1,15 @@
+#!/bin/bash
+# Kyle Bradley, Nanyang Technological University, kbradley@ntu.edu.sg
+# February 2021
+
 # rectbuffer.sh
 # Generate a 'rectangular' style buffer around a polyline by connecting the
 # endpoints of angle bisectors passing through vertices. The buffer distance
-# is in km and angles are calculated at the vertex.
+# is in km and angles are calculated at the vertex. This is an approximation
+# to a true distance buffer with 'flat' ends.
 #
 # Input: polyline.xy buffer_dist(km)
 # Output: buffer.xy
-
-# gmt_init_tmpdir
-
 
 # Track file is lon lat whitespace delimited columns
 TRACK=$1

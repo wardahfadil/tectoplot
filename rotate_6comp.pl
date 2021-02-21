@@ -1,5 +1,16 @@
 #!/usr/bin/perl
 
+# Kyle Bradley, NTU, January 2021
+
+# Rotate a focal mechanism in Moment Tensor format around a given axis
+# Tested by back-rotating nodal planes to horizontal; seems to work.
+
+# Inputs: none
+# Pipe in a file that has 14 column tectoplot MomentTensor format (psmeca+) plus
+# trend, plunge, and angle in three final columns (15, 16, 17), all in degrees
+# If doing strike/dip correction, trend=strike, plunge=0, angle=dip
+
+
 use File::Basename;
 use lib dirname (__FILE__);
 # BEGIN {push @INC, '.'}
@@ -11,15 +22,6 @@ use Math::MatrixReal;
 $r2d=180/pi();
 $d2r=pi()/180;
 
-# Kyle Bradley, NTU, January 2021
-
-# Rotate a focal mechanism in Moment Tensor format around a given axis
-# Tested by back-rotating nodal planes to horizontal; seems to work.
-
-# Inputs: none
-# Pipe in a file that has 14 column tectoplot MomentTensor format (psmeca+) plus
-# trend, plunge, and angle in three final columns (15, 16, 17), all in degrees
-# If doing strike/dip correction, trend=strike, plunge=0, angle=dip
 
 while(<>){
 

@@ -16,15 +16,32 @@
 
 # Expects EQCATALOG, ANSSDIR to be set
 
+# Feb 19, 2021: Discovered missing events between final section days T00:00:00 to T23:59:59
+
 [[ ! -d $ANSSDIR ]] && mkdir -p $ANSSDIR
 
 cd $ANSSDIR
 
-this_year=$(date +"%Y")
-this_month=$(date +"%m")
+this_year=$(date -u +"%Y")
+this_month=$(date -u +"%m")
+
+this_datestring=$(date -u +"%Y-%m-%dT%H:%M:%S")
 
 # Find the ANSS catalog file with the latest date
 lastfile=$(ls -l anss*.dat | gawk '{print $(NF)}' | sort -n -t "_" -k 3 -k 4 -k 5 | tail -n 1)
+
+# Read the date of the last ANSS scrape command run
+if [[ -e anss.scrapedate ]]; then
+  scrapedate=$(head -n 1 anss.scrapedate)
+else
+  if [[ -e anss.cat ]]; then
+    scrapedate=$(cut -f 5 -d ' ' anss.cat | sort | tail -n 1)
+  else
+    scrapedate="0000-00-00T00:00:00"
+  fi
+fi
+
+echo "ANSS date of last data scrape: $scrapedate"
 
 if [[ -z $lastfile ]]; then
   echo "No ANSS data files exist. Scraping from January 1951 to present"
@@ -46,10 +63,10 @@ else
   fi
 
   # Remove any files potentially containing younger events than the last one in the catalog
-  if [[ $day -le 10 ]]; then
+  if [[ $lastfile_day -le 10 ]]; then
     echo "Month segment is 1"
     rm -f anss_events_${lastfile_year}_${lastfile_month}_1.dat anss_events_${lastfile_year}_${lastfile_month}_2.dat anss_events_${lastfile_year}_${lastfile_month}_3.dat
-  elif [[ $day -le 20 ]]; then
+  elif [[ $lastfile_day -le 20 ]]; then
     echo "Month segment is 2"
     rm -f anss_events_${lastfile_year}_${lastfile_month}_2.dat anss_events_${lastfile_year}_${lastfile_month}_3.dat
   else
@@ -59,8 +76,6 @@ else
   earliest_year=$lastfile_year
   earliest_month=$lastfile_month
 fi
-
-
 
 # If the EQ catalog exists, then find the latest event.
 # *** The seismicity catalog is always sorted by time, latest event last.
@@ -85,14 +100,14 @@ echo "Downloading ANSS data from $earliest_year, from month $earliest_month to 1
 year=$earliest_year
 for month in $(seq $earliest_month 12); do
   if [[ $year -lt $this_year ]]; then
-    [[ ! -e anss_events_${year}_${month}_1.dat ]] && echo "Dowloading seismicity for ${year}-${month}-01to10"  && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-01&endtime=${year}-${month}-10&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_1.dat
-    [[ ! -e anss_events_${year}_${month}_2.dat ]] && echo "Dowloading seismicity for ${year}-${month}-11to20"  && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-11&endtime=${year}-${month}-20&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_2.dat
-    [[ ! -e anss_events_${year}_${month}_3.dat ]] && echo "Dowloading seismicity for ${year}-${month}-21to31"  && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-21&endtime=${year}-${month}-31&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_3.dat
+    echo "Dowloading seismicity for ${year}-${month}-01to10"  && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-01T00:00:00&endtime=${year}-${month}-10T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_1.dat
+    echo "Dowloading seismicity for ${year}-${month}-11to20"  && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-11T00:00:00&endtime=${year}-${month}-20T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_2.dat
+    echo "Dowloading seismicity for ${year}-${month}-21to31"  && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-21T00:00:00&endtime=${year}-${month}-31T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_3.dat
   elif [[ $month -le "10#$this_month" ]]; then
     # Download these data to ensure up-to-date seismicity
-    [[ ! -e anss_events_${year}_${month}_1.dat ]] && echo "Dowloading seismicity for current year ${year}-${month}-01to10"  && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-01&endtime=${year}-${month}-10&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_1.dat
-    [[ ! -e anss_events_${year}_${month}_2.dat ]] && echo "Dowloading seismicity for current year ${year}-${month}-11to20"  && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-11&endtime=${year}-${month}-20&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_2.dat
-    [[ ! -e anss_events_${year}_${month}_3.dat ]] && echo "Dowloading seismicity for current year ${year}-${month}-21to31"  && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-21&endtime=${year}-${month}-31&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_3.dat
+    echo "Dowloading seismicity for current year ${year}-${month}-01to10"  && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-01T00:00:00&endtime=${year}-${month}-10T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_1.dat
+    echo "Dowloading seismicity for current year ${year}-${month}-11to20"  && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-11T00:00:00&endtime=${year}-${month}-20T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_2.dat
+    echo "Dowloading seismicity for current year ${year}-${month}-21to31"  && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-21T00:00:00&endtime=${year}-${month}-31T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_3.dat
   fi
 done
 
@@ -105,14 +120,14 @@ if [[ $(echo "$earliest_year == $this_year" | bc) -eq 0 ]]; then
     # echo "Looking for anss_events_${year}"
     for month in $(seq 1 12); do
       if [[ $year -lt $this_year ]]; then
-        [[ ! -e anss_events_${year}_${month}_1.dat ]] && echo "Dowloading seismicity for ${year}-${month}-01to10" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-01&endtime=${year}-${month}-10&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_1.dat
-        [[ ! -e anss_events_${year}_${month}_2.dat ]] && echo "Dowloading seismicity for ${year}-${month}-11to20" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-11&endtime=${year}-${month}-20&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_2.dat
-        [[ ! -e anss_events_${year}_${month}_3.dat ]] && echo "Dowloading seismicity for ${year}-${month}-21to31" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-21&endtime=${year}-${month}-31&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_3.dat
+        [[ ! -e anss_events_${year}_${month}_1.dat ]] && echo "Dowloading seismicity for ${year}-${month}-01to10" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-01T00:00:00&endtime=${year}-${month}-10T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_1.dat
+        [[ ! -e anss_events_${year}_${month}_2.dat ]] && echo "Dowloading seismicity for ${year}-${month}-11to20" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-11T00:00:00&endtime=${year}-${month}-20T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_2.dat
+        [[ ! -e anss_events_${year}_${month}_3.dat ]] && echo "Dowloading seismicity for ${year}-${month}-21to31" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-21T00:00:00&endtime=${year}-${month}-31T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_3.dat
       elif [[ $month -le "10#$this_month" ]]; then
         # Download these data to ensure up-to-date seismicity
-        [[ ! -e anss_events_${year}_${month}_1.dat ]] && echo "Dowloading seismicity for current year ${year}-${month}-01to10" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-01&endtime=${year}-${month}-10&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_1.dat
-        [[ ! -e anss_events_${year}_${month}_2.dat ]] && echo "Dowloading seismicity for current year ${year}-${month}-11to20" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-11&endtime=${year}-${month}-20&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_2.dat
-        [[ ! -e anss_events_${year}_${month}_3.dat ]] && echo "Dowloading seismicity for current year ${year}-${month}-21to31" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-21&endtime=${year}-${month}-31&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_3.dat
+        [[ ! -e anss_events_${year}_${month}_1.dat ]] && echo "Dowloading seismicity for current year ${year}-${month}-01to10" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-01T00:00:00&endtime=${year}-${month}-10T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_1.dat
+        [[ ! -e anss_events_${year}_${month}_2.dat ]] && echo "Dowloading seismicity for current year ${year}-${month}-11to20" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-11T00:00:00&endtime=${year}-${month}-20T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_2.dat
+        [[ ! -e anss_events_${year}_${month}_3.dat ]] && echo "Dowloading seismicity for current year ${year}-${month}-21to31" && curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-21T00:00:00&endtime=${year}-${month}-31T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180" > anss_events_${year}_${month}_3.dat
       fi
     done
   done
@@ -147,7 +162,6 @@ files=($(echo ${firstfiles[@]} | tr ' ' '\n' | sort -n -t '_' -k3 -k4))
 
 # ANSS CSV data files are in most recent to least recent order for some reason
 # and have a single header line.
-
 
 for ((i=${#files[@]}-1; i>=0; i--)); do
   datfile=${files[i]}
@@ -220,18 +234,3 @@ else
     echo "No new events"
   fi
 fi
-
-
-
-  #
-  #
-  # # The smaller database is the following fields, space sparated, which are suitable for plotting directly using gmt psxy with -i0,1,2,3
-  # # This way, the cropped data can be used to identify events if necessary.
-  # # LON LAT DEPTH MAG DATETIME ID
-  #
-  # # 2018-04-01T01:14:42
-  # # All real events start with 1 (1920) or 2 (2020). Update script in the year 3000.
-  # # We remove events without a depth ($4) or magnitude ($5)
-  #
-  # # $1 in 1950-12-29T11:56:08.000Z format to 1950-12-29T11:56:08 tectoplot event ID format: just take first 19 characters
-  #

@@ -292,7 +292,7 @@ EOF
         # free imagery
       echo "Example 19: Sentinel imagery on slopesky with cast shadows - map" > example19.txt
 
-      tectoplot -n -r 68 69 29 30 -t BEST --open -pgo -sent 0.8 -tsl -tsky -timg sentinel 0.8 -ob 120 20 3 -o example19
+      tectoplot -n -r 68 69 29 30 -t BEST --open -pgo -sent 0.8 -tsl -tsky -timg sentinel 0.8 -ob 120 20 3 -z -c -eqlabel 7.1 datemag ``-o example19
       cp tempfiles_to_delete/oblique.pdf ./example19_oblique.pdf
       echo "Example 19: Topography with cast shadows - perspective" > example19_oblique.txt
     ;;

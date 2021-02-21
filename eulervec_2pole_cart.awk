@@ -1,6 +1,22 @@
-# Function to calculate Euler velocity vectors (azimuth, velocity) for lat lon pairs in an input file
-# This function uses two poles of rotation given in the form A->B  C->B -- to find -->  A->C
-# Call like this: awk -f eulervec_2pole.awk -v eLat_d1=17.69 -v eLon_d1=134.30 -v eV1=1.763 -v eLat_d2=7.69 -v eLon_d2=34.30 -v eV2=0.3 testlatlon.txt
+# Kyle Bradley, Nanyang Technological University, kbradley@ntu.edu.sg
+# February 2021
+#
+# eulervec_2pole_cart.awk
+#
+# gawk function to calculate Euler velocity vectors (azimuth, velocity) for
+# all lat lon pairs in an input file. This function takes as arguments two
+# Euler poles of rotation given in the form Lat/Lon/w (°/Myr).
+#
+# A spherical Earth with a radius of 6371 km is assumed.
+
+# ***** NOT YET IMPLEMENTED: To account for the
+# (small) effect of ellipticity, input geodetic site coordinates should be
+# converted to spherical latitude/longitude before calculating velocities
+# using lat'=atan((1-e*e)*tan(lat)) with e=0.081819 *****
+#
+# Example call:
+# awk -f eulervec_2pole.awk -v eLat_d1=17.69 -v eLon_d1=134.30 -v eV1=1.763 -v eLat_d2=7.69 -v eLon_d2=34.30 -v eV2=0.3 testlatlon.txt
+#
 
 
 function atan(x) { return atan2(x,1) }

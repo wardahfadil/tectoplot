@@ -1,10 +1,12 @@
 #!/bin/bash
+# Kyle Bradley, Nanyang Technological University, kbradley@ntu.edu.sg
+# February 2021
 
-# Assumes existence of GCMT, ISC, and GFZ scraped databases.
+# Assumes existence of GCMT, ISC, and GFZ scraped focal mechanism databases.
 # Run tectoplot -scrapedata to generate these if you are merging manually.
 
 # This script will merge and simplify several focal mechianism catalogs to try
-# to achieve the greatest number of events while avoiding conflicting
+# to achieve the greatest number of events while trying to avoid conflicting
 # solutions for individual events. GCMT are prioritized due to having both
 # origin/centroid data. ISC events with GCMT IDs after 1976 are removed, along
 # with non-GCMT events with the same event_id (often origin, etc). ISC GCMT
@@ -98,7 +100,7 @@ gawk < $ISCCATALOG 'BEGIN{lastlastid="YYY"; lastid="XXX"; storage[1]=""; groupin
 
 cat $CLEANISC $GCMTCATALOG $GFZCATALOG | sort -n -k4,4 > $FOCALDIR"mergecat.cat"
 
-# Remove any GFZ focal mechanisms that match GCMT/ISC events.
+# Remove any GFZ focal mechanisms that match GCMT/ISC events and build the catalog.
 gawk < $FOCALDIR"mergecat.cat" -v tdiffmin=40 -v outfile=$FOCALDIR"gfz_reject.cat" '
   function abs(v) { return (v<0)?-v:v }
   BEGIN {

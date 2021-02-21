@@ -1,5 +1,18 @@
 #!/usr/bin/perl
 
+# Kyle Bradley, Nanyang Technological University, kbradley@ntu.edu.sg
+# February 2021
+
+# Based on original code diagonalize.pl by Utpal Kumar (IESAS) and
+# GMT's psmeca.c/ultimeca.c by G. Patau (IPGP)
+
+# Build the symmetric moment tensor matrix from the input arguments
+# and calculate magnitude, trend, and plunge of the principal axes
+
+# Command line arguments: Mxx Myy Mzz Mxy Mxz Myz
+# Print to stdout: Pval, Paz(°), Pinc(°), Nval, Naz(°), Ninc(°), Tval, Taz(°), Tinc(°)
+
+
 use File::Basename;
 use lib dirname (__FILE__);
 # BEGIN {push @INC, '.'}
@@ -10,14 +23,6 @@ use Math::MatrixReal;
 
 $r2d=180/pi();
 $d2r=pi()/180;
-
-# Modified by Kyle bradley, NTU, November 2020 to output principal axes and
-# nodal plane strike/dip/rake of moment tensors.
-
-# Based on original code diagonalize.pl by Utpal Kumar (IESAS) and
-# GMT's psmeca.c/ultimeca.c by G. Patau (IPGP)
-
-# Build the symmetric moment tensor matrix from the input arguments
 
 $Mxx = $ARGV[0];
 $Myy = $ARGV[1];

@@ -1,17 +1,17 @@
-# Function to add two Euler poles given in geographic coords, output in geographic coords
+# Kyle Bradley, Nanyang Technological University, kbradley@ntu.edu.sg
+# February 2021
+
+# gawk function to add two Euler poles given as latitude/longitude/rotation rate
+
 # This function uses two poles of rotation given in the form A->B  C->B -- to find -->  A->C
 # Call like this: awk -f euleradd.awk eulerpairs.txt
 # Where eulerpairs.txt (or stdin if piped in) are in the form lat1 lon1 rate1 lat2 lon2 rate2
 
-
-# Something is wrong, where sometimes the addition returns a bad eLon...
-
-# Input
+# Example input
 # lat1   lon1   rate1   lat2   lon2   rate2
 # 50.37  -3.29  0.544   44.44  23.09  0.608
-# Output
+# Example output
 # -1.95016 -74.4483 0.197499
-
 
 function atan(x) { return atan2(x,1) }
 function acos(x) { return atan2(sqrt(1-x*x), x) }

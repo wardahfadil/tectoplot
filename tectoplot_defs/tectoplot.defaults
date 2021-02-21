@@ -4,9 +4,16 @@
 # This file will be sourced by the main tectoplot script to load various default values.
 # Assignments should be in bash format
 
+#### Data download options
+DELETEZIPFLAG=0
+
+
+#### Topo visualization options
+
+
 SENTINEL_GAMMA=0.7
 
-DEFAULT_TOPOCTRL="m"   # Default topography visualization string
+DEFAULT_TOPOCTRL="ms"   # Default topography visualization string
 UNI_FACT=0.7
 SKYVIEW_FACT=0.7
 MULTIHS_FACT=0.7
@@ -282,13 +289,14 @@ TOPOCONTOURMINPTS="500"
 ##### Seismicity
 ZSFILLCOLOR="white"          # Default fill color for solid fill hypocenters
 EQ_MINMAG=0
-EQ_MAXMAG=10
+EQ_MAXMAG=100
 EQLINEWIDTH="0.25p"
 EQLINECOLOR="black"
 EQREMOVEFILL="white"
 EQCUTMINDEPTH=-1000          # Ignore seismicity and CMT data above this depth
 EQCUTMAXDEPTH=6000           # Ignore seismicity and CMT data below this depth
-REMOVE_DEFAULTDEPTHS=1       # Should we remove events with D=10,5,33,etc
+REMOVE_DEFAULTDEPTHS=0       # Should we remove events with D=10,5,33,etc
+REMOVE_DEFAULTDEPTHS_MAXMAG=6     # But don't remove events above a (scaled?) magnitude threshold as they are more important
 REMOVE_DEFAULTDEPTHS_WITHPLOT=1   # Should we plot the removed events separately?
 REMOVE_EQUIVS=1              # Should we remove equivalent earthquakes if CMT exists?
 

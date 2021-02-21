@@ -98,7 +98,6 @@ else
       fi
   done
 
-
   # Label GCMT solutions earlier than 1976 so we don't delete them later.
   echo "Changing GCMT to G_CMTpre in files before 1976 (in place)"
   for year in $(seq $earliest_year 1976); do

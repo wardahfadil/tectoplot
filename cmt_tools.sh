@@ -1,6 +1,10 @@
 #!/bin/bash
+
+# Kyle Bradley, Nanyang Technological University, kbradley@ntu.edu.sg
+# February 2021
+
 # Awk tools ingest focal mechanism data into tectoplot format
-printheader=0
+
 # Usage
 # cmt_tools.sh FILE FORMATCODE IDCODE SWITCH
 
@@ -43,8 +47,11 @@ printheader=0
 # OUTPUT FORMAT
 #  idcode event_code id epoch lon_centroid lat_centroid depth_centroid lon_origin lat_origin depth_origin author_centroid author_origin MW mantissa exponent strike1 dip1 rake1 strike2 dip2 rake2 exponent Tval Taz Tinc Nval Naz Ninc Pval Paz Pinc exponent Mrr Mtt Mpp Mrt Mrp Mtp centroid_dt
 
+# Assumes that these variables are set (as environment variables or when this script is sourced using . bash command)
 # DIAGSCRIPT = full path to diagonalize_6comp.pl
 # DIAGDIR = full path to folder containing DIAGSCRIPT
+
+printheader=0
 
 if [[ $1 == "format" ]]; then
   echo "idcode event_code id epoch lon_centroid lat_centroid depth_centroid lon_origin lat_origin depth_origin author_centroid author_origin MW mantissa exponent strike1 dip1 rake1 strike2 dip2 rake2 exponent Tval Taz Tinc Nval Naz Ninc Pval Paz Pinc exponent Mrr Mtt Mpp Mrt Mrp Mtp centroid_dt"
@@ -1025,8 +1032,6 @@ BEGIN {
 
 
       # Currently the script is failing hard for np1 and np2 existing but not other things.
-
-
 
       # Logic to complete the entries if possible.
       # FLAGS: np1_exists np2_exists ntp_axes_exist ntp_vals_exist tensor_exists get_moment_from_either_tensor_or_ntp

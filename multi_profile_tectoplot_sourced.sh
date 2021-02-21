@@ -1,11 +1,14 @@
 #!/bin/bash
-#
-# . multi_profile_tectoplot.sh
+
+# Kyle Bradley, Nanyang Technological University, kbradley@ntu.edu.sg
+# February 2021
+
+# Usage: . multi_profile_tectoplot.sh
 #
 # Convert to a script that is sourced by tectoplot or by a wrapper script. Then we can do without
 # passing variables or having problems returning information to tectoplot.
 #
-# PARAMETERS REQUIRED:
+# VARIABLES REQUIRED (in environment or set prior to sourcing using . bash command):
 #
 # MPROFFILE - command file
 # PSFILE - ps file to plot on top of
@@ -16,7 +19,7 @@
 # PLOT_SECTIONS_PROFILEFLAG   {=1 means plot section PDFs in perpective, =0 means do not}
 # litho1profileflag   (=1 means extract and plot litho1 cross section, =0 means do not)
 #
-# FILES EXPECTED:
+# FILES EXPECTED to exist:
 # cmt_normal.txt, cmt_strikeslip.txt, cmt_thrust.txt (for focal mechanisms)
 # cmt_alt_lines.xyz, cmt_alt_pts.xyz (if -cc flag is used)
 #
@@ -64,6 +67,8 @@
 # S GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING
 # Top grid for oblique profile
 # G GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING
+# Point labels
+# B LABELFILE SWATH_WIDTH ZSCALE FONTSTRING
 
 # project_xyz_pts_onto_track $trackfile $xyzfile $outputfile $xoffset $zoffset $zscale
 # $1=$trackfile
@@ -286,6 +291,8 @@ for i in $(seq 1 $k); do
     head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print $3 }' >> ${F_PROFILES}widthlist.txt
   elif [[ ${FIRSTWORD:0:1} == "C" ]]; then
     head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print $3 }' >> ${F_PROFILES}widthlist.txt
+  elif [[ ${FIRSTWORD:0:1} == "B" ]]; then
+    head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print $3 }' >> ${F_PROFILES}widthlist.txt
   fi
 done
 
@@ -391,18 +398,39 @@ z_axis_label="Distance (km)"
 for i in $(seq 1 $k); do
   FIRSTWORD=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk '{print $1}')
 
-
+  # L changes aspects of plot axis labels
   if [[ ${FIRSTWORD:0:1} == "L" ]]; then
     # Remove leading and trailing whitespaces from the axis labels
     x_axis_label=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk -F'|' '{gsub(/^[ \t]+/,"",$2);gsub(/[ \t]+$/,"",$2);print $2}')
     y_axis_label=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk -F'|' '{gsub(/^[ \t]+/,"",$3);gsub(/[ \t]+$/,"",$2);print $3}')
     z_axis_label=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk -F'|' '{gsub(/^[ \t]+/,"",$4);gsub(/[ \t]+$/,"",$2);print $4}')
 
-    # S defines grids that we calculate swath profiles from.
-    # G defines a grid that will be displayed above oblique profiles.
+  # V changes the vertical exaggeration of perspective plots
   elif [[ ${FIRSTWORD:0:1} == "V" ]]; then
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print }'))
     PERSPECTIVE_EXAG="${myarr[1]}"
+
+  # B plots labels from an XYZ+text format file
+  elif [[ ${FIRSTWORD:0:1} == "B" ]]; then
+    myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print }'))
+    # This is where we would load datasets to be displayed
+    LABEL_FILE_P=$(echo "$(cd "$(dirname "${myarr[1]}")"; pwd)/$(basename "${myarr[1]}")")
+    LABEL_FILE_SEL=$(echo "${F_PROFILES}label_$(basename "${myarr[1]}")")
+
+    # Remove lines that don't start with a number or a minus sign. Doesn't handle plus signs...
+    # Store in a file called crop_X where X is the basename of the source data file.
+    grep "^[-*0-9]" $LABEL_FILE_P | gmt select -fg -L${F_PROFILES}line_buffer.txt+d"${myarr[2]}" > $LABEL_FILE_SEL
+    info_msg "Selecting labels in file $LABEL_FILE_P within buffer distance ${myarr[2]}: to $LABEL_FILE_SEL"
+    labelfilelist[$i]=$LABEL_FILE_SEL
+
+    # In this case, the width given must be divided by two.
+    labelwidthlistfull[$i]="${myarr[2]}"
+    labelwidthlist[$i]=$(echo "${myarr[2]}" | gawk '{ print ($1+0)/2 substr($1,length($1),1) }')
+    labelunitlist[$i]="${myarr[3]}"
+    labelfontlist[$i]=$(echo "${myarr[@]:4}")
+
+  # S defines grids that we calculate swath profiles from.
+  # G defines a grid that will be displayed above oblique profiles.
   elif [[ ${FIRSTWORD:0:1} == "S" || ${FIRSTWORD:0:1} == "G" ]]; then           # Found a gridded dataset; cut to AOI and store as a nc file
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print }'))
 
@@ -433,6 +461,8 @@ for i in $(seq 1 $k); do
     rm -f ${F_PROFILES}tmp.nc
     gmt grdcut ${gridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
     gmt grdmath ${F_PROFILES}tmp.nc ${gridzscalelist[$i]} MUL = ${F_PROFILES}${gridfilesellist[$i]}
+
+  # T is a grid sampled along a track line
   elif [[ ${FIRSTWORD:0:1} == "T" ]]; then
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print }'))
 
@@ -456,6 +486,8 @@ for i in $(seq 1 $k); do
       # echo tmp.nc exists
       gmt grdmath ${F_PROFILES}tmp.nc ${ptgridzscalelist[$i]} MUL = ${F_PROFILES}${ptgridfilesellist[$i]}
     fi
+
+  # X is an xyz dataset; E is an XYZ dataset scaled like an earthquake
   elif [[ ${FIRSTWORD:0:1} == "X" || ${FIRSTWORD:0:1} == "E" ]]; then        # Found an XYZ dataset
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print }'))
     # This is where we would load datasets to be displayed
@@ -481,6 +513,8 @@ for i in $(seq 1 $k); do
     # echo "Scale factor for Z units is ${xyzunitlist[$i]}"
     # echo "Commands are ${xyzcommandlist[$i]}"
     # echo "Scale flag is ${xyzscaleeqsflag[$i]}"
+
+  # C is a CMT dataset
   elif [[ ${FIRSTWORD:0:1} == "C" ]]; then         # Found a CMT dataset; currently, we only do one
     cmtfileflag=1
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print }'))
@@ -1444,13 +1478,13 @@ EOF
       sort -n -k $NUMFIELDS < ${F_PROFILES}tmp2.txt > ${F_PROFILES}presort_${FNAME}
 
       # Calculate true distances along the track line. "REMOVEME" is output as "NaN" by GMT.
-      gawk < ${F_PROFILES}presort_${FNAME} '{print $1, $2}' | gmt mapproject -G+uk -Vn | gawk '{print $3}' > ${F_PROFILES}tmp.txt
+      gawk < ${F_PROFILES}presort_${FNAME} '{print $1, $2}' | gmt mapproject -G+uk -Vn | gawk '{print $3}' > ${F_PROFILES}${FNAME}_tmp.txt
 
       # NF is the true distance along profile that needs to be the X coordinate, modified by XOFFSET_NUM
       # NF-1 is the distance from the zero point and should be discarded
       # $3 is the Z value that needs to be modified by zscale and ZOFFSET_NUM
 
-      paste ${F_PROFILES}presort_${FNAME} ${F_PROFILES}tmp.txt | gawk -v xoff=$XOFFSET_NUM -v zoff=$ZOFFSET_NUM -v zscale=${xyzunitlist[i]} '{
+      paste ${F_PROFILES}presort_${FNAME} ${F_PROFILES}${FNAME}_tmp.txt | gawk -v xoff=$XOFFSET_NUM -v zoff=$ZOFFSET_NUM -v zscale=${xyzunitlist[i]} '{
         if ($3 != "REMOVEME") {
           printf "%s %s %s", $(NF)+xoff, ($3)*zscale+zoff, (($3)*zscale+zoff)/(zscale)
           if (NF>=4) {
@@ -1471,9 +1505,13 @@ EOF
 
         if  [[ $REMOVE_DEFAULTDEPTHS -eq 1 ]]; then
           # Plotting in km instead of in map geographic coords
-          gawk < ${F_PROFILES}finaldist_${FNAME} '{
-            if ($3 == 10 || $3 == 33 || $3 == 5 ||$3 == 1 || $3 == 6  || $3 == 35 ) {
-              seen[$3]++
+          gawk < ${F_PROFILES}finaldist_${FNAME} -v defdepmag=${REMOVE_DEFAULTDEPTHS_MAXMAG} '{
+            if ($4 <= defdepmag) {
+              if ($3 == 10 || $3 == 33 || $3 == 5 ||$3 == 1 || $3 == 6  || $3 == 35 ) {
+                seen[$3]++
+              } else {
+                print
+              }
             } else {
               print
             }
@@ -1760,7 +1798,7 @@ EOF
 
       # Generate the plotting commands for the shell script
 
-      if [[ cmtthrustflag -eq 1 ]]; then
+      if [[ $cmtthrustflag -eq 1 ]]; then
         # PLOT ONTO THE MAP DOCUMENT
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
@@ -1776,7 +1814,7 @@ EOF
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${F_PROFILES}${LINEID}_cmt_thrust_profile_data.txt -n -k 11 | gmt psmeca -p -E${CMT_THRUSTCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -G$COLOR $CMTCOMMANDS $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
-      if [[ cmtnormalflag -eq 1 ]]; then
+      if [[ $cmtnormalflag -eq 1 ]]; then
         # PLOT ONTO THE MAP DOCUMENT
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
@@ -1792,7 +1830,7 @@ EOF
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${F_PROFILES}${LINEID}_cmt_normal_profile_data.txt -n -k 11 | gmt psmeca -p -E${CMT_NORMALCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -G$COLOR $CMTCOMMANDS $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
-      if [[ cmtssflag -eq 1 ]]; then
+      if [[ $cmtssflag -eq 1 ]]; then
         # PLOT ONTO THE MAP DOCUMENT
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
@@ -1809,6 +1847,147 @@ EOF
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data.txt -n -k 11 | gmt psmeca -p -E${CMT_SSCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -G$COLOR $CMTCOMMANDS $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
     fi
+
+
+        ############################################################################
+        # Now treat the labels.
+        # Label files are in the format:
+        # lon lat depth mag timecode ID epoch font justification
+        # -70.3007 -33.2867 108.72 4.1 2021-02-19T11:49:05 us6000diw5 1613706545 10p,Helvetica,black TL
+
+        for i in ${!labelfilelist[@]}; do
+          FNAME=$(echo -n "${LINEID}_"$i"projdist.txt")
+
+          # Calculate distance from data points to the track, using only first two columns
+          gawk < ${labelfilelist[i]} '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -L${F_PROFILES}${LINEID}_trackfile.txt -fg -Vn | gawk '{print $3, $4, $5}' > ${F_PROFILES}tmp.txt
+          gawk < ${labelfilelist[i]} '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -L${F_PROFILES}line_buffer.txt+p -fg -Vn | gawk '{print $4}'> ${F_PROFILES}tmpbuf.txt
+          # Paste result onto input lines and select the points that are closest to current track out of all tracks
+          paste ${F_PROFILES}tmpbuf.txt ${labelfilelist[i]} ${F_PROFILES}tmp.txt  > ${F_PROFILES}joinbuf.txt
+      #      head joinbuf.txt
+      #      echo PROFILE_INUM=$PROFILE_INUM
+          cat ${F_PROFILES}joinbuf.txt | gawk -v lineid=$PROFILE_INUM '{
+            if ($1==lineid) {
+              for (i=2;i<=NF;++i) {
+                printf "%s ", $(i)
+              }
+              printf("\n")
+            }
+          }' > ${F_PROFILES}$FNAME
+
+          # output is lon lat ... fields ... dist_to_track lon_at_track lat_at_track
+
+          # Calculate distance from data points to any profile line, using only first two columns, then paste onto input file.
+
+          pointsX=$(head -n 1 ${F_PROFILES}${LINEID}_trackfile.txt | gawk '{print $1}')
+          pointsY=$(head -n 1 ${F_PROFILES}${LINEID}_trackfile.txt | gawk '{print $2}')
+          pointeX=$(tail -n 1 ${F_PROFILES}${LINEID}_trackfile.txt | gawk '{print $1}')
+          pointeY=$(tail -n 1 ${F_PROFILES}${LINEID}_trackfile.txt | gawk '{print $2}')
+
+          # Exclude points that project onto the endpoints of the track, or are too far away. Distances are in meters in FNAME
+          # echo "$pointsX $pointsY / $pointeX $pointeY"
+          # rm -f ./cull.dat
+
+          cat ${F_PROFILES}$FNAME | gawk -v x1=$pointsX -v y1=$pointsY -v x2=$pointeX -v y2=$pointeY -v w=${labelwidthlist[i]} '{
+            if (($(NF-1) == x1 && $(NF) == y1) || ($(NF-1) == x2 && $(NF) == y2) || $(NF-2) > (w+0)*1000) {
+              # Nothing. My gawk skills are poor.
+              printf "%s %s", $(NF-1), $(NF) >> "./cull.dat"
+              for (i=3; i < (NF-2); i++) {
+                printf " %s ", $(i) >> "./cull.dat"
+              }
+              printf("\n") >> "./cull.dat"
+            } else {
+              printf "%s %s", $(NF-1), $(NF)
+              for (i=3; i < (NF-2); i++) {
+                printf " %s ", $(i)
+              }
+              printf("\n")
+            }
+          }' > ${F_PROFILES}projpts_${FNAME}
+          cleanup cull.dat
+
+          # echo tally
+          # wc -l ./cull.dat
+          # wc -l projpts_${FNAME}
+          # echo endtally
+          #
+          # mv ./cull.dat ${labelcullfile[i]}
+
+          # This is where we can filter points based on whether they exist in previous profiles
+
+          # Calculate along-track distances for points with distance less than the cutoff
+          # echo XYZwidth to trim is ${labelwidthlist[i]}
+          # gawk < trimmed_${FNAME} -v w=${labelwidthlist[i]} '($4 < (w+0)*1000) {print $5, $6, $3}' > projpts_${FNAME}
+
+          # Replaces lon lat with lon_at_track lat_at_track
+
+          # Default sampling distance is 10 meters, hardcoded. Would cause trouble for
+          # very long or short lines. Should use some logic to set this value?
+
+          # To ensure the profile path is perfect, we have to add the points on the profile back, and then remove them later
+          NUMFIELDS=$(head -n 1 ${F_PROFILES}projpts_${FNAME} | gawk '{print NF}')
+
+          gawk < ${F_PROFILES}${LINEID}_trackfile.txt -v fnum=$NUMFIELDS '{
+            printf "%s %s REMOVEME", $1, $2
+            for(i=3; i<fnum; i++) {
+              printf " 0"
+            }
+            printf("\n")
+          }' >> ${F_PROFILES}projpts_${FNAME}
+
+          # This gets the points into a general along-track order by calculating their true distance from the starting point
+          # Tracks that loop back toward the first point might fail (but who would do that anyway...)
+
+          gawk < ${F_PROFILES}projpts_${FNAME} '{print $1, $2}' | gmt mapproject -G$pointsX/$pointsY+uk -Vn | gawk '{print $3}' > ${F_PROFILES}tmp.txt
+          paste ${F_PROFILES}projpts_${FNAME} ${F_PROFILES}tmp.txt > ${F_PROFILES}tmp2.txt
+          NUMFIELDS=$(head -n 1 ${F_PROFILES}tmp2.txt | gawk '{print NF}')
+          sort -n -k $NUMFIELDS < ${F_PROFILES}tmp2.txt > ${F_PROFILES}presort_${FNAME}
+
+          # Calculate true distances along the track line. "REMOVEME" is output as "NaN" by GMT.
+          gawk < ${F_PROFILES}presort_${FNAME} '{print $1, $2}' | gmt mapproject -G+uk -Vn | gawk '{print $3}' > ${F_PROFILES}tmp.txt
+
+          # NF is the true distance along profile that needs to be the X coordinate, modified by XOFFSET_NUM
+          # NF-1 is the distance from the zero point and should be discarded
+          # $3 is the Z value that needs to be modified by zscale and ZOFFSET_NUM
+
+          paste ${F_PROFILES}presort_${FNAME} ${F_PROFILES}tmp.txt | gawk -v xoff=$XOFFSET_NUM -v zoff=$ZOFFSET_NUM -v zscale=${labelunitlist[i]} '{
+            if ($3 != "REMOVEME") {
+              printf "%s %s %s", $(NF)+xoff, ($3)*zscale+zoff, (($3)*zscale+zoff)/(zscale)
+              if (NF>=4) {
+                for(i=4; i<NF-1; i++) {
+                  printf " %s", $(i)
+                }
+              }
+              printf("\n")
+            }
+          }' > ${F_PROFILES}finaldist_${FNAME}
+
+          # 297.8 108.72 108.72 4.1 2021-02-19T11:49:05 us6000diw5 1613706545 10p,Helvetica,black TL
+
+          [[ $EQ_LABELFORMAT == "idmag"    ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $1, 0-$2, $8, 0, $9, $6, $4  }' >> ${F_PROFILES}labels_${FNAME}
+          [[ $EQ_LABELFORMAT == "datemag"  ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $1, 0-$2, $8, 0, $9, tmp[1], $4 }' >> ${F_PROFILES}labels_${FNAME}
+          [[ $EQ_LABELFORMAT == "dateid"   ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $1, 0-$2, $8, 0, $9, tmp[1], $6 }' >> ${F_PROFILES}labels_${FNAME}
+          [[ $EQ_LABELFORMAT == "id"       ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, 0-$2, $8, 0, $9, $6  }' >> ${F_PROFILES}labels_${FNAME}
+          [[ $EQ_LABELFORMAT == "date"     ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, 0-$2, $8, 0, $9, tmp[1] }' >> ${F_PROFILES}labels_${FNAME}
+          [[ $EQ_LABELFORMAT == "year"     ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ split($5,tmp,"T"); split(tmp[1],tmp2,"-"); printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, 0-$2, $8, 0, $9, tmp2[1] }' >> ${F_PROFILES}labels_${FNAME}
+          [[ $EQ_LABELFORMAT == "yearmag"  ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ split($5,tmp,"T"); split(tmp[1],tmp2,"-"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $1, 0-$2, $8, 0, $9, tmp2[1], $4 }' >> ${F_PROFILES}labels_${FNAME}
+          [[ $EQ_LABELFORMAT == "mag"      ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ printf "%s\t%s\t%s\t%s\t%s\t%0.1f\n", $1, 0-$2, $8, 0, $9, $4  }' >> ${F_PROFILES}labels_${FNAME}
+
+          # PLOT ON THE MAP PS
+          echo "uniq -u ${F_PROFILES}labels_${FNAME} | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite  -F+f+a+j -W0.5p,black -R -J -O -K -Vn >> "${PSFILE}"" >> plot.sh
+          # echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> "${PSFILE}"" >> plot.sh
+
+          # PLOT ON THE FLAT SECTION PS
+          echo "uniq -u ${F_PROFILES}labels_${FNAME} | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite  -F+f+a+j -W0.5p,black -R -J -O -K -Vn>> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+
+          # echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+
+          # PLOT ON THE OBLIQUE SECTION PS
+          [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "uniq -u ${F_PROFILES}labels_${FNAME} | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -p -Gwhite  -F+f+a+j -W0.5p,black -R -J -O -K -Vn >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+          # [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -p -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+
+          rm -f presort_${FNAME}
+        done # LABELS
+
 
     # Plot the locations of profile points above the profile, adjusting for XOFFSET and summing the incremental distance if necessary.
     # ON THE MAP
@@ -2010,6 +2189,8 @@ EOF
 
     fi # Finalize individual profile plots
 
+
+
     ### End of processing this profile.
 
     # Add profile X limits to all_data in case plotted data does not span profile.
@@ -2164,4 +2345,5 @@ fi
 # plotting on the map by tectoplot, if mprof) was called in the middle of
 # plotting for some reason.
 
-echo "0 -10" | gmt psxy -Sc0.01i -J -R -O -K -X$PROFILE_X -Y$PROFILE_Y -Vn >> "${PSFILE}"
+# Changed from a different call to psxy ... not fully tested
+gmt psxy -T -J -R -O -K -X$PROFILE_X -Y$PROFILE_Y -Vn >> "${PSFILE}"

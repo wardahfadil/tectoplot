@@ -1,4 +1,7 @@
 #!/bin/bash
+# Kyle Bradley, NTU, January 2021
+
+# Scrape the GFZ focal mechanism catalog
 
 [[ ! -d $GFZDIR ]] && mkdir -p $GFZDIR
 [[ ! -e ${GFZCATALOG} ]] && touch ${GFZCATALOG}
