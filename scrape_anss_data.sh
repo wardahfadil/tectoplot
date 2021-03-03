@@ -205,6 +205,8 @@ for ((i=${#files[@]}-1; i>=0; i--)); do
     print epoch
   }')
 
+  echo "File ${datfile}: lastevent: ${lastdatfile_event}, lastepoch: ${lastdatfile_epoch}"
+
   if [[ $(echo "$lastdatfile_epoch > $lastevent_epoch" | bc) -eq 1 ]]; then
     gawk < $datfile -F, -v lasttime=$lastevent_epoch '{
         if ($4 && $5 && $1 != "time") {
