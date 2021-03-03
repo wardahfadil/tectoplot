@@ -18,6 +18,30 @@
 
 # Feb 19, 2021: Discovered missing events between final section days T00:00:00 to T23:59:59
 
+function has_a_line() {
+  if [[ -e $1 ]]; then
+    gawk '
+    BEGIN {
+      x=0
+    }
+    {
+      if(NR>1) {
+        x=1;
+        exit
+      }
+    }
+    END {
+      if(x>0) {
+        print 1
+      } else {
+        print 0
+      }
+    }' < $1
+  else
+    echo 0
+  fi
+}
+
 [[ ! -d $ANSSDIR ]] && mkdir -p $ANSSDIR
 
 cd $ANSSDIR
@@ -34,7 +58,7 @@ lastfile=$(ls -l anss*.dat | gawk '{print $(NF)}' | sort -n -t "_" -k 3 -k 4 -k 
 if [[ -e anss.scrapedate ]]; then
   scrapedate=$(head -n 1 anss.scrapedate)
 else
-  if [[ -e anss.cat ]]; then
+  if [[ -e anss.cat && $(has_a_line anss.cat) -eq 1 ]]; then
     scrapedate=$(cut -f 5 -d ' ' anss.cat | sort | tail -n 1)
   else
     scrapedate="0000-00-00T00:00:00"
@@ -225,11 +249,14 @@ if [[ $makenewcatalogflag -eq 1 ]]; then
       print $3, $2, $4, $5, timecode, $12, epoch
     }
   }' | sort -n -k 7 > $EQCATALOG
+  tail -n 1 $EQCATALOG | awk '{print $7}' > anss.scrapedate
 else
   if [[ -e add_to_catalog.cat ]]; then
-    sort add_to_catalog.cat -n -k 7 >> $EQCATALOG
+    sort add_to_catalog.cat -n -k 7 > sorted_to_add.cat
+    cat sorted_to_add.cat >> $EQCATALOG
+    tail -n 1 sorted_to_add.cat | awk '{print $7}' > anss.scrapedate
     echo "Added $(wc -l < add_to_catalog.cat | gawk '{print $1}') events to seismicity catalog"
-    rm -f add_to_catalog.cat
+    rm -f add_to_catalog.cat sorted_to_add.cat
   else
     echo "No new events"
   fi
