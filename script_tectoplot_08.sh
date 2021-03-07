@@ -1,5 +1,14 @@
 #!/bin/bash
 TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
+
+# Formula for an enhanced map
+# tectoplot -n -r ~/Dropbox/SumatraMaps/Sumbawa.jpg -im ~/Dropbox/SumatraMaps/Sumbawa.jpg -noframe -t 01s -tclip 116.7 118.5 -9.116666 -8 -tflat -tuni -tunsetflat -tshad 55 5 -timg ~/Dropbox/SumatraMaps/Sumbawa.jpg --open
+
+# Dies if an unbound variable is found. Breaks things with Bash 3
+# set -u
+
+
+# tectoplot
 #
 # Script to make seismotectonic plots with integrated plate motions and
 # earthquake kinematics, plus cross sections, primarily using GMT.
@@ -20,6 +29,10 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 
 # CHANGELOG
 
+# March    02, 2021: Bug fixes, updated earthquake selection for 360° maps
+#                  : Added -pc option to plot colored plate polygons
+# March    01, 2021: Added TEMP/* option for paths which resolves to the absolute ${TMP}/* path
+# February 26, 2021: Updated topo visualizations, added grid plotting onto topo, clipping
 # February 19, 2021: Added -eventmap option, labels on profiles
 # February 17, 2021: Added -r lonlat and -r latlon, and coordinate_parse function
 # February 15, 2021: Added -tflat option to set below-sea-level cells to 0 elevation
@@ -175,35 +188,58 @@ TECTOPLOT_VERSION="TECTOPLOT 0.2, November 2020"
 # Develop a better description of scaling of map elements (line widths, arrow sizes, etc).
 # 1 point = 1/72 inches = 0.01388888... inches
 
+################################################################################
+################################################################################
+##### FUNCTION DEFINITIONS
+
+
+# Call without arguments will return current UTC time in the format YYYY-MM-DDTHH:MM:SS
+# Call with arguments will add the specified number of
+# days hours minutes seconds
+# from the current time.
+# Example: date_code_utc -7 0 0 0
+# Returns: current date minus seven days
+
+function date_shift_utc() {
+  TZ=UTC0     # use UTC
+  export TZ
+
+  gawk 'BEGIN  {
+      exitval = 0
+
+      daycount=0
+      hourcount=0
+      minutecount=0
+      secondcount=0
+
+      if (ARGC > 1) {
+          daycount = ARGV[1]
+      }
+      if (ARGC > 2) {
+          hourcount = ARGV[2]
+      }
+      if (ARGC > 3) {
+          minutecount = ARGV[3]
+      }
+      if (ARGC > 4) {
+          secondcount = ARGV[2]
+      }
+      timestr = strftime("%FT%T")
+      date = substr(timestr,1,10);
+      split(date,dstring,"-");
+      time = substr(timestr,12,8);
+      split(time,tstring,":");
+      the_time = sprintf("%i %i %i %i %i %i",dstring[1],dstring[2],dstring[3],tstring[1],tstring[2],int(tstring[3]+0.5));
+      secs = mktime(the_time);
+      newtime = strftime("%FT%T", secs+daycount*24*60*60+hourcount*60*60+minutecount*60+secondcount);
+      print newtime
+      exit exitval
+  }' "$@"
+}
 
 ################################################################################
 # Messaging and debugging routines
 
-# Uncomment the above line for the ultimate debugging experience.
-#
-
-
-# function i_should(){
-# 02      uname="$(uname -a)"
-# 03
-# 04      [[ "$uname" =~ Darwin ]] && return
-# 05
-# 06      if [[ "$uname" =~ Ubuntu ]]; then
-# 07          release="$(lsb_release -a)"
-# 08          [[ "$release" =~ LTS ]]
-# 09          return
-# 10      fi
-# 11
-# 12      false
-# 13  }
-# 14
-# 15  function do_it(){
-# 16      echo "Hello, old friend."
-# 17  }
-# 18
-# 19  if i_should; then
-# 20    do_it
-# 21  fi
 
 # Returns true if argument is empty or starts with a hyphen; otherwise false
 function arg_is_flag() {
@@ -220,10 +256,8 @@ function arg_is_positive_float() {
   [[ $1 =~ ^[+]?([0-9]+\.?|[0-9]*\.[0-9]+)$ ]]
 }
 
-_ERR_MSG_FMT="%s[%s]: %s\n"
-
 function error_msg() {
-  printf "$_ERR_MSG_FMT" ${BASH_SOURCE[1]##*/} ${BASH_LINENO[0]} "${@}" > /dev/stderr
+  printf "%s[%s]: %s\n" ${BASH_SOURCE[1]##*/} ${BASH_LINENO[0]} "${@}" > /dev/stderr
   exit 1
 }
 
@@ -249,6 +283,8 @@ function abs_path() {
         else
             echo "$(pwd)/$1"
         fi
+    elif [[ $1 =~ TEMP/* ]]; then
+      echo ${FULL_TMP}/${1##*/}
     fi
 }
 
@@ -267,8 +303,6 @@ function abs_dir() {
 
 # Exit cleanup code from Mitch Frazier
 # https://www.linuxjournal.com/content/use-bash-trap-statement-cleanup-temporary-files
-
-declare -a on_exit_items
 
 function cleanup_on_exit()
 {
@@ -294,6 +328,9 @@ function cleanup()
     fi
 }
 
+################################################################################
+# Grid (raster) file functions
+
 # Grid z range query function. Try to avoid querying the full grid when determining the range of Z values
 
 function grid_zrange() {
@@ -305,6 +342,9 @@ function grid_zrange() {
    fi
    echo $output | gawk  '{printf "%f %f", $6+0, $7+0}'
 }
+
+################################################################################
+# XY (point and line) file functions
 
 # XY range query function from a delimited text file
 # variable=($(xy_range data_file.txt [[delimiter]]))
@@ -343,24 +383,8 @@ function xy_range() {
     }'
 }
 
-##### A first step toward portability. Credit Jordan@StackExchange
 
-case "$OSTYPE" in
-   cygwin*)
-      alias open="cmd /c start"
-      ;;
-   linux*)
-      alias start="xdg-open"
-      alias open="xdg-open"
-      ;;
-   darwin*)
-      alias start="open"
-      ;;
-esac
 
-################################################################################
-# Load GMT shell functions
-. gmt_shell_functions.sh
 
 ################################################################################
 # These variables are array indices used to plot multiple versions of the same
@@ -373,78 +397,6 @@ usergridfilenumber=0
 userlinefilenumber=0
 userpointfilenumber=0
 userpolyfilenumber=0
-
-
-################################################################################
-# If an old tectoplot.info_msg file exists, save it as a copy
-[[ -e ./tectoplot.info_msg ]] && mv ./tectoplot.info_msg ./tectoplot.info_msg.old
-
-################################################################################
-# Define paths and defaults
-
-THISDIR=$(pwd)
-
-GMTREQ="6"
-RJOK="-R -J -O -K"
-
-# TECTOPLOTDIR is where the actual script resides
-SOURCE="${BASH_SOURCE[0]}"
-while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
-  DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
-  SOURCE="$(readlink "$SOURCE")"
-  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
-done
-TECTOPLOTDIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd )"/
-
-DEFDIR=$TECTOPLOTDIR"tectoplot_defs/"
-
-# These files are sourced using the . command, so they should be valid bash
-# scripts but without #!/bin/bash
-
-TECTOPLOT_DEFAULTS_FILE=$DEFDIR"tectoplot.defaults"
-TECTOPLOT_PATHS_FILE=$DEFDIR"tectoplot.paths"
-TECTOPLOT_PATHS_MESSAGE=$DEFDIR"tectoplot.paths.message"
-TECTOPLOT_COLORS=$DEFDIR"tectoplot.gmtcolors"
-TECTOPLOT_CPTDEFS=$DEFDIR"tectoplot.cpts"
-TECTOPLOT_AUTHOR=$DEFDIR"tectoplot.author"
-
-################################################################################
-# Load CPT defaults, paths, and defaults
-
-if [[ -e $TECTOPLOT_CPTDEFS ]]; then
-  . $TECTOPLOT_CPTDEFS
-else
-  error_msg "CPT definitions file does not exist: $TECTOPLOT_CPTDEFS"
-  exit 1
-fi
-
-if [[ -e $TECTOPLOT_PATHS_FILE ]]; then
-  . $TECTOPLOT_PATHS_FILE
-else
-  # No paths file exists! Warn and exit.
-  error_msg "Paths file does not exist: $TECTOPLOT_PATHS_FILE"
-  exit 1
-fi
-
-if [[ -e $TECTOPLOT_DEFAULTS_FILE ]]; then
-  . $TECTOPLOT_DEFAULTS_FILE
-else
-  # No defaults file exists! Warn and exit.
-  error_msg "Defaults file does not exist: $TECTOPLOT_DEFAULTS_FILE"
-  exit 1
-fi
-
-# Check GMT version (modified code from Mencin/Vernant 2015 p_tdefnode.bash)
-if [ `which gmt` ]; then
-	GMT_VERSION=$(gmt --version)
-	if [ ${GMT_VERSION:0:1} != $GMTREQ ]; then
-		echo "GMT version $GMTREQ is required"
-		exit 1
-	fi
-else
-	echo "$name: Cannot call gmt"
-	exit 1
-fi
 
 ##### FORMATS MESSAGE is now in a file in tectoplot_defs
 
@@ -511,10 +463,19 @@ cat <<-EOF
     [opt] is required if the flag is present
     [[opt]] if not specified will assume a default value or will not be used
 
-  Common command recipes:
+Common command recipes:
 
-    -seismo                -t -t1 -z -c
-    -topog                 -t -t1 -mob 45 20 3
+Seismotectonic map
+    -seismo                    -t -t1 -z -c
+
+Topography visualization with oblique perspective of topography
+    -topog                     -t -t1 -ob 45 20 3
+
+Map centered on an earthquake event with a simple profile, legend, title, and oblique perspective diagram
+    -eventmap [eventID] [deg]  -t -b -z -c -eqlist -aprof -title --legend -mob
+
+Map of recent earthquakes, labelled.
+    -recenteq              -z -c -a -eqlabel
 
   Data control, installation, information
     -addpath               add the tectoplot source directory to your ~.profile
@@ -542,7 +503,7 @@ cat <<-EOF
   Input/output controls
     -ips             [filename]                          plot on top of an unclosed .ps file. Use -pos to set position
     --keepopenps                                         don't close the PS file to allow further plotting
-    -pos X Y         Set X Y position of plot origin     (GMT format -X$VAL -Y$VAL; e.g -Xc -Y1i etc)
+    -pos X Y         Set X Y position of plot origin     (GMT format -Xval -Yval; e.g -Xc -Y1i etc)
     -geotiff                                             output GeoTIFF and .tfw, frame inside
     -kml                                                 output KML, frame inside
     --open           [[program]]                         open PDF file at end
@@ -557,6 +518,7 @@ cat <<-EOF
                                                          If tectoplot.author does not exist in tectoplot_defs/, set it
                                                          author_string=reset will reset the author info
     -noplot                                              exit before plotting anything with GMT
+    -noframe                                             don't plot a frame
 
   Low-level control
     -gmtvars         [{VARIABLE value ...}]              set GMT internal variables
@@ -603,7 +565,7 @@ cat <<-EOF
   Grid/graticule and map frame options
     -B               [{ -Betc -Betc }]                   provide custom B strings for map in GMT argument format
     -pgs             [gridline spacing]                  override automatic map gridline spacing
-    -pgo                                                 turn grid lines off
+    -pgo                                                 turn grid lines on
     -pgl                                                 turn grid labels off
     -pgn                                                 don't plot grid at all
     -scale           [length] [lon] [lat]                plot a scale bar. length needs suffix (e.g. 100k).
@@ -653,18 +615,21 @@ cat <<-EOF
   Build your own topo visualization using these commands in sequence.
     [[fact]] is the blending factor (0-1) used to combine each layer with existing intensity map
 
-    -tshadow         [[shad_az]] [[shad_el]] [[fact]]    add cast shadows to intensity (fact=opacity)
+    -tshad           [[shad_az]] [[shad_el]] [[alpha]]   add cast shadows to intensity (fact=opacity)
     -ttext           [[frac]]   [[stretch]]  [[fact]]    add texture shade to intensity
     -tmult           [[sun_el]]              [[fact]]    add multiple hillshade to intensity
     -tuni            [[sun_az]] [[sun_el]]   [[fact]]    add unidirectional hillshade to intensity
     -tsky            [[num_angles]]          [[fact]]    add sky view factor to intensity
-    -tgam            [[gamma]]                           add gamma correction to intensity
-    -timg            [[sentinel]] [[alpha]]              overlay GeoTiff instead of color ramp
+    -tgam            [[gamma]]                           add gamma correction to black/white intensity
+    -timg            [[alpha]]                           overlay referenced RGB raster instead of color ramp
+    -tsent           [[alpha]]                           download and overlay Sentinel cloud free (EOX::Maps at eox.at)
+                     image saved as \${TMP}sentinel.tif and can be plotted using -im TEMP/sentinel.tif
+    -tunsetflat                                          set intensity at elevation=0 to white
+    -tclip           [lonmin] [lonmax] [latmin] [latmax] clip dem to alternative rectangular AOI
 
     -tn              [interval (m)]                      plot topographic contours
     -gebcotid                                            plot GEBCO TID raster
     -ob              [[az]] [[inc]] [[floor_elev]] [[frame]]   plot oblique view of topography
-
 
   Additional map layers from downloadable data:
     -a|--coast       [[quality]] [[a,b]] { gmtargs }     plot coastlines [[a]] and borders [[b]]
@@ -686,14 +651,21 @@ cat <<-EOF
                      plot WGM12 gravity. FA = free air | BG == Bouguer | IS = Isostatic
     -vc|--volc                                           plot Pleistocene volcanoes
 
+  Turn on and off clipping using a polygon file
+
+    -clipon          [polygonFile]                       Turn on polygon clipping mask
+    -clipoff                                             Turn off polygon clipping
+
   Layers from dynamically downloadable datasets:
-    -sent                                                Sentinel cloud free (EOX::Maps at eox.at)
     -blue                                                NASA Blue Marble (EOX::Maps at eox.at)
 
   GPS velocities:
     -g|--gps         [[RefPlateID]]                      plot GPS data from Kreemer 2014 / rel. to RefPlateID
     -gadd|--extragps [filename]                          plot an additional GPS / psvelo format file
     -gls                                                 list plate IDs for GPS data and exit
+
+  Both seismicity and focal mechanisms:
+    -zcnoscale                                           don't rescale earthquake data by magnitude
 
   Seismicity:
     -z|--seis        [[scale]]                           plot seismic epicenters (from scraped earthquake data)
@@ -708,7 +680,6 @@ cat <<-EOF
   Seismicity/focal mechanism data control:
     -reportdates                                         print date range of seismic, focal mechanism catalogs and exit
     -scrapedata                                          run the GCMT/ISC/ANSS scraper scripts and exit
-    -recenteq                                            run scraper and plot recent earthquakes. Need to specify -c, -z, -r options.
     -eqlist          [[file]] { event1 event2 event3 ... }  highlight focal mechanisms/hypocenters with ID codes in file or list
     -eqselect                                            only consider earthquakes with IDs in eqlist
     -eqlabel         [[list]] [[r]] [[minmag]] [format]  label earthquakes in eqlist or within magnitude range
@@ -743,7 +714,9 @@ cat <<-EOF
   Plate models (require a plate motion model specified by -p or --tdefpm)
     -f|--refpt       [Lon/Lat]                           reference point location
     -p|--plate       [[GBM | MORVEL | GSRM]] [[refplate]] select plate motion model, relative to stationary refplate
-    -pe|--plateedge  [[GBM | MORVEL | GSRM]]             plot plate model polygons
+    -pe|--plateedge  [[GBM | MORVEL | GSRM]]             plot plate model polygon edges
+    -pc              PlateID1 color1 [[trans1]] PlateID2 color2 [[trans2]] ... semi-transparent coloring of plate polygons
+                     random [[trans]]                    semi-transparent random coloring of all plates in model
     -pf|--fibsp      [km spacing]                        Fibonacci spacing of plate motion vectors; turns on vector plot
     -px|--gridsp     [Degrees]                           Gridded spacing of plate motion vectors; turns on vector plot
     -pl                                                  label plates
@@ -1255,6 +1228,75 @@ function histogram_rescale() {
   gdal_translate -q $1 $6 -scale $2 $3 $4 $5
 }
 
+
+# Rescale image $1 to remove values below $2% and above $3%, output to $4
+function histogram_percentcut_byte() {
+  # gdalinfo -hist produces a 256 bucket equally spaced histogram
+  # Every integer after the first blank line following the word "buckets" is a histogram value
+
+  cutrange=($(gdalinfo -hist $1 | tr ' ' '\n' | awk -v mincut=$2 -v maxcut=$3 '
+    BEGIN {
+      outa=0
+      outb=0
+      ind=0
+      sum=0
+      cum=0
+    }
+    {
+      if($1=="buckets") {
+        outa=1
+        getline # from
+        getline # minimum
+        minval=$1+0
+        getline # to
+        getline # maximum:
+        maxval=$1+0
+      }
+      if (outb==1 && $1=="NoData") {
+        exit
+      }
+      if($1=="" && outa==1) {
+        outb=1
+      }
+      if (outb==1 && $1==int($1)) {
+        vals[ind]=$1
+        cum=cum+$1
+        cums[ind++]=cum*100
+        sum+=$1
+      }
+    }
+    # Now calculate the percentiles
+    END {
+      print minval
+      print maxval
+      for (key in vals) {
+        range[key]=(maxval-minval)/255*key+minval
+      }
+      foundmin=0
+      for (key in cums) {
+        if (cums[key]/sum >= mincut && foundmin==0) {
+          print range[key]
+          foundmin=1
+        }
+        if (cums[key]/sum >= maxcut) {
+          print range[key]
+          exit
+        }
+        # print key, cums[key]/sum, range[key]
+      }
+    }'))
+    gdal_translate -q $1 $4 -scale ${cutrange[2]} ${cutrange[3]} 1 254 -ot Byte
+    gdal_edit.py -unsetnodata $4
+}
+
+# image_setval ${F_TOPO}intensity.tif ${F_TOPO}dem.nc 0 254 ${F_TOPO}unset.tif
+
+# If raster $2 has value $3, outval=$4, else outval=raster $1, put into $5
+function image_setval() {
+  gdal_calc.py --type=Byte --overwrite --quiet -A $1 -B $2 --calc="uint8(( (B==${3})*$4.+(B!=${3})*A))" --outfile=$5
+}
+
+
 # Linearly rescale an image $1 from ($2, $3) to ($4, $5), stretch by $6>0, output to $7
 function histogram_rescale_stretch() {
   gdal_translate -q $1 $7 -scale $2 $3 $4 $5 -exponent $6
@@ -1287,288 +1329,104 @@ function flatten_sea() {
   gdal_calc.py --overwrite --type=Float32 --format=NetCDF --quiet -A "${1}" --calc="((A>=0)*A + (A<0)*0)" --outfile="${2}"
 }
 
-# This part of the script should probably be outsourced to a separate script or function
-# to allow DEM visualization for along-profile DEMs, etc.
-# Requires: dem.nc sentinel.tif TOPO_CPT
-# Variables: topoctrlstring MINLON/MAXLON/MINLAT/MAXLAT P_IMAGE F_TOPO *_FACT
-# Flags: FILLGRIDNANS SMOOTHGRID ZEROHINGE
+
+################################################################################
+################################################################################
+# MAIN BODY OF SCRIPT
+
+# Startup code that runs every time the script is called
+
+case "$OSTYPE" in
+   cygwin*)
+      alias open="cmd /c start"
+      ;;
+   linux*)
+      alias open="xdg-open"
+      ;;
+   darwin*)
+      alias start="open"
+      ;;
+esac
+
+# Declare the associative array of items to be removed on exit
+
+declare -a on_exit_items
+
+# Load GMT shell functions
+. gmt_shell_functions.sh
 
 
-# function topo_visualize() {
-#    if [[ $FILLGRIDNANS -eq 1 ]]; then
-#      # cp ${F_TOPO}dem.nc olddem.nc
-#      info_msg "Filling grid file NaN values with nearest non-NaN value"
-#      gmt grdfill ${F_TOPO}dem.nc -An -Gdem_no_nan.nc ${VERBOSE}
-#      mv dem_no_nan.nc ${F_TOPO}dem.nc
-#    fi
-#
-#    # If we are visualizing Sentinel imagery, resample DEM to match the resolution of sentinel.tif
-#    if [[ ${topoctrlstring} =~ .*p.* && ${P_IMAGE} =~ "sentinel.tif" ]]; then
-#        # Absolute path is needed here as GMT 6.1.1 breaks for a relative path... BUG
-#        sentinel_dim=($(gmt grdinfo ./sentinel.tif -C -L -Vn))
-#        sent_dimx=${sentinel_dim[9]}
-#        sent_dimy=${sentinel_dim[10]}
-#        info_msg "Resampling DEM to match downloaded Sentinel image size"
-#        echo gdalwarp -to SRC_METHOD=NO_GEOTRANSFORM -r bilinear -of NetCDF -q -te ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -ts ${sent_dimx} ${sent_dimy} ${F_TOPO}dem.nc ${F_TOPO}dem_warp.nc
-#
-#        gdalwarp -to SRC_METHOD=NO_GEOTRANSFORM -r bilinear -of NetCDF -q -te ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -ts ${sent_dimx} ${sent_dimy} ${F_TOPO}dem.nc ${F_TOPO}dem_warp.nc
-#        mv ${F_TOPO}dem_warp.nc ${F_TOPO}dem.nc
-#    fi
-#
-#    if [[ $SMOOTHGRID -eq 1 ]]; then
-#      info_msg "Smoothing grid before DEM calculations"
-#      # Not implemented
-#    fi
-#
-#    CELL_SIZE=$(gmt grdinfo -C ${F_TOPO}dem.nc -Vn | awk '{print $8}')
-#    info_msg "Grid cell size = ${CELL_SIZE}"
-#    # We now do all color ramps via gdaldem and derive intensity maps from
-#    # the selected procedures. We fuse them using gdal_calc.py. This gives us
-#    # a more streamlined process for managing CPTs, etc.
-#
-#    if [[ $ZEROHINGE -eq 1 ]]; then
-#      # We need to make a gdal color file that respects the CPT hinge value (usually 0)
-#      # gdaldem is a bit funny about coloring around the hinge, so do some magic to make
-#      # the color from land not bleed to the hinge elevation.
-#      # CPTHINGE=0
-#
-#      gawk < $TOPO_CPT -v hinge=$CPTHINGE '{
-#        if ($1 != "B" && $1 != "F" && $1 != "N" ) {
-#          if (count==1) {
-#            print $1+0.01, $2
-#            count=2
-#          } else {
-#            print $1, $2
-#          }
-#
-#          if ($3 == hinge) {
-#            if (count==0) {
-#              print $3-0.0001, $4
-#              count=1
-#            }
-#          }
-#        }
-#      }' | tr '/' ' ' | awk '{
-#        if ($2==255) {$2=254.9}
-#        if ($3==255) {$3=254.9}
-#        if ($4==255) {$4=254.9}
-#        print
-#      }' > ${F_CPTS}topocolor.dat
-#    else
-#      gawk < $TOPO_CPT '{ print $1, $2 }' | tr '/' ' ' > ${F_CPTS}topocolor.dat
-#    fi
-#
-#    demwidth=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $10}')
-#    demheight=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $11}')
-#    demxmin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $2}')
-#    demxmax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $3}')
-#    demymin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $4}')
-#    demymax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $5}')
-#
-#    # ########################################################################
-#    # Create and render a colored shaded relief map using a topoctrlstring
-#    # command string = "csmhvdtg"
-#    #
-#
-#    # c = color stretch  [ DEM_ALPHA CPT_NAME HINGE_VALUE HIST_EQ ]    [MULTIPLY]
-#    # s = slope map                                                    [WEIGHTED AVE]
-#    # m = multiple hillshade (gdaldem)  [ SUN_ELEV ]                   [WEIGHTED AVE]
-#    # h = unidirectional hillshade (gdaldem)  [ SUN_ELEV SUN_AZ ]      [WEIGHTED AVE]
-#    # v = sky view factor                                              [WEIGHTED AVE]
-#    # i = terrain ruggedness index                                     [WEIGHTED AVE]
-#    # d = cast shadows [ SUN_ELEV SUN_AZ ]                             [MULTIPLY]
-#    # t = texture shade [ TFRAC TSTRETCH ]                             [WEIGHTED AVE]
-#    # g = stretch/gamma on intensity [ HS_GAMMA ]                      [DIRECT]
-#    # p = use TIFF image instead of color stretch
-#
-#    while read -n1 character; do
-#      case $character in
-#
-#      i)
-#        info_msg "Calculating terrain ruggedness index"
-#        gdaldem TRI -q -of NetCDF ${F_TOPO}dem.nc ${F_TOPO}tri.nc
-#        zrange=$(grid_zrange ${F_TOPO}tri.nc -C -Vn)
-#        gdal_translate -of GTiff -ot Byte -a_nodata 0 -scale ${zrange[0]} ${zrange[1]} 254 1 ${F_TOPO}tri.nc ${F_TOPO}tri.tif -q
-#        weighted_average_combine ${F_TOPO}tri.tif ${F_TOPO}intensity.tif ${TRI_FACT} ${F_TOPO}intensity.tif
-#      ;;
-#
-#      t)
-#        info_msg "Calculating and rendering texture map"
-#
-#        # Calculate the texture shade
-#        # Project from WGS1984 to Mercator / HDF format
-#        # The -dstnodata option is a kluge to get around unknown NaNs in dem.flt even if ${F_TOPO}dem.nc has NaNs filled.
-#        [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${F_TOPO}dem.nc ${F_TOPO}dem.flt -q
-#
-#        # texture the DEM. Pipe output to /dev/null to silence the program
-#        if [[ $(echo "$MAXLAT >= 90" | bc) -eq 1 ]]; then
-#          MERCMAXLAT=89.999
-#        else
-#          MERCMAXLAT=$MAXLAT
-#        fi
-#        if [[ $(echo "$MINLAT <= -90" | bc) -eq 1 ]]; then
-#          MERCMINLAT=-89.999
-#        else
-#          MERCMINLAT=$MINLAT
-#        fi
-#
-#        ${TEXTURE} ${TS_FRAC} ${F_TOPO}dem.flt ${F_TOPO}texture.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
-#        # make the image. Pipe output to /dev/null to silence the program
-#        ${TEXTURE_IMAGE} +${TS_STRETCH} ${F_TOPO}texture.flt ${F_TOPO}texture_merc.tif > /dev/null
-#        # project back to WGS1984
-#
-#        gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}texture_merc.tif ${F_TOPO}texture_2byte.tif -q
-#
-#        # Change to 8 bit unsigned format
-#        gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 ${F_TOPO}texture_2byte.tif ${F_TOPO}texture.tif -q
-#        cleanup ${F_TOPO}texture_2byte.tif ${F_TOPO}texture_merc.tif ${F_TOPO}dem.flt ${F_TOPO}dem.hdr ${F_TOPO}dem.flt.aux.xml ${F_TOPO}dem.prj ${F_TOPO}texture.flt ${F_TOPO}texture.hdr ${F_TOPO}texture.prj ${F_TOPO}texture_merc.prj ${F_TOPO}texture_merc.tfw
-#
-#        # Combine it with the existing intensity
-#        weighted_average_combine ${F_TOPO}texture.tif ${F_TOPO}intensity.tif ${TS_FACT} ${F_TOPO}intensity.tif
-#      ;;
-#
-#      m)
-#        info_msg "Creating multidirectional hillshade"
-#        gdaldem hillshade -multidirectional -compute_edges -alt ${HS_ALT} -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}multiple_hillshade.tif -q
-#        weighted_average_combine ${F_TOPO}multiple_hillshade.tif ${F_TOPO}intensity.tif ${MULTIHS_FACT} ${F_TOPO}intensity.tif
-#      ;;
-#
-#      # Compute and render a one-sun hillshade
-#      h)
-#        info_msg "Creating unidirectional hillshade"
-#        gdaldem hillshade -compute_edges -alt ${HS_ALT} -az ${HS_AZ} -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}single_hillshade.tif -q
-#        weighted_average_combine ${F_TOPO}single_hillshade.tif ${F_TOPO}intensity.tif ${UNI_FACT} ${F_TOPO}intensity.tif
-#      ;;
-#
-#      # Compute and render the slope map
-#      s)
-#        info_msg "Creating slope map"
-#        gdaldem slope -compute_edges -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}slopedeg.tif -q
-#        echo "5 254 254 254" > ${F_TOPO}slope.txt
-#        echo "80 30 30 30" >> ${F_TOPO}slope.txt
-#        gdaldem color-relief ${F_TOPO}slopedeg.tif ${F_TOPO}slope.txt ${F_TOPO}slope.tif -q
-#        weighted_average_combine ${F_TOPO}slope.tif ${F_TOPO}intensity.tif ${SLOPE_FACT} ${F_TOPO}intensity.tif
-#      ;;
-#
-#      # Compute and render the sky view factor
-#      v)
-#        info_msg "Creating sky view factor"
-#
-#
-#        [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${F_TOPO}dem.nc ${F_TOPO}dem.flt -q
-#
-#        # texture the DEM. Pipe output to /dev/null to silence the program
-#        if [[ $(echo "$MAXLAT >= 90" | bc) -eq 1 ]]; then
-#          MERCMAXLAT=89.999
-#        else
-#          MERCMAXLAT=$MAXLAT
-#        fi
-#        if [[ $(echo "$MINLAT <= -90" | bc) -eq 1 ]]; then
-#          MERCMINLAT=-89.999
-#        else
-#          MERCMINLAT=$MINLAT
-#        fi
-#
-#        # start_time=`date +%s`
-#        ${SVF} ${NUM_SVF_ANGLES} ${F_TOPO}dem.flt ${F_TOPO}svf.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
-#        # echo run time is $(expr `date +%s` - $start_time) s
-#        # project back to WGS1984
-#        gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}svf.flt ${F_TOPO}svf_back.tif -q
-#
-#        # Change to 8 bit unsigned format
-#        gdal_translate -of GTiff -ot Byte -scale 1 -1 1 254 ${F_TOPO}svf_back.tif ${F_TOPO}svf.tif -q
-#
-#        # Combine it with the existing intensity
-#        weighted_average_combine ${F_TOPO}svf.tif ${F_TOPO}intensity.tif ${SKYVIEW_FACT} ${F_TOPO}intensity.tif
-#      ;;
-#
-#      # Compute and render the cast shadows
-#      d)
-#        info_msg "Creating cast shadow map"
-#
-#        [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${F_TOPO}dem.nc ${F_TOPO}dem.flt -q
-#
-#        # texture the DEM. Pipe output to /dev/null to silence the program
-#        if [[ $(echo "$MAXLAT >= 90" | bc) -eq 1 ]]; then
-#          MERCMAXLAT=89.999
-#        else
-#          MERCMAXLAT=$MAXLAT
-#        fi
-#        if [[ $(echo "$MINLAT <= -90" | bc) -eq 1 ]]; then
-#          MERCMINLAT=-89.999
-#        else
-#          MERCMINLAT=$MINLAT
-#        fi
-#
-#        ${SHADOW} ${SUN_AZ} ${SUN_EL} ${F_TOPO}dem.flt ${F_TOPO}shadow.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
-#        # project back to WGS1984
-#
-#        gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}shadow.flt ${F_TOPO}shadow_back.tif -q
-#
-#        MAX_SHADOW=$(grep "max_value" ${F_TOPO}shadow.hdr | gawk '{print $2}')
-#
-#        # Change to 8 bit unsigned format
-#        gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale $MAX_SHADOW 0 1 254 ${F_TOPO}shadow_back.tif ${F_TOPO}shadow.tif -q
-#
-#        # Combine it with the existing intensity
-#        multiply_combine ${F_TOPO}shadow.tif ${F_TOPO}intensity.tif ${F_TOPO}intensity.tif
-#      ;;
-#
-#      # Rescale and gamma correct the intensity layer
-#      g)
-#        zrange=$(grid_zrange ${F_TOPO}intensity.tif -C -Vn)
-#        histogram_rescale_stretch ${F_TOPO}intensity.tif ${zrange[0]} ${zrange[1]} 1 254 $HS_GAMMA ${F_TOPO}intensity_cor.tif
-#        mv ${F_TOPO}intensity_cor.tif ${F_TOPO}intensity.tif
-#      ;;
-#
-#      esac
-#    done < <(echo -n "$topoctrlstring")
-#
-#    INTENSITY_RELIEF=${F_TOPO}intensity.tif
-#
-#    if [[ ${topoctrlstring} =~ .*p.* ]]; then
-#        dem_dim=($(gmt grdinfo ${F_TOPO}dem.nc -C -L -Vn))
-#        dem_dimx=${dem_dim[9]}
-#        dem_dimy=${dem_dim[10]}
-#        info_msg "Rendering georeferenced RGB image ${P_IMAGE} as colored texture."
-#        if [[ ${P_IMAGE} =~ "sentinel.tif" ]]; then
-#          info_msg "Rendering Sentinel image"
-#          gdalwarp -q -te ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -ts ${dem_dimx} ${dem_dimy} sentinel.tif ${F_TOPO}image_pre.tif
-#          histogram_rescale_stretch ${F_TOPO}image_pre.tif 1 180 1 254 ${SENTINEL_GAMMA} ${F_TOPO}image.tif
-#        else
-#          gdalwarp -q -te ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -ts ${dem_dimx} ${dem_dimy} ${P_IMAGE} ${F_TOPO}image.tif
-#        fi
-#        # weighted_average_combine ${F_TOPO}image.tif ${F_TOPO}intensity.tif ${IMAGE_FACT} ${F_TOPO}intensity.tif
-#        multiply_combine ${F_TOPO}image.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
-#        INTENSITY_RELIEF=${F_TOPO}colored_intensity.tif
-#    fi
-#
-#    if [[ ${topoctrlstring} =~ .*c.* && ! ${topoctrlstring} =~ .*p.* ]]; then
-#      info_msg "Creating and blending color stretch (alpha=$DEM_ALPHA)."
-#      gdaldem color-relief ${F_TOPO}dem.nc ${F_CPTS}topocolor.dat ${F_TOPO}colordem.tif -q
-#      alpha_value ${F_TOPO}colordem.tif ${DEM_ALPHA} ${F_TOPO}colordem_alpha.tif
-#      multiply_combine ${F_TOPO}colordem_alpha.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
-#      COLORED_RELIEF=${F_TOPO}colored_intensity.tif
-#    else
-#      COLORED_RELIEF=$INTENSITY_RELIEF
-#    fi
-#
-#    if [[ $dontplottopoflag -eq 0 ]]; then
-#      gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
-#    else
-#      info_msg "Plotting of topo shaded relief suppressed by -ts"
-#    fi
-# }
+# If an old tectoplot.info_msg file exists, save it as a copy
+[[ -e ./tectoplot.info_msg ]] && mv ./tectoplot.info_msg ./tectoplot.info_msg.old
 
+################################################################################
+# Define paths and defaults
 
+THISDIR=$(pwd)
 
+GMTREQ="6"
+RJOK="-R -J -O -K"
 
+# TECTOPLOTDIR is where the actual script resides
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+  DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+TECTOPLOTDIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd )"/
 
+DEFDIR=$TECTOPLOTDIR"tectoplot_defs/"
 
+# These files are sourced using the . command, so they should be valid bash
+# scripts but without #!/bin/bash
 
+TECTOPLOT_DEFAULTS_FILE=$DEFDIR"tectoplot.defaults"
+TECTOPLOT_PATHS_FILE=$DEFDIR"tectoplot.paths"
+TECTOPLOT_PATHS_MESSAGE=$DEFDIR"tectoplot.paths.message"
+TECTOPLOT_COLORS=$DEFDIR"tectoplot.gmtcolors"
+TECTOPLOT_CPTDEFS=$DEFDIR"tectoplot.cpts"
+TECTOPLOT_AUTHOR=$DEFDIR"tectoplot.author"
 
+################################################################################
+# Load CPT defaults, paths, and defaults
 
+if [[ -e $TECTOPLOT_CPTDEFS ]]; then
+  . $TECTOPLOT_CPTDEFS
+else
+  error_msg "CPT definitions file does not exist: $TECTOPLOT_CPTDEFS"
+  exit 1
+fi
 
+if [[ -e $TECTOPLOT_PATHS_FILE ]]; then
+  . $TECTOPLOT_PATHS_FILE
+else
+  # No paths file exists! Warn and exit.
+  error_msg "Paths file does not exist: $TECTOPLOT_PATHS_FILE"
+  exit 1
+fi
+
+if [[ -e $TECTOPLOT_DEFAULTS_FILE ]]; then
+  . $TECTOPLOT_DEFAULTS_FILE
+else
+  # No defaults file exists! Warn and exit.
+  error_msg "Defaults file does not exist: $TECTOPLOT_DEFAULTS_FILE"
+  exit 1
+fi
+
+# Check GMT version (modified code from Mencin/Vernant 2015 p_tdefnode.bash)
+if [ `which gmt` ]; then
+	GMT_VERSION=$(gmt --version)
+	if [ ${GMT_VERSION:0:1} != $GMTREQ ]; then
+		echo "GMT version $GMTREQ is required"
+		exit 1
+	fi
+else
+	echo "$name: Cannot call gmt"
+	exit 1
+fi
+
+FULL_TMP=$(abs_path ${TMP})
 
 # DEFINE FLAGS (only those set to not equal zero are actually important to define)
 if [[ 1 -eq 1 ]]; then
@@ -1644,7 +1502,8 @@ topoargs=()
 # include the full path to the script anymore.
 
 COMMANDBASE=$(basename $0)
-COMMAND="${COMMANDBASE} ${@}"
+C2=${@}
+COMMAND="${COMMANDBASE} ${C2}"
 
 # Exit if no arguments are given
 if [[ $# -eq 0 ]]; then
@@ -1705,7 +1564,7 @@ if [[ $1 == "-query" ]]; then
   fi
   query_headerflag=1
 
-  # First argument to -query needs to be a file.
+  # First argument to -query needs to be a filename.
 
   if [[ ! -e $1 ]]; then
     # IF the file doesn't exist in the temporary directory, search for it in a
@@ -1833,6 +1692,8 @@ if [[ $1 == "-query" ]]; then
   exit 1
 fi
 
+# This file needs to be reset as they are used before the tempdir is created
+
 rm -f tectoplot.sources
 rm -f tectoplot.shortsources
 
@@ -1876,6 +1737,27 @@ do
 
   # Command 'recipes'
 
+  -recenteq) # args: none | days
+    if arg_is_flag $2; then
+      info_msg "[-recenteq]: No day number specified, using last 7 days"
+      LASTDAYNUM=7
+    else
+      info_msg "[-recenteq]: Using start of day ${2} days ago to end of today"
+      LASTDAYNUM="${2}"
+      shift
+    fi
+    # info_msg "Updating databases"
+    # . $SCRAPE_GCMT
+    # . $SCRAPE_ISCFOC
+    # . $SCRAPE_ANSS
+    # . $MERGECATS
+    # Turn on time select
+    timeselectflag=1
+    STARTTIME=$(date_shift_utc -${LASTDAYNUM} 0 0 0)
+    ENDTIME=$(date_shift_utc)    # COMPATIBILITY ISSUE WITH GNU date
+    shift
+    set -- "blank" "-a" "a" "-z" "-c" "--time" "${STARTTIME}" "${ENDTIME}" "$@"
+    ;;
   -seismo)
     shift
     set -- "blank" "-t" "-t1" "-z" "-c" "-cmag" "$@"
@@ -1888,6 +1770,7 @@ do
     shift
     set -- "blank" "-t" "-tuni" "-tshad" "-ob" "45" "20" "3" "$@"
     ;;
+
 
   -eventmap)
     if arg_is_flag $2; then
@@ -1906,7 +1789,7 @@ do
     fi
     shift # Gets rid of EVENTMAP_ID somehow...
     #
-    set -- "blank" "-r" "eq" ${EVENTMAP_ID} ${EVENTMAP_DEGBUF} "-t" "-z" "-c" "-eqlist" "{" "${EVENTMAP_ID}" "}" "-eqlabel" "list" "--legend" "-aprof" "CW" "100k" "1k" "-mob" "-title" "Context map for earthquake $EVENTMAP_ID" "$@"
+    set -- "blank" "-r" "eq" ${EVENTMAP_ID} ${EVENTMAP_DEGBUF} "-t" "-b" "c" "-z" "-c" "-eqlist" "{" "${EVENTMAP_ID}" "}" "-eqlabel" "list" "--legend" "-aprof" "CW" "100k" "1k" "-oto" "-mob" "-title" "Earthquake $EVENTMAP_ID" "$@"
     ;;
 
   # Normal commands
@@ -2101,7 +1984,7 @@ do
         AUTHOR_ID=""
       fi
     fi
-    DATE_ID=$(date $DATE_FORMAT)
+    DATE_ID=$(date -u $DATE_FORMAT)
     ;;
 
   -authoryx)
@@ -2293,6 +2176,16 @@ do
 
   -clipgrav)
     clipgravflag=1
+    ;;
+
+  -clipon)
+    CLIP_POLY_FILE=$(abs_path $2)
+    shift
+    plots+=("clipon")
+    ;;
+
+  -clipoff)
+    plots+=("clipoff")
     ;;
 
   -cmag) # args: number number
@@ -2633,10 +2526,10 @@ do
     # [[ ! -e ${GMT_EARTHDIR}${BLACKM_C2_NAME} ]] && curl ${BLACKM_C2} > ${GMT_EARTHDIR}${BLACKM_C2_NAME}
     # [[ ! -e ${GMT_EARTHDIR}${BLACKM_D2_NAME} ]] && curl ${BLACKM_D2} > ${GMT_EARTHDIR}${BLACKM_D2_NAME}
 
-    # Download NASA Blue Marble image
-    echo "Downloading NASA Blue Marble"
-    [[ ! -e ${GMT_EARTHDIR}${BLUEM_EAST_NAME} ]] && curl ${BLUEM_EAST} > ${GMT_EARTHDIR}${BLUEM_EAST_NAME}
-    [[ ! -e ${GMT_EARTHDIR}${BLUEM_WEST_NAME} ]] && curl ${BLUEM_WEST} > ${GMT_EARTHDIR}${BLUEM_WEST_NAME}
+    # # Download NASA Blue Marble image
+    # echo "Downloading NASA Blue Marble"
+    # [[ ! -e ${GMT_EARTHDIR}${BLUEM_EAST_NAME} ]] && curl ${BLUEM_EAST} > ${GMT_EARTHDIR}${BLUEM_EAST_NAME}
+    # [[ ! -e ${GMT_EARTHDIR}${BLUEM_WEST_NAME} ]] && curl ${BLUEM_WEST} > ${GMT_EARTHDIR}${BLUEM_WEST_NAME}
 
     # SANDWELL_SOURCESTRING="Sandwell 2019 Free Air gravity, https://topex.ucsd.edu/pub/global_grav_1min/curv_30.1.nc"
     # SANDWELL_SHORT_SOURCESTRING="SW2019"
@@ -2652,7 +2545,7 @@ do
     check_and_download_dataset "GEBCO20" $GEBCO20_SOURCEURL "yes" $GEBCO20DIR $GEBCO20FILE $GEBCO20DIR"data.zip" $GEBCO20_BYTES $GEBCO20_ZIP_BYTES
     check_and_download_dataset "SRTM30" $SRTM30_SOURCEURL "yes" $SRTM30DIR $SRTM30FILE "none" $SRTM30_BYTES "none"
 
-    echo "Compiling texture shading code and copying executables to tectoplot directory"
+    echo "Compiling texture shading code in ${TEXTUREDIR}"
     ${TEXTURE_COMPILE_SCRIPT} ${TEXTUREDIR}
 
     exit 0
@@ -2782,6 +2675,7 @@ do
       info_msg "[-im]: Found image args ${imageargs[@]}"
       IMAGEARGS="${imageargs[@]}"
     fi
+    plotimageflag=1
     plots+=("image")
     ;;
 
@@ -2853,6 +2747,7 @@ do
     shift
     ;;
 
+
   -kml)
     # KML files need maps to be output in Cartesian coordinates
     # Need to replicate the following commands to plot a geotiff: -Jx projection, -RMINLON/MAXLON/MINLAT/MAXLAT
@@ -2910,7 +2805,7 @@ do
       USERLINEDATAFILE[$userlinefilenumber]=$(abs_path $2)
       shift
       if [[ ! -e ${USERLINEDATAFILE[$userlinefilenumber]} ]]; then
-        info_msg "[-li]: Point data file ${USERLINEDATAFILE[$userlinefilenumber]} does not exist."
+        info_msg "[-li]: User line data file ${USERLINEDATAFILE[$userlinefilenumber]} does not exist."
         exit 1
       fi
       # Optional arguments
@@ -3281,6 +3176,34 @@ do
 		info_msg "[-p]: Plate tectonic model is ${PLATEMODEL}"
 	  ;;
 
+  -pc)              # PlateID1 color1 PlateID2 color2
+    if [[ $2 =~ "random" ]]; then
+      shift
+      if arg_is_positive_float $2; then
+        P_POLYTRANS+=("${2}")
+        shift
+      else
+        P_POLYTRANS+=("50")
+      fi
+      plots+=("platepolycolor_all")
+    else
+      while : ; do
+        arg_is_flag $2 && break
+        P_POLYLIST+=("${2}")
+        P_COLORLIST+=("${3}")
+        shift
+        shift
+        if arg_is_positive_float $2; then
+          P_POLYTRANS+=("${2}")
+          shift
+        else
+          P_POLYTRANS+=("50")
+        fi
+      done
+      info_msg "[-pc]: Plates to color: ${P_POLYLIST[@]}, colors: ${P_COLORLIST[@]}, trans: ${P_POLYTRANS[@]}"
+      plots+=("platepolycolor_list")
+    fi
+    ;;
   -pe|--plateedge)  # args: none
     plots+=("plateedge")
     ;;
@@ -3291,6 +3214,13 @@ do
     FIB_KM="${2}"
     FIB_N=$(echo "510000000 / ( $FIB_KM * $FIB_KM - 1 ) / 2" | bc)
     shift
+    if arg_is_flag $2; then
+      info_msg "[-pf]: Plotting text labels for plate motion vectors"
+    elif [[ $2 == "nolabels" ]]; then
+      PLATEVEC_TEXT_PLOT=0
+      shift
+    fi
+
     plots+=("grid")
     ;;
 
@@ -3317,16 +3247,15 @@ do
         shift
       fi
     fi
-
     ;; # args: none
 
-  -pgn)
+  -noframe)
     dontplotgridflag=1
     GRIDCALL="blrt"
     ;;
 
   -pgo)
-    GRIDLINESON=0
+    GRIDLINESON=1
     ;;
 
   -pgs) # args: number
@@ -3557,6 +3486,7 @@ do
         MAXLON=180
         MINLAT=-90
         MAXLAT=90
+        globalextentflag=1
         shift
 
       # Option 2: Centered on an earthquake event from CMT(preferred) or seismicity(second choice) catalogs.
@@ -3791,29 +3721,6 @@ do
     exit
     ;;
 
-  -recenteq) # args: none | days
-    if arg_is_flag $2; then
-      info_msg "[-recentglobaleq]: No day number specified, using start of yesterday to end of today"
-      LASTDAYNUM=1
-    else
-      info_msg "[-recentglobaleq]: Using start of day ${2} days ago to end of today"
-      LASTDAYNUM="${2}"
-      shift
-    fi
-    info_msg "Updating databases"
-    . $SCRAPE_GCMT
-    . $SCRAPE_ISCFOC
-    . $SCRAPE_ANSS
-    . $MERGECATS
-    # Turn on time select
-    timeselectflag=1
-    LASTDAY=$(date +%F)
-    FIRSDAY=$(date -j -v -${LASTDAYNUM}d +%F)
-    STARTTIME=$(echo "${FIRSTDAY}T:00:00:00")
-    ENDTIME=$(echo "${FIRSTDAY}T:00:00:00")
-    # Set to global extent
-    ;;
-
   -rect)
     MAKERECTMAP=1
     ;;
@@ -3858,6 +3765,8 @@ do
       # Global extents
       Hammer|H|Winkel|R|Robinson|N|Mollweide|W|VanderGrinten|V|Sinusoidal|I|Eckert4|Kf|Eckert6|Ks)
         MINLON=-180; MAXLON=180; MINLAT=-90; MAXLAT=90
+        globalextentflag=1
+
         if arg_is_float $2; then   # Specified a central meridian
           CENTRALMERIDIAN=$2
           shift
@@ -3880,6 +3789,8 @@ do
       ;;
       Hemisphere|A)
         MINLON=-180; MAXLON=180; MINLAT=-90; MAXLAT=90
+        globalextentflag=1
+
         if arg_is_float $2; then   # Specified a central meridian
           CENTRALMERIDIAN=$2
           shift
@@ -3902,6 +3813,8 @@ do
       ;;
       Gnomonic|F|Orthographic|G|Stereo|S)
         MINLON=-180; MAXLON=180; MINLAT=-90; MAXLAT=90
+        globalextentflag=1
+
         if arg_is_float $2; then   # Specified a central meridian
           CENTRALMERIDIAN=$2
           shift
@@ -4037,14 +3950,15 @@ do
       exit 1
     else
       datadirpath=$(abs_path $2)
+      # Directory will end with / after abs_path
       shift
       if [[ -d ${datadirpath} ]]; then
         echo "[-setdatadir]: Data directory ${datadirpath} exists."
-        echo "${datadirpath}/" > $DEFDIR"tectoplot.dataroot"
+        echo "${datadirpath}" > $DEFDIR"tectoplot.dataroot"
       else
         echo "[-setdatadir]: Data directory ${datadirpath} does not exist. Creating."
-        mkdir -p "${datadirpath}/"
-        echo "${datadirpath}/" > $DEFDIR"tectoplot.dataroot"
+        mkdir -p "${datadirpath}"
+        echo "${datadirpath}" > $DEFDIR"tectoplot.dataroot"
       fi
     fi
     exit
@@ -4139,7 +4053,7 @@ do
   -scrapedata) # args: none | gia
     if arg_is_flag $2; then
       info_msg "[-scrapedata]: No datasets specified. Scraping GCMT/ISC/ANSS"
-      SCRAPESTRING="giazm"
+      SCRAPESTRING="giaczm"
     else
       SCRAPESTRING="${2}"
       shift
@@ -4157,6 +4071,10 @@ do
       info_msg "Scraping ANSS seismic data"
       . $SCRAPE_ANSS
     fi
+    if [[ ${SCRAPESTRING} =~ .*c.* ]]; then
+      info_msg "Scraping ISC seismic data"
+      . $SCRAPE_ISCSEIS
+    fi
     if [[ ${SCRAPESTRING} =~ .*z.* ]]; then
       info_msg "Scraping GFZ focal mechanisms"
       . $SCRAPE_GFZ
@@ -4166,17 +4084,6 @@ do
       . $MERGECATS
     fi
     exit
-    ;;
-
-  -sent)
-    SENTINEL_TYPE="s2cloudless-2019"
-
-    if arg_is_positive_float $2; then
-      info_msg "[-sent]: Sentinel image gamma correction set to $2"
-      SENTINEL_GAMMA=${2}
-      shift
-    fi
-    sentineldownloadflag=1
     ;;
 
   -blue)
@@ -4343,8 +4250,6 @@ do
         BATHYMETRY="custom"
         GRIDDIR=$(abs_dir $1)
         GRIDFILE=$(abs_path $1)  # We already shifted
-        echo $GRIDDIR
-        echo $GRIDFILE
         plots+=("topo")
         ;;
     esac
@@ -4517,10 +4422,17 @@ do
 
   --time)
     timeselectflag=1
-    STARTTIME="${2}"
-    ENDTIME="${3}"
-    shift
-    shift
+    if [[ "${2}" == "week" ]]; then
+      STARTTIME=$(date_shift_utc -7 0 0 0)
+      ENDTIME=$(date_shift_utc)    # COMPATIBILITY ISSUE WITH GNU date
+      shift
+    else
+      STARTTIME="${2}"
+      ENDTIME="${3}"
+      shift
+      shift
+    fi
+    info_msg "Time constraints: $STARTTIME to $ENDTIME"
     ;;
 
   -title) # args: string
@@ -4594,6 +4506,10 @@ do
 
   -t1)  #            [[sun_el]]                          combination multiple hs/slope map
     ;;
+
+  -t2)  # GMT standard hillshade using illumination
+    fasttopoflag=1
+    ;;
   #Build your own topo visualization using these commands in sequence.
   #  [[fact]] is the blending factor (0-1) used to combine each layer with existing intensity map
 
@@ -4607,10 +4523,10 @@ do
       shift
     fi
     if arg_is_float $2; then
-      SHADOW_FACT=$2
+      SHADOW_ALPHA=$2
       shift
     fi
-    info_msg "[-tshad]: Sun azimuth=${SUN_AZ}; elevation=${SUN_EL}; combine factor=${SHADOW_FACT}"
+    info_msg "[-tshad]: Sun azimuth=${SUN_AZ}; elevation=${SUN_EL}; alpha=${SHADOW_ALPHA}"
     topoctrlstring=${topoctrlstring}"d"
     useowntopoctrlflag=1
     ;;
@@ -4665,6 +4581,40 @@ do
     useowntopoctrlflag=1
     ;;
 
+  -tpct) # percent cut
+    if arg_is_float $2; then   # first arg is a number
+      TPCT_MIN="$2"
+      shift
+    fi
+    if arg_is_positive_float $2; then   #
+      TPCT_MAX=${2}
+      shift
+    fi
+    info_msg "[-tpct]"
+    topoctrlstring=${topoctrlstring}"x"
+    useowntopoctrlflag=1
+    ;;
+
+  -tsent)
+    SENTINEL_TYPE="s2cloudless-2019"
+    SENTINEL_FACT=0.5
+    if arg_is_positive_float $2; then
+      info_msg "[-tsent]: Sentinel image alpha values set to $2"
+      SENTINEL_FACT=${2}
+      shift
+    fi
+    if arg_is_positive_float $2; then
+      info_msg "[-tsent]: Sentinel image gamma correction set to $2"
+      SENTINEL_GAMMA=${2}
+      shift
+    fi
+    touch ./sentinel.tif
+    sentineldownloadflag=1
+    # Replace -tsent with -timg [[sentinel.tif]] [[alpha]]
+    shift
+    set -- "blank" "$@" "-timg" "sentinel.tif" "${SENTINEL_FACT}"
+    ;;
+
   -tsky) #            [[num_angles]]          [[fact]]    add sky view factor to intensity
     if arg_is_float $2; then   # first arg is a number
       NUM_ANGLES="$2"
@@ -4699,13 +4649,8 @@ do
     if arg_is_flag $2; then
       info_msg "[-timg]: No image given. Ignoring."
     else
-      if [[ $2 == "sentinel" ]]; then
-        P_IMAGE="./sentinel.tif"
-        shift
-      else
-        P_IMAGE=$(abs_path ${2})
-        shift
-      fi
+      P_IMAGE=$(abs_path ${2})
+      shift
       topoctrlstring=${topoctrlstring}"p"
       useowntopoctrlflag=1
     fi
@@ -4713,7 +4658,61 @@ do
       IMAGE_FACT=$2
       shift
     fi
+    ;;
 
+  -tclip) # Shouldn't I just clip the DEM here? Why have it as part of processing when that can mess things up?
+    if arg_is_float $2; then
+      # CLIP_MINLON="${2}"
+      # CLIP_MAXLON="${3}"
+      # CLIP_MINLAT="${4}"
+      # CLIP_MAXLAT="${5}"
+      DEM_MINLON="${2}"
+      DEM_MAXLON="${3}"
+      DEM_MINLAT="${4}"
+      DEM_MAXLAT="${5}"
+      shift # past argument
+      shift # past value
+      shift # past value
+      shift # past value
+    elif [[ -e ${2} ]]; then
+      CLIP_XY_FILE=$(abs_path ${2})
+      # Assume that this is an XY file whose extents we want to use for DEM clipping
+      CLIPRANGE=($(xy_range ${CLIP_XY_FILE}))
+      shift
+      # Only adopt the new range if the max/min values are numbers and their order is OK
+      usecliprange=1
+      [[ ${CLIPRANGE[0]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usecliprange=0
+      [[ ${CLIPRANGE[1]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usecliprange=0
+      [[ ${CLIPRANGE[2]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usecliprange=0
+      [[ ${CLIPRANGE[3]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usecliprange=0
+      [[ $(echo "${CLIPRANGE[0]} < ${CLIPRANGE[1]}" | bc -l) -eq 1 ]] || usecliprange=0
+      [[ $(echo "${CLIPRANGE[2]} < ${CLIPRANGE[3]}" | bc -l) -eq 1 ]] || usecliprange=0
+
+      if [[ $usecliprange -eq 1 ]]; then
+        info_msg "Clip range taken from XY file: ${CLIPRANGE[0]}/${CLIPRANGE[1]}/${CLIPRANGE[2]}/${CLIPRANGE[3]}"
+        # CLIP_MINLON=${CLIPRANGE[0]}
+        # CLIP_MAXLON=${CLIPRANGE[1]}
+        # CLIP_MINLAT=${CLIPRANGE[2]}
+        # CLIP_MAXLAT=${CLIPRANGE[3]}
+        DEM_MINLON=${CLIPRANGE[0]}
+        DEM_MAXLON=${CLIPRANGE[1]}
+        DEM_MINLAT=${CLIPRANGE[2]}
+        DEM_MAXLAT=${CLIPRANGE[3]}
+      else
+        info_msg "Could not assign DEM clip using XY file."
+        # CLIP_MINLON=${MINLON}
+        # CLIP_MINLAT=${MINLAT}
+        # CLIP_MAXLON=${MAXLON}
+        # CLIP_MAXLAT=${MAXLAT}
+      fi
+    fi
+
+    demisclippedflag=1
+    # topoctrlstring="w"${topoctrlstring}   # Clip before other actions
+    ;;
+
+  -tunsetflat)
+    topoctrlstring=${topoctrlstring}"u"
     ;;
 
   -tgam) #            [gamma]                           add gamma correction to intensity
@@ -4726,6 +4725,7 @@ do
     topoctrlstring=${topoctrlstring}"g"
     useowntopoctrlflag=1
     ;;
+
 
 
 	-v|--gravity) # args: string number
@@ -4874,6 +4874,10 @@ do
     fi
     ;;
 
+  -zcnoscale)
+    SCALEEQS=0
+    ;;
+
   -zd)
     EQCUTMAXDEPTH=${2}
     shift
@@ -4899,11 +4903,13 @@ do
       info_msg "[-z]: Seismicity scale updated to $SEIZSIZE * $SEISSCALE"
       case $EQCATNAME in
         ISC)
+          EQ_CATALOG_TYPE="ISC"
           EQCATALOG=$ISC_EQ_CATALOG
           EQ_SOURCESTRING=$ISC_EQ_SOURCESTRING
           EQ_SHORT_SOURCESTRING=$ISC_EQ_SHORT_SOURCESTRING
         ;;
         ANSS0)
+          EQ_CATALOG_TYPE="ANSS"
           EQCATALOG=$ANSS_EQ_CATALOG
           EQ_SOURCESTRING=$ANSS_EQ_SOURCESTRING
           EQ_SHORT_SOURCESTRING=$ANSS_EQ_SHORT_SOURCESTRING
@@ -5027,19 +5033,24 @@ if [[ $setregionbyearthquakeflag -eq 1 ]]; then
   info_msg "[-r]: Earthquake centered region: $MINLON/$MAXLON/$MINLAT/$MAXLAT centered at $REGION_EQ_LON/$REGION_EQ_LAT"
 fi
 
-if [[ ! $usecustomrjflag -eq 1 ]]; then
-  rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
-  rj+=("-JQ${MINLON}/${PSSIZE}i")
-  RJSTRING="${rj[@]}"
-  # echo "Basic RJSTRING is $RJSTRING"
-  usecustomrjflag=1
-fi
 
 ################################################################################
 ###### Calculate some sizes for the final map document based on AOI aspect ratio
 
 LATSIZE=$(echo "$MAXLAT - $MINLAT" | bc -l)
 LONSIZE=$(echo "$MAXLON - $MINLON" | bc -l)
+
+CENTERLON=$(echo "($MINLON + $MAXLON) / 2" | bc -l)
+CENTERLAT=$(echo "($MINLAT + $MAXLAT) / 2" | bc -l)
+
+if [[ ! $usecustomrjflag -eq 1 ]]; then
+  rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
+  rj+=("-JQ${CENTERLON}/${PSSIZE}i")
+  RJSTRING="${rj[@]}"
+  # echo "Basic RJSTRING is $RJSTRING"
+  usecustomrjflag=1
+fi
+
 
 # For a standard run, we want something like this. For other projections, unlikely to be sufficient
 # We want a page that is PSSIZE wide with a MARGIN. It scales vertically based on the
@@ -5099,6 +5110,8 @@ info_msg "Recalculating AOI from map boundary"
 
 # Get the bounding box and normalize longitudes to the range [-180:180]
 
+gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} > thisb.txt
+
 gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '
   ($1!="NaN") {
     while ($1>180) { $1=$1-360 }
@@ -5107,6 +5120,7 @@ gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '
       print
     }
   }' > bounds.txt
+
 # Project the bounding box using the RJSTRING
 gmt mapproject bounds.txt ${RJSTRING[@]} ${VERBOSE} > projbounds.txt
 
@@ -5146,6 +5160,8 @@ else
   info_msg "Output file is $MAPOUT, legend is legend.pdf"
   MAPOUTLEGEND="legend.pdf"
 fi
+
+info_msg "RJSTRING: ${RJSTRING[@]}"
 
 ##### If we are adding a region code to the custom regions file, do it now #####
 
@@ -5460,17 +5476,30 @@ if [[ $sentineldownloadflag -eq 1 ]]; then
       ')
   fi
 
-  curl "https://tiles.maps.eox.at/wms?service=wms&request=getmap&version=1.1.1&layers=${SENTINEL_TYPE}&bbox=${MINLON},${MINLAT},${MAXLON},${MAXLAT}&width=$SENT_XRES&height=$SENT_YRES&srs=epsg:4326" > sentinel.jpg
+  SENT_FNAME="sentinel_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_${SENT_XRES}_${SENT_YRES}.tif"
 
-  # Create world file for JPG
-  echo "$LONDIFF / $SENT_XRES" | bc -l > sentinel.jgw
-  echo "0" >> sentinel.jgw
-  echo "0" >> sentinel.jgw
-  echo "- (${LATDIFF}) / $SENT_YRES" | bc -l >> sentinel.jgw
-  echo "$MINLON" >> sentinel.jgw
-  echo "$MAXLAT" >> sentinel.jgw
+  if ! [[ -d ${SENT_DIR} ]]; then
+    mkdir -p ${SENT_DIR}
+  fi
 
-  gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} -of GTiff sentinel.jpg sentinel.tif
+  if [[ -e ${SENT_DIR}${SENT_FNAME} ]]; then
+    info_msg "Sentinel imagery $SENT_FNAME exists. Not redownloading."
+    cp ${SENT_DIR}${SENT_FNAME} sentinel.tif
+  else
+
+    curl "https://tiles.maps.eox.at/wms?service=wms&request=getmap&version=1.1.1&layers=${SENTINEL_TYPE}&bbox=${MINLON},${MINLAT},${MAXLON},${MAXLAT}&width=$SENT_XRES&height=$SENT_YRES&srs=epsg:4326" > sentinel.jpg
+
+    # Create world file for JPG
+    echo "$LONDIFF / $SENT_XRES" | bc -l > sentinel.jgw
+    echo "0" >> sentinel.jgw
+    echo "0" >> sentinel.jgw
+    echo "- (${LATDIFF}) / $SENT_YRES" | bc -l >> sentinel.jgw
+    echo "$MINLON" >> sentinel.jgw
+    echo "$MAXLAT" >> sentinel.jgw
+
+    gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} -of GTiff sentinel.jpg sentinel.tif
+    cp sentinel.tif ${SENT_DIR}${SENT_FNAME}
+  fi
 
   echo $SENTINEL_SOURCESTRING >> tectoplot.sources
   echo $SENTINEL_SHORT_SOURCESTRING >> tectoplot.shortsources
@@ -5521,11 +5550,19 @@ fi
 #####          Manage topography/bathymetry data                           #####
 ################################################################################
 
+# Change to use DEM_MAXLON and allow -tclip to set, to avoid downloading too much data
+# when we are clipping the DEM anyway.
+
+DEM_MINLON=${MINLON}
+DEM_MAXLON=${MAXLON}
+DEM_MINLAT=${MINLAT}
+DEM_MAXLAT=${MAXLAT}
+
 if [[ $plottopo -eq 1 ]]; then
   info_msg "Making basemap $BATHYMETRY"
 
   if [[ $besttopoflag -eq 1 ]]; then
-    bestname=$BESTDIR"best_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}.nc"
+    bestname=$BESTDIR"best_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.nc"
     if [[ -e $bestname ]]; then
       info_msg "Best topography already exists."
       BATHY=$bestname
@@ -5535,20 +5572,20 @@ if [[ $plottopo -eq 1 ]]; then
 
   if [[ $BATHYMETRY =~ "GMRT" || $besttopoflag -eq 1 && $bestexistsflag -eq 0 ]]; then   # We manage GMRT tiling ourselves
 
-    minlon360=$(echo $MINLON | gawk  '{ if ($1<0) {print $1+360} else {print $1} }')
-    maxlon360=$(echo $MAXLON | gawk  '{ if ($1<0) {print $1+360} else {print $1} }')
+    minlon360=$(echo $DEM_MINLON | gawk  '{ if ($1<0) {print $1+360} else {print $1} }')
+    maxlon360=$(echo $DEM_MAXLON | gawk  '{ if ($1<0) {print $1+360} else {print $1} }')
 
     minlonfloor=$(echo $minlon360 | cut -f1 -d".")
     maxlonfloor=$(echo $maxlon360 | cut -f1 -d".")
 
-    if [[ $(echo "$MINLAT < 0" | bc -l) -eq 1 ]]; then
-      minlatfloor1=$(echo $MINLAT | cut -f1 -d".")
+    if [[ $(echo "$DEM_MINLAT < 0" | bc -l) -eq 1 ]]; then
+      minlatfloor1=$(echo $DEM_MINLAT | cut -f1 -d".")
       minlatfloor=$(echo "$minlatfloor1 - 1" | bc)
     else
-      minlatfloor=$(echo $MINLAT | cut -f1 -d".")
+      minlatfloor=$(echo $DEM_MINLAT | cut -f1 -d".")
     fi
 
-    maxlatfloor=$(echo $MAXLAT | cut -f1 -d".")
+    maxlatfloor=$(echo $DEM_MAXLAT | cut -f1 -d".")
     maxlatceil=$(echo "$maxlatfloor + 1" | bc)
 
     #echo $MINLON $MAXLON "->" $minlonfloor $maxlonfloor
@@ -5620,20 +5657,20 @@ if [[ $plottopo -eq 1 ]]; then
     if [[ $plotcustomtopo -eq 1 ]]; then
       name="${F_TOPO}dem.nc"
       info_msg "Custom topo: NOT filling NaNs"
-      gmt grdcut ${GRIDFILE} -G${name} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
+      gmt grdcut ${GRIDFILE} -G${name} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
       BATHY=$name
     else
       info_msg "Using grid $GRIDFILE"
 
       # Output is a NetCDF format grid
-    	name=$GRIDDIR"${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}.nc"
+    	name=$GRIDDIR"${BATHYMETRY}_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.nc"
 
     	if [[ -e $name ]]; then
     		info_msg "DEM file $name already exists"
     	else
         case $BATHYMETRY in
           SRTM30|GEBCO20|GEBCO1|01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
-          gmt grdcut ${GRIDFILE} -G${name} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
+          gmt grdcut ${GRIDFILE} -G${name} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
           demiscutflag=1
           ;;
         esac
@@ -5643,21 +5680,6 @@ if [[ $plottopo -eq 1 ]]; then
   fi
 fi
 
-##### CUSTOM TOPOGRAPHY FILE
-# 	info_msg "Making custom basemap $BATHYMETRY"
-#
-# 	name="custom_dem.nc"
-# 	hs="custom_hs.nc"
-# 	hist="custom_hist.nc"
-# 	int="custom_int.nc"
-#
-#   info_msg "Cutting ${CUSTOMGRIDFILE}"
-#
-#
-#
-# 	CUSTOMBATHY=$name
-# 	CUSTOMINTN=$int
-# fi
 
 # At this point, if best topo flag is set, combine POSBATHYGRID and BATHY into one grid and make it the new BATHY grid
 
@@ -5790,16 +5812,27 @@ if [[ $plotseis -eq 1 ]]; then
   # Initial select of seismicity based on geographic coords, mag, and depth
   # Takes into account crossing of antimeridian (e.g lon in range [120 220])
 
-  info_msg "Selecting seismicity within Lat/Lon box"
-  gawk < $EQCATALOG -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG}   '
-    {
-    if ($2 <= maxlat && $2 >= minlat && $3 >= mindepth && $3 <= maxdepth && $4 <= maxmag && $4 >= minmag )
-    {
-      if (($1 <= maxlon && $1 >= minlon) || ($1+360 <= maxlon && $1+360 >= minlon)) {
-        print
-      }
-    }
-  }' > ${F_SEIS}eqs.txt
+  # This is for the ANSS catalog
+  if [[ $EQ_CATALOG_TYPE =~ "ANSS" ]]; then
+    F_SEIS_FULLPATH=$(abs_path ${F_SEIS})
+    $EXTRACT_ANSS_TILES $ANSSTILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat
+    awk -F, < ${F_SEIS}anss_extract_tiles.cat '{
+      print $3, $2, $4, $5, substr($1,1,19), $12, -1
+    }' > ${F_SEIS}eqs.txt
+  elif [[ $EQ_CATALOG_TYPE =~ "ISC" ]]; then
+    echo "ISC seismicity extract tool"
+  fi
+
+  # info_msg "Selecting seismicity within Lat/Lon box"
+  # gawk < $EQCATALOG -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG}   '
+  #   {
+  #   if ($2 <= maxlat && $2 >= minlat && $3 >= mindepth && $3 <= maxdepth && $4 <= maxmag && $4 >= minmag )
+  #   {
+  #     if (($1 <= maxlon && $1 >= minlon) || ($1+360 <= maxlon && $1+360 >= minlon)) {
+  #       print
+  #     }
+  #   }
+  # }' > ${F_SEIS}eqs.txt
 
   ##############################################################################
   # Add additional user-specified seismicity files. This needs to be expanded
@@ -5832,7 +5865,12 @@ if [[ $plotseis -eq 1 ]]; then
   # may differ from the lat/lon box.
   info_msg "Selecting seismicity within AOI polygon"
   mv ${F_SEIS}eqs.txt ${F_SEIS}eqs_aoipreselect.txt
-  gmt select ${F_SEIS}eqs_aoipreselect.txt -F${F_MAPELEMENTS}bounds.txt -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
+
+# this is messing up with global extents...
+
+  gmt select ${F_SEIS}eqs_aoipreselect.txt -R -J -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
+
+  # gmt select ${F_SEIS}eqs_aoipreselect.txt -F${F_MAPELEMENTS}bounds.txt -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
   cleanup ${F_SEIS}eqs_aoipreselect.txt
   info_msg "AOI selection: $(wc -l < ${F_SEIS}eqs.txt)"
 
@@ -5850,46 +5888,46 @@ if [[ $plotseis -eq 1 ]]; then
   ##############################################################################
   # Select seismicity based on time code, precision up to one second
 
-  if [[ $timeselectflag -eq 1 ]]; then
-    info_msg "Selecting seismicity between ${STARTTIME} and ${ENDTIME}"
-
-    STARTSECS=$(echo "${STARTTIME}" | gawk  '{
-      split($1, a, "-")
-      year=a[1]
-      month=a[2]
-      split(a[3],b,"T")
-      day=b[1]
-      split(b[2],c,":")
-      hour=c[1]
-      minute=c[2]
-      second=c[3]
-      the_time=sprintf("%i %i %i %i %i %i",year,month,day,hour,minute,int(second+0.5));
-      epoch=mktime(the_time);
-      print epoch;
-    }')
-
-    ENDSECS=$(echo "${ENDTIME}" | gawk  '{
-      split($1, a, "-")
-      year=a[1]
-      month=a[2]
-      split(a[3],b,"T")
-      day=b[1]
-      split(b[2],c,":")
-      hour=c[1]
-      minute=c[2]
-      second=c[3]
-      the_time=sprintf("%i %i %i %i %i %i",year,month,day,hour,minute,int(second+0.5));
-      epoch=mktime(the_time);
-      print epoch;
-    }')
-
-    gawk < ${F_SEIS}eqs.txt -v ss=$STARTSECS -v es=$ENDSECS '{
-      if (($7 >= ss) && ($7 <= es)) {
-        print
-      }
-    }' > ${F_SEIS}eq_timesel.dat
-    mv ${F_SEIS}eq_timesel.dat ${F_SEIS}eqs.txt
-  fi
+  # if [[ $timeselectflag -eq 1 ]]; then
+  #   info_msg "Selecting seismicity between ${STARTTIME} and ${ENDTIME}"
+  #
+  #   STARTSECS=$(echo "${STARTTIME}" | gawk  '{
+  #     split($1, a, "-")
+  #     year=a[1]
+  #     month=a[2]
+  #     split(a[3],b,"T")
+  #     day=b[1]
+  #     split(b[2],c,":")
+  #     hour=c[1]
+  #     minute=c[2]
+  #     second=c[3]
+  #     the_time=sprintf("%i %i %i %i %i %i",year,month,day,hour,minute,int(second+0.5));
+  #     epoch=mktime(the_time);
+  #     print epoch;
+  #   }')
+  #
+  #   ENDSECS=$(echo "${ENDTIME}" | gawk  '{
+  #     split($1, a, "-")
+  #     year=a[1]
+  #     month=a[2]
+  #     split(a[3],b,"T")
+  #     day=b[1]
+  #     split(b[2],c,":")
+  #     hour=c[1]
+  #     minute=c[2]
+  #     second=c[3]
+  #     the_time=sprintf("%i %i %i %i %i %i",year,month,day,hour,minute,int(second+0.5));
+  #     epoch=mktime(the_time);
+  #     print epoch;
+  #   }')
+  #
+  #   gawk < ${F_SEIS}eqs.txt -v ss=$STARTSECS -v es=$ENDSECS '{
+  #     if (($7 >= ss) && ($7 <= es)) {
+  #       print
+  #     }
+  #   }' > ${F_SEIS}eq_timesel.dat
+  #   mv ${F_SEIS}eq_timesel.dat ${F_SEIS}eqs.txt
+  # fi
 
   ##############################################################################
   # Sort seismicity file so that certain events plot on top of / below others
@@ -6033,38 +6071,40 @@ if [[ $calccmtflag -eq 1 ]]; then
     CMTFILE=$(abs_path ${F_CMT}cmt_eqlistsel.dat)
   fi
 
-  info_msg "Selecting focal mechanisms within AOI polygon ${POLYGONAOI} using ${CMTTYPE} location"
 
-  case $CMTTYPE in
-    CENTROID)  # Lon=Column 5, Lat=Column 6
-      gawk < $CMTFILE '{
-        for (i=5; i<=NF; i++) {
-          printf "%s ", $(i) }
-          print $1, $2, $3, $4;
-        }' | gmt select -F${F_MAPELEMENTS}bounds.txt ${VERBOSE} | tr '\t' ' ' | gawk  '{
-        printf "%s %s %s %s", $(NF-3), $(NF-2), $(NF-1), $(NF);
-        for (i=1; i<=NF-4; i++) {
-          printf " %s", $(i)
-        }
-        printf "\n";
-      }' > ${F_CMT}cmt_aoipolygonselect.dat
-      ;;
-    ORIGIN)  # Lon=Column 8, Lat=Column 9
-      gawk < $CMTFILE '{
-        for (i=8; i<=NF; i++) {
-          printf "%s ", $(i) }
-          print $1, $2, $3, $4, $5, $6, $7;
-        }' > ${F_CMT}tmp.dat
-        gmt select ${F_CMT}tmp.dat -F${F_MAPELEMENTS}bounds.txt ${VERBOSE} | tr '\t' ' ' | gawk  '{
-        printf "%s %s %s %s %s %s %s", $(NF-6), $(NF-5), $(NF-4), $(NF-3), $(NF-2), $(NF-1), $(NF);
-        for (i=1; i<=NF-6; i++) {
-          printf " %s", $(i)
-        } printf "\n";
-      }' > ${F_CMT}cmt_aoipolygonselect.dat
-      ;;
-  esac
-  CMTFILE=$(abs_path ${F_CMT}cmt_aoipolygonselect.dat)
+  if [[ $globalextentflag -ne 1  ]]; then
+    info_msg "Selecting focal mechanisms within non-global map AOI using ${CMTTYPE} location"
 
+    case $CMTTYPE in
+      CENTROID)  # Lon=Column 5, Lat=Column 6
+        gawk < $CMTFILE '{
+          for (i=5; i<=NF; i++) {
+            printf "%s ", $(i) }
+            print $1, $2, $3, $4;
+          }' | gmt select -F${F_MAPELEMENTS}bounds.txt ${VERBOSE} | tr '\t' ' ' | gawk  '{
+          printf "%s %s %s %s", $(NF-3), $(NF-2), $(NF-1), $(NF);
+          for (i=1; i<=NF-4; i++) {
+            printf " %s", $(i)
+          }
+          printf "\n";
+        }' > ${F_CMT}cmt_aoipolygonselect.dat
+        ;;
+      ORIGIN)  # Lon=Column 8, Lat=Column 9
+        gawk < $CMTFILE '{
+          for (i=8; i<=NF; i++) {
+            printf "%s ", $(i) }
+            print $1, $2, $3, $4, $5, $6, $7;
+          }' > ${F_CMT}tmp.dat
+          gmt select ${F_CMT}tmp.dat -F${F_MAPELEMENTS}bounds.txt ${VERBOSE} | tr '\t' ' ' | gawk  '{
+          printf "%s %s %s %s %s %s %s", $(NF-6), $(NF-5), $(NF-4), $(NF-3), $(NF-2), $(NF-1), $(NF);
+          for (i=1; i<=NF-6; i++) {
+            printf " %s", $(i)
+          } printf "\n";
+        }' > ${F_CMT}cmt_aoipolygonselect.dat
+        ;;
+    esac
+    CMTFILE=$(abs_path ${F_CMT}cmt_aoipolygonselect.dat)
+  fi
   # This abomination of a command is because I don't know how to use gmt select
   # to print the full record based only on the lon/lat in specific columns.
 
@@ -7039,7 +7079,7 @@ for cptfile in ${cpts[@]} ; do
       info_msg "Plotting topo from $BATHY: control string is ${topoctrlstring}"
       touch $TOPO_CPT
       TOPO_CPT=$(abs_path $TOPO_CPT)
-      if [[ customgridcptflag -eq 1 ]]; then
+      if [[ $customgridcptflag -eq 1 ]]; then
         info_msg "Copying custom CPT file $CUSTOMCPT to temporary directory"
         cp $CUSTOMCPT $TOPO_CPT
       else
@@ -7110,6 +7150,10 @@ fi
 # Add a PS comment with the command line used to invoke tectoplot. Use >> as we might
 # be adding this line onto an already existing PS file
 
+echo "#!/bin/bash" >> makemap.sh
+echo "" >> makemap.sh
+
+echo "echo \"%TECTOPLOT: ${COMMAND}\" >> map.ps" >> makemap.sh
 echo "%TECTOPLOT: ${COMMAND}" >> map.ps
 
 # Before we plot anything but after we have done the data processing, set any
@@ -7122,33 +7166,41 @@ echo "%TECTOPLOT: ${COMMAND}" >> map.ps
 # Page options
 # Just make a giant page and trim it later using gmt psconvert -A+m
 
+echo "gmt gmtset PS_PAGE_ORIENTATION portrait PS_MEDIA 100ix100i" >> makemap.sh
 gmt gmtset PS_PAGE_ORIENTATION portrait PS_MEDIA 100ix100i
 
 # Map frame options
 
+echo "gmt gmtset MAP_FRAME_TYPE fancy MAP_FRAME_WIDTH 0.12c MAP_FRAME_PEN 0.5p,black" >> makemap.sh
+echo "gmt gmtset FORMAT_GEO_MAP=D" >> makemap.sh
+
 gmt gmtset MAP_FRAME_TYPE fancy MAP_FRAME_WIDTH 0.12c MAP_FRAME_PEN 0.5p,black
 gmt gmtset FORMAT_GEO_MAP=D
 
+
 if [[ $tifflag -eq 1 ]]; then
+  echo "gmtset MAP_FRAME_TYPE inside" >> makemap.sh
   gmt gmtset MAP_FRAME_TYPE inside
 fi
 
 if [[ $kmlflag -eq 1 ]]; then
+  echo "gmtset MAP_FRAME_TYPE inside" >> makemap.sh
   gmt gmtset MAP_FRAME_TYPE inside
 fi
 
 # Font options
+echo "gmt gmtset FONT_ANNOT_PRIMARY 10 FONT_LABEL 10 FONT_TITLE 12p,Helvetica,black" >> makemap.sh
 gmt gmtset FONT_ANNOT_PRIMARY 10 FONT_LABEL 10 FONT_TITLE 12p,Helvetica,black
 
-
 # Symbol options
+echo "gmt gmtset FONT_ANNOT_PRIMARY 10 FONT_LABEL 10 FONT_TITLE 12p,Helvetica,black" >> makemap.sh
 gmt gmtset MAP_VECTOR_SHAPE 0.5 MAP_TITLE_OFFSET 24p
 
 if [[ $usecustomgmtvars -eq 1 ]]; then
   info_msg "gmt gmtset ${GMTVARS[@]}"
+echo "gmt gmtset ${GMTVARS[@]}" >> makemap.sh
   gmt gmtset ${GMTVARS[@]}
 fi
-
 
 # The strategy for adding items to the legend is to make little baby EPS files
 # and then place them onto the master PS using gmt psimage. We initialize these
@@ -7307,6 +7359,16 @@ for plot in ${plots[@]} ; do
       if [[ $citieslabelflag -eq 1 ]]; then
         gawk < cities.dat -F, '{print $1, $2, $3}' | sort -n -k 3 | gmt pstext -F+f${CITIES_LABEL_FONTSIZE},${CITIES_LABEL_FONT},${CITIES_LABEL_FONTCOLOR}+jLM $RJOK $VERBOSE >> map.ps
       fi
+      ;;
+
+    clipon)
+echo "gmt psclip ${CLIP_POLY_FILE} ${CLIP_POLY_PEN} ${RJOK} ${VERBOSE} >> map.ps" >> makemap.sh
+      gmt psclip ${CLIP_POLY_FILE} ${CLIP_POLY_PEN} ${RJOK} ${VERBOSE} >> map.ps
+      ;;
+
+    clipoff)
+echo "gmt psclip -C -K -O ${VERBOSE} >> map.ps" >> makemap.sh
+      gmt psclip -C -K -O ${VERBOSE} >> map.ps
       ;;
 
     cmt)
@@ -7618,6 +7680,7 @@ for plot in ${plots[@]} ; do
 
     userline)
       info_msg "Plotting line dataset $current_userlinefilenumber"
+      # gmt psxy ${USERLINEDATAFILE[$current_userlinefilenumber]} $RJOK $VERBOSE >> map.ps
       gmt psxy ${USERLINEDATAFILE[$current_userlinefilenumber]} -W${USERLINEWIDTH_arr[$current_userlinefilenumber]},${USERLINECOLOR_arr[$current_userlinefilenumber]} $RJOK $VERBOSE >> map.ps
       current_userlinefilenumber=$(echo "$current_userlinefilenumber + 1" | bc -l)
       ;;
@@ -7709,8 +7772,16 @@ for plot in ${plots[@]} ; do
       ;;
 
     image)
-      info_msg "gmt grdimage $IMAGENAME ${IMAGEARGS} $RJOK ${VERBOSE} >> map.ps"
-      gmt grdimage "$IMAGENAME" $GRID_PRINT_RES "${IMAGEARGS}" $RJOK $VERBOSE >> map.ps
+      gdal_translate -q -of GTiff -co COMPRESS=JPEG -co TILED=YES ${IMAGENAME} im.tiff
+      # gdal_translate -b 1 -of GMT im.tiff im_red.grd
+      # gdal_translate -b 2 -of GMT im.tiff im_green.grd
+      # gdal_translate -b 3 -of GMT im.tiff im_blue.grd
+
+      info_msg "gmt im.tiff "${IMAGEARGS}" $RJOK $VERBOSE >> map.ps"
+      # gmt image "$IMAGENAME" "${IMAGEARGS}" $RJOK $VERBOSE >> map.ps
+
+      gmt grdimage im.tiff -Q $RJOK $VERBOSE >> map.ps
+
       ;;
 
     inset)
@@ -8140,6 +8211,36 @@ for plot in ${plots[@]} ; do
       [[ $plotplates -eq 1 ]] && gawk  < ${F_PLATES}map_labels.txt -F, '{print $1, $2, substr($3, 1, length($3)-2)}' | gmt pstext -C0.1+t -F+f$PLATELABEL_SIZE,Helvetica,$PLATELABEL_COLOR+jCB $RJOK $VERBOSE  >> map.ps
       ;;
 
+    platepolycolor_all)
+        plate_files=($(ls ${F_PLATES}*.pldat 2>/dev/null))
+        if [[ ${#plate_files} -gt 0 ]]; then
+          gmt makecpt -T0/${#plate_files[@]}/1 -Cwysiwyg ${VERBOSE} | awk '{print $2}' | head -n ${#plate_files[@]} > ${F_PLATES}platecolor.dat
+          P_COLORLIST=($(cat ${F_PLATES}platecolor.dat))
+          this_index=0
+          for p_example in ${plate_files[@]}; do
+            # echo gmt psxy ${p_example} -G"${P_COLORLIST[$this_index]}" -t${P_POLYTRANS} $RJOK ${VERBOSE}
+            gmt psxy ${p_example} -G"${P_COLORLIST[$this_index]}" -t${P_POLYTRANS} $RJOK ${VERBOSE} >> map.ps
+            this_index=$(echo "$this_index + 1" | bc)
+          done
+        else
+          info_msg "[-pc]: No plate files found."
+        fi
+      ;;
+
+    platepolycolor_list)
+      numplatepoly=$(echo "${#P_POLYLIST[@]}-1" | bc)
+      for p_index in $(seq 0 $numplatepoly); do
+        plate_files=($(ls ${F_PLATES}${P_POLYLIST[$p_index]}_*.pldat 2>/dev/null))
+        if [[ ${#plate_files} -gt 0 ]]; then
+          for p_example in ${plate_files[@]}; do
+            gmt psxy ${p_example} -G${P_COLORLIST[$p_index]} -t${P_POLYTRANS[$p_index]} $RJOK ${VERBOSE} >> map.ps
+          done
+        else
+          info_msg "Plate file ${P_POLYLIST[$p_index]} does not exist."
+        fi
+      done
+      ;;
+
     platerelvel)
       gmt makecpt -T0/100/1 -C$CPTDIR"platevel_one.cpt" -Z ${VERBOSE} > $PLATEVEL_CPT
       cat ${F_PLATES}paz1*.txt > ${F_PLATES}all.txt
@@ -8279,13 +8380,25 @@ for plot in ${plots[@]} ; do
       info_msg "Plotting seismicity; should include options for CPT/fill color"
       OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
       gmt gmtset PROJ_LENGTH_UNIT p
+
+      EQLWNUM=$(echo $EQLINEWIDTH | awk '{print $1 + 0}')
+      if [[ $EQLWNUM -eq 0 ]]; then
+        EQWCOM=""
+      else
+        EQWCOM="-W${EQLINEWIDTH},${EQLINECOLOR}"
+      fi
+
       if [[ $SCALEEQS -eq 1 ]]; then
         # the -Cwhite option here is so that we can pass the removed EQs in the same file format as the non-scaled events
-        [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && [[ -e ${F_SEIS}removed_eqs_scaled.txt ]] && gmt psxy ${F_SEIS}removed_eqs_scaled.txt -Cwhite -W${EQLINEWIDTH},${EQLINECOLOR} -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
-        gmt psxy ${F_SEIS}eqs_scaled.txt -C$SEISDEPTH_CPT -i0,1,2,3+s${SEISSCALE} -W${EQLINEWIDTH},${EQLINECOLOR} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
+        # [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && [[ -e ${F_SEIS}removed_eqs_scaled.txt ]] && gmt psxy ${F_SEIS}removed_eqs_scaled.txt -Cwhite -W${EQLINEWIDTH},${EQLINECOLOR} -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
+        # gmt psxy ${F_SEIS}eqs_scaled.txt -C$SEISDEPTH_CPT -i0,1,2,3+s${SEISSCALE} -W${EQLINEWIDTH},${EQLINECOLOR} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
+        [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && [[ -e ${F_SEIS}removed_eqs_scaled.txt ]] && gmt psxy ${F_SEIS}removed_eqs_scaled.txt -Cwhite ${EQWCOM} -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
+        gmt psxy ${F_SEIS}eqs_scaled.txt -C$SEISDEPTH_CPT -i0,1,2,3+s${SEISSCALE} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
       else
-        [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && [[ -e ${F_SEIS}removed_eqs_scaled.txt ]] && gmt psxy ${F_SEIS}removed_eqs.txt -Gwhite -W${EQLINEWIDTH},${EQLINECOLOR} -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL}${SEISSIZE} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
-        gmt psxy ${F_SEIS}eqs.txt -C$SEISDEPTH_CPT -i0,1,2 -W${EQLINEWIDTH},${EQLINECOLOR} -S${SEISSYMBOL}${SEISSIZE} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
+        # [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && [[ -e ${F_SEIS}removed_eqs_scaled.txt ]] && gmt psxy ${F_SEIS}removed_eqs.txt -Gwhite -W${EQLINEWIDTH},${EQLINECOLOR} -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL}${SEISSIZE} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
+        # gmt psxy ${F_SEIS}eqs.txt -C$SEISDEPTH_CPT -i0,1,2 -W${EQLINEWIDTH},${EQLINECOLOR} -S${SEISSYMBOL}${SEISSIZE} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
+        [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && [[ -e ${F_SEIS}removed_eqs_scaled.txt ]] && gmt psxy ${F_SEIS}removed_eqs.txt -Gwhite ${EQWCOM} -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL}${SEISSIZE} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
+        gmt psxy ${F_SEIS}eqs.txt -C$SEISDEPTH_CPT -i0,1,2 ${EQWCOM} -S${SEISSYMBOL}${SEISSIZE} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
       fi
       gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
 			;;
@@ -8665,270 +8778,335 @@ for plot in ${plots[@]} ; do
    # Requires: dem.nc sentinel.tif TOPO_CPT
    # Variables: topoctrlstring MINLON/MAXLON/MINLAT/MAXLAT P_IMAGE F_TOPO *_FACT
    # Flags: FILLGRIDNANS SMOOTHGRID ZEROHINGE
+      plottedtopoflag=1
+      if [[ $fasttopoflag -eq 0 ]]; then   # If we are doing more complex topo visualization
+        if [[ $FILLGRIDNANS -eq 1 ]]; then
+          # cp ${F_TOPO}dem.nc olddem.nc
+          info_msg "Filling grid file NaN values with nearest non-NaN value"
+          gmt grdfill ${F_TOPO}dem.nc -An -Gdem_no_nan.nc ${VERBOSE}
+          mv dem_no_nan.nc ${F_TOPO}dem.nc
+        fi
 
+        # If we are visualizing Sentinel imagery, resample DEM to match the resolution of sentinel.tif
+        if [[ ${topoctrlstring} =~ .*p.* && ${P_IMAGE} =~ "sentinel.tif" ]]; then
+            # Absolute path is needed here as GMT 6.1.1 breaks for a relative path... BUG
+            sentinel_dim=($(gmt grdinfo ./sentinel.tif -C -L -Vn))
+            sent_dimx=${sentinel_dim[9]}
+            sent_dimy=${sentinel_dim[10]}
+            info_msg "Resampling DEM to match downloaded Sentinel image size"
+            gdalwarp -r bilinear -of NetCDF -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${sent_dimx} ${sent_dimy} ${F_TOPO}dem.nc ${F_TOPO}dem_warp.nc
 
+            # gdalwarp nukes the z values for some stupid reason leaving a raster that GMT interprets as all 0s
+            cp ${F_TOPO}dem.nc ${F_TOPO}demold.nc
+            gmt grdcut ${F_TOPO}dem_warp.nc -R${F_TOPO}dem_warp.nc -G${F_TOPO}dem.nc ${VERBOSE}
+        fi
 
-      if [[ $FILLGRIDNANS -eq 1 ]]; then
-        # cp ${F_TOPO}dem.nc olddem.nc
-        info_msg "Filling grid file NaN values with nearest non-NaN value"
-        gmt grdfill ${F_TOPO}dem.nc -An -Gdem_no_nan.nc ${VERBOSE}
-        mv dem_no_nan.nc ${F_TOPO}dem.nc
-      fi
+        if [[ $SMOOTHGRID -eq 1 ]]; then
+          info_msg "Smoothing grid before DEM calculations"
+          # Not implemented
+        fi
 
-      # If we are visualizing Sentinel imagery, resample DEM to match the resolution of sentinel.tif
-      if [[ ${topoctrlstring} =~ .*p.* && ${P_IMAGE} =~ "sentinel.tif" ]]; then
-          # Absolute path is needed here as GMT 6.1.1 breaks for a relative path... BUG
-          sentinel_dim=($(gmt grdinfo ./sentinel.tif -C -L -Vn))
-          sent_dimx=${sentinel_dim[9]}
-          sent_dimy=${sentinel_dim[10]}
-          info_msg "Resampling DEM to match downloaded Sentinel image size"
-          echo gdalwarp -r bilinear -of NetCDF -q -te ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -ts ${sent_dimx} ${sent_dimy} ${F_TOPO}dem.nc ${F_TOPO}dem_warp.nc
+        CELL_SIZE=$(gmt grdinfo -C ${F_TOPO}dem.nc -Vn | awk '{print $8}')
+        info_msg "Grid cell size = ${CELL_SIZE}"
+        # We now do all color ramps via gdaldem and derive intensity maps from
+        # the selected procedures. We fuse them using gdal_calc.py. This gives us
+        # a more streamlined process for managing CPTs, etc.
 
-          gdalwarp -r bilinear -of NetCDF -q -te ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -ts ${sent_dimx} ${sent_dimy} ${F_TOPO}dem.nc ${F_TOPO}dem_warp.nc
-          cp ${F_TOPO}dem.nc ${F_TOPO}demold.nc
-          cp ${F_TOPO}dem_warp.nc ${F_TOPO}dem.nc
-      fi
+        if [[ $ZEROHINGE -eq 1 ]]; then
+          # We need to make a gdal color file that respects the CPT hinge value (usually 0)
+          # gdaldem is a bit funny about coloring around the hinge, so do some magic to make
+          # the color from land not bleed to the hinge elevation.
+          # CPTHINGE=0
 
-      if [[ $SMOOTHGRID -eq 1 ]]; then
-        info_msg "Smoothing grid before DEM calculations"
-        # Not implemented
-      fi
+          gawk < $TOPO_CPT -v hinge=$CPTHINGE '{
+            if ($1 != "B" && $1 != "F" && $1 != "N" ) {
+              if (count==1) {
+                print $1+0.01, $2
+                count=2
+              } else {
+                print $1, $2
+              }
 
-      CELL_SIZE=$(gmt grdinfo -C ${F_TOPO}dem.nc -Vn | awk '{print $8}')
-      info_msg "Grid cell size = ${CELL_SIZE}"
-      # We now do all color ramps via gdaldem and derive intensity maps from
-      # the selected procedures. We fuse them using gdal_calc.py. This gives us
-      # a more streamlined process for managing CPTs, etc.
-
-      if [[ $ZEROHINGE -eq 1 ]]; then
-        # We need to make a gdal color file that respects the CPT hinge value (usually 0)
-        # gdaldem is a bit funny about coloring around the hinge, so do some magic to make
-        # the color from land not bleed to the hinge elevation.
-        # CPTHINGE=0
-
-        gawk < $TOPO_CPT -v hinge=$CPTHINGE '{
-          if ($1 != "B" && $1 != "F" && $1 != "N" ) {
-            if (count==1) {
-              print $1+0.01, $2
-              count=2
-            } else {
-              print $1, $2
-            }
-
-            if ($3 == hinge) {
-              if (count==0) {
-                print $3-0.0001, $4
-                count=1
+              if ($3 == hinge) {
+                if (count==0) {
+                  print $3-0.0001, $4
+                  count=1
+                }
               }
             }
-          }
-        }' | tr '/' ' ' | awk '{
-          if ($2==255) {$2=254.9}
-          if ($3==255) {$3=254.9}
-          if ($4==255) {$4=254.9}
-          print
-        }' > ${F_CPTS}topocolor.dat
-      else
-        gawk < $TOPO_CPT '{ print $1, $2 }' | tr '/' ' ' > ${F_CPTS}topocolor.dat
-      fi
-
-      demwidth=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $10}')
-      demheight=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $11}')
-      demxmin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $2}')
-      demxmax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $3}')
-      demymin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $4}')
-      demymax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $5}')
-
-      # ########################################################################
-      # Create and render a colored shaded relief map using a topoctrlstring
-      # command string = "csmhvdtg"
-      #
-
-      # c = color stretch  [ DEM_ALPHA CPT_NAME HINGE_VALUE HIST_EQ ]    [MULTIPLY]
-      # s = slope map                                                    [WEIGHTED AVE]
-      # m = multiple hillshade (gdaldem)  [ SUN_ELEV ]                   [WEIGHTED AVE]
-      # h = unidirectional hillshade (gdaldem)  [ SUN_ELEV SUN_AZ ]      [WEIGHTED AVE]
-      # v = sky view factor                                              [WEIGHTED AVE]
-      # i = terrain ruggedness index                                     [WEIGHTED AVE]
-      # d = cast shadows [ SUN_ELEV SUN_AZ ]                             [MULTIPLY]
-      # t = texture shade [ TFRAC TSTRETCH ]                             [WEIGHTED AVE]
-      # g = stretch/gamma on intensity [ HS_GAMMA ]                      [DIRECT]
-      # p = use TIFF image instead of color stretch
-
-      while read -n1 character; do
-        case $character in
-
-        i)
-          info_msg "Calculating terrain ruggedness index"
-          gdaldem TRI -q -of NetCDF ${F_TOPO}dem.nc ${F_TOPO}tri.nc
-          zrange=$(grid_zrange ${F_TOPO}tri.nc -C -Vn)
-          gdal_translate -of GTiff -ot Byte -a_nodata 0 -scale ${zrange[0]} ${zrange[1]} 254 1 ${F_TOPO}tri.nc ${F_TOPO}tri.tif -q
-          weighted_average_combine ${F_TOPO}tri.tif ${F_TOPO}intensity.tif ${TRI_FACT} ${F_TOPO}intensity.tif
-        ;;
-
-        t)
-          info_msg "Calculating and rendering texture map"
-
-          # Calculate the texture shade
-          # Project from WGS1984 to Mercator / HDF format
-          # The -dstnodata option is a kluge to get around unknown NaNs in dem.flt even if ${F_TOPO}dem.nc has NaNs filled.
-          [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${F_TOPO}dem.nc ${F_TOPO}dem.flt -q
-
-          # texture the DEM. Pipe output to /dev/null to silence the program
-          if [[ $(echo "$MAXLAT >= 90" | bc) -eq 1 ]]; then
-            MERCMAXLAT=89.999
-          else
-            MERCMAXLAT=$MAXLAT
-          fi
-          if [[ $(echo "$MINLAT <= -90" | bc) -eq 1 ]]; then
-            MERCMINLAT=-89.999
-          else
-            MERCMINLAT=$MINLAT
-          fi
-
-          ${TEXTURE} ${TS_FRAC} ${F_TOPO}dem.flt ${F_TOPO}texture.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
-          # make the image. Pipe output to /dev/null to silence the program
-          ${TEXTURE_IMAGE} +${TS_STRETCH} ${F_TOPO}texture.flt ${F_TOPO}texture_merc.tif > /dev/null
-          # project back to WGS1984
-
-          gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}texture_merc.tif ${F_TOPO}texture_2byte.tif -q
-
-          # Change to 8 bit unsigned format
-          gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 ${F_TOPO}texture_2byte.tif ${F_TOPO}texture.tif -q
-          cleanup ${F_TOPO}texture_2byte.tif ${F_TOPO}texture_merc.tif ${F_TOPO}dem.flt ${F_TOPO}dem.hdr ${F_TOPO}dem.flt.aux.xml ${F_TOPO}dem.prj ${F_TOPO}texture.flt ${F_TOPO}texture.hdr ${F_TOPO}texture.prj ${F_TOPO}texture_merc.prj ${F_TOPO}texture_merc.tfw
-
-          # Combine it with the existing intensity
-          weighted_average_combine ${F_TOPO}texture.tif ${F_TOPO}intensity.tif ${TS_FACT} ${F_TOPO}intensity.tif
-        ;;
-
-        m)
-          info_msg "Creating multidirectional hillshade"
-          gdaldem hillshade -multidirectional -compute_edges -alt ${HS_ALT} -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}multiple_hillshade.tif -q
-          weighted_average_combine ${F_TOPO}multiple_hillshade.tif ${F_TOPO}intensity.tif ${MULTIHS_FACT} ${F_TOPO}intensity.tif
-        ;;
-
-        # Compute and render a one-sun hillshade
-        h)
-          info_msg "Creating unidirectional hillshade"
-          gdaldem hillshade -compute_edges -alt ${HS_ALT} -az ${HS_AZ} -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}single_hillshade.tif -q
-          weighted_average_combine ${F_TOPO}single_hillshade.tif ${F_TOPO}intensity.tif ${UNI_FACT} ${F_TOPO}intensity.tif
-        ;;
-
-        # Compute and render the slope map
-        s)
-          info_msg "Creating slope map"
-          gdaldem slope -compute_edges -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}slopedeg.tif -q
-          echo "5 254 254 254" > ${F_TOPO}slope.txt
-          echo "80 30 30 30" >> ${F_TOPO}slope.txt
-          gdaldem color-relief ${F_TOPO}slopedeg.tif ${F_TOPO}slope.txt ${F_TOPO}slope.tif -q
-          weighted_average_combine ${F_TOPO}slope.tif ${F_TOPO}intensity.tif ${SLOPE_FACT} ${F_TOPO}intensity.tif
-        ;;
-
-        # Compute and render the sky view factor
-        v)
-          info_msg "Creating sky view factor"
+          }' | tr '/' ' ' | awk '{
+            if ($2==255) {$2=254.9}
+            if ($3==255) {$3=254.9}
+            if ($4==255) {$4=254.9}
+            print
+          }' > ${F_CPTS}topocolor.dat
+        else
+          gawk < $TOPO_CPT '{ print $1, $2 }' | tr '/' ' ' > ${F_CPTS}topocolor.dat
+        fi
 
 
-          [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${F_TOPO}dem.nc ${F_TOPO}dem.flt -q
+        # ########################################################################
+        # Create and render a colored shaded relief map using a topoctrlstring
+        # command string = "csmhvdtg"
+        #
 
-          # texture the DEM. Pipe output to /dev/null to silence the program
-          if [[ $(echo "$MAXLAT >= 90" | bc) -eq 1 ]]; then
-            MERCMAXLAT=89.999
-          else
-            MERCMAXLAT=$MAXLAT
-          fi
-          if [[ $(echo "$MINLAT <= -90" | bc) -eq 1 ]]; then
-            MERCMINLAT=-89.999
-          else
-            MERCMINLAT=$MINLAT
-          fi
+        # c = color stretch  [ DEM_ALPHA CPT_NAME HINGE_VALUE HIST_EQ ]    [MULTIPLY]
+        # s = slope map                                                    [WEIGHTED AVE]
+        # m = multiple hillshade (gdaldem)  [ SUN_ELEV ]                   [WEIGHTED AVE]
+        # h = unidirectional hillshade (gdaldem)  [ SUN_ELEV SUN_AZ ]      [WEIGHTED AVE]
+        # v = sky view factor                                              [WEIGHTED AVE]
+        # i = terrain ruggedness index                                     [WEIGHTED AVE]
+        # d = cast shadows [ SUN_ELEV SUN_AZ ]                             [MULTIPLY]
+        # t = texture shade [ TFRAC TSTRETCH ]                             [WEIGHTED AVE]
+        # g = stretch/gamma on intensity [ HS_GAMMA ]                      [DIRECT]
+        # p = use TIFF image instead of color stretch
+        # w = clip to alternative AOI
 
-          # start_time=`date +%s`
-          ${SVF} ${NUM_SVF_ANGLES} ${F_TOPO}dem.flt ${F_TOPO}svf.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
-          # echo run time is $(expr `date +%s` - $start_time) s
-          # project back to WGS1984
-          gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}svf.flt ${F_TOPO}svf_back.tif -q
+        while read -n1 character; do
+          case $character in
 
-          # Change to 8 bit unsigned format
-          gdal_translate -of GTiff -ot Byte -scale 1 -1 1 254 ${F_TOPO}svf_back.tif ${F_TOPO}svf.tif -q
+          w)
+            info_msg "Clipping DEM to new AOI"
 
-          # Combine it with the existing intensity
-          weighted_average_combine ${F_TOPO}svf.tif ${F_TOPO}intensity.tif ${SKYVIEW_FACT} ${F_TOPO}intensity.tif
-        ;;
+            gdal_translate -q -of NetCDF -projwin ${CLIP_MINLON} ${CLIP_MAXLAT} ${CLIP_MAXLON} ${CLIP_MINLAT} ${F_TOPO}dem.nc ${F_TOPO}dem_clip.nc
+            DEM_MINLON=${CLIP_MINLON}
+            DEM_MAXLON=${CLIP_MAXLON}
+            DEM_MINLAT=${CLIP_MINLAT}
+            DEM_MAXLAT=${CLIP_MAXLAT}
+            # mkdir -p ./tmpcut
+            # cd ./tmpcut
+            # gmt grdcut ../${F_TOPO}dem.nc -R${CLIP_MINLON}/${CLIP_MAXLON}/${CLIP_MINLAT}/${CLIP_MAXLAT} -G../${F_TOPO}clip.nc ${VERBOSE}
+            # cd ..
+            cp ${F_TOPO}dem_clip.nc ${F_TOPO}dem.nc
+          ;;
 
-        # Compute and render the cast shadows
-        d)
-          info_msg "Creating cast shadow map"
+          i)
+            info_msg "Calculating terrain ruggedness index"
+            gdaldem TRI -q -of NetCDF ${F_TOPO}dem.nc ${F_TOPO}tri.nc
+            zrange=$(grid_zrange ${F_TOPO}tri.nc -C -Vn)
+            gdal_translate -of GTiff -ot Byte -a_nodata 0 -scale ${zrange[0]} ${zrange[1]} 254 1 ${F_TOPO}tri.nc ${F_TOPO}tri.tif -q
+            weighted_average_combine ${F_TOPO}tri.tif ${F_TOPO}intensity.tif ${TRI_FACT} ${F_TOPO}intensity.tif
+          ;;
 
-          [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${F_TOPO}dem.nc ${F_TOPO}dem.flt -q
+          t)
+            demwidth=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $10}')
+            demheight=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $11}')
+            demxmin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $2}')
+            demxmax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $3}')
+            demymin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $4}')
+            demymax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $5}')
 
-          # texture the DEM. Pipe output to /dev/null to silence the program
-          if [[ $(echo "$MAXLAT >= 90" | bc) -eq 1 ]]; then
-            MERCMAXLAT=89.999
-          else
-            MERCMAXLAT=$MAXLAT
-          fi
-          if [[ $(echo "$MINLAT <= -90" | bc) -eq 1 ]]; then
-            MERCMINLAT=-89.999
-          else
-            MERCMINLAT=$MINLAT
-          fi
+            info_msg "Calculating and rendering texture map"
 
-          ${SHADOW} ${SUN_AZ} ${SUN_EL} ${F_TOPO}dem.flt ${F_TOPO}shadow.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
-          # project back to WGS1984
+            # Calculate the texture shade
+            # Project from WGS1984 to Mercator / HDF format
+            # The -dstnodata option is a kluge to get around unknown NaNs in dem.flt even if ${F_TOPO}dem.nc has NaNs filled.
+            [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${F_TOPO}dem.nc ${F_TOPO}dem.flt -q
 
-          gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}shadow.flt ${F_TOPO}shadow_back.tif -q
+            # texture the DEM. Pipe output to /dev/null to silence the program
+            if [[ $(echo "$DEM_MAXLAT >= 90" | bc) -eq 1 ]]; then
+              MERCMAXLAT=89.999
+            else
+              MERCMAXLAT=$DEM_MAXLAT
+            fi
+            if [[ $(echo "$DEM_MINLAT <= -90" | bc) -eq 1 ]]; then
+              MERCMINLAT=-89.999
+            else
+              MERCMINLAT=$DEM_MINLAT
+            fi
 
-          MAX_SHADOW=$(grep "max_value" ${F_TOPO}shadow.hdr | gawk '{print $2}')
+            ${TEXTURE} ${TS_FRAC} ${F_TOPO}dem.flt ${F_TOPO}texture.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
+            # make the image. Pipe output to /dev/null to silence the program
+            ${TEXTURE_IMAGE} +${TS_STRETCH} ${F_TOPO}texture.flt ${F_TOPO}texture_merc.tif > /dev/null
+            # project back to WGS1984
 
-          # Change to 8 bit unsigned format
-          gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale $MAX_SHADOW 0 1 254 ${F_TOPO}shadow_back.tif ${F_TOPO}shadow.tif -q
+            gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}texture_merc.tif ${F_TOPO}texture_2byte.tif -q
 
-          # Combine it with the existing intensity
-          multiply_combine ${F_TOPO}shadow.tif ${F_TOPO}intensity.tif ${F_TOPO}intensity.tif
-        ;;
+            # Change to 8 bit unsigned format
+            gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 ${F_TOPO}texture_2byte.tif ${F_TOPO}texture.tif -q
+            cleanup ${F_TOPO}texture_2byte.tif ${F_TOPO}texture_merc.tif ${F_TOPO}dem.flt ${F_TOPO}dem.hdr ${F_TOPO}dem.flt.aux.xml ${F_TOPO}dem.prj ${F_TOPO}texture.flt ${F_TOPO}texture.hdr ${F_TOPO}texture.prj ${F_TOPO}texture_merc.prj ${F_TOPO}texture_merc.tfw
 
-        # Rescale and gamma correct the intensity layer
-        g)
-          zrange=$(grid_zrange ${F_TOPO}intensity.tif -C -Vn)
-          histogram_rescale_stretch ${F_TOPO}intensity.tif ${zrange[0]} ${zrange[1]} 1 254 $HS_GAMMA ${F_TOPO}intensity_cor.tif
-          mv ${F_TOPO}intensity_cor.tif ${F_TOPO}intensity.tif
-        ;;
+            # Combine it with the existing intensity
+            weighted_average_combine ${F_TOPO}texture.tif ${F_TOPO}intensity.tif ${TS_FACT} ${F_TOPO}intensity.tif
+          ;;
 
-        esac
-      done < <(echo -n "$topoctrlstring")
+          m)
+            info_msg "Creating multidirectional hillshade"
+            gdaldem hillshade -multidirectional -compute_edges -alt ${HS_ALT} -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}multiple_hillshade.tif -q
+            weighted_average_combine ${F_TOPO}multiple_hillshade.tif ${F_TOPO}intensity.tif ${MULTIHS_FACT} ${F_TOPO}intensity.tif
+          ;;
 
-      INTENSITY_RELIEF=${F_TOPO}intensity.tif
+          # Compute and render a one-sun hillshade
+          h)
+            info_msg "Creating unidirectional hillshade"
+            gdaldem hillshade -compute_edges -alt ${HS_ALT} -az ${HS_AZ} -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}single_hillshade.tif -q
+            weighted_average_combine ${F_TOPO}single_hillshade.tif ${F_TOPO}intensity.tif ${UNI_FACT} ${F_TOPO}intensity.tif
+          ;;
 
-      if [[ ${topoctrlstring} =~ .*p.* ]]; then
-          dem_dim=($(gmt grdinfo ${F_TOPO}dem.nc -C -L -Vn))
-          dem_dimx=${dem_dim[9]}
-          dem_dimy=${dem_dim[10]}
-          info_msg "Rendering georeferenced RGB image ${P_IMAGE} as colored texture."
-          if [[ ${P_IMAGE} =~ "sentinel.tif" ]]; then
-            info_msg "Rendering Sentinel image"
-            gdalwarp -q -te ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -ts ${dem_dimx} ${dem_dimy} sentinel.tif ${F_TOPO}image_pre.tif
-            histogram_rescale_stretch ${F_TOPO}image_pre.tif 1 180 1 254 ${SENTINEL_GAMMA} ${F_TOPO}image.tif
-          else
-            gdalwarp -q -te ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -ts ${dem_dimx} ${dem_dimy} ${P_IMAGE} ${F_TOPO}image.tif
-          fi
-          # weighted_average_combine ${F_TOPO}image.tif ${F_TOPO}intensity.tif ${IMAGE_FACT} ${F_TOPO}intensity.tif
-          multiply_combine ${F_TOPO}image.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
-          INTENSITY_RELIEF=${F_TOPO}colored_intensity.tif
-      fi
+          # Compute and render the slope map
+          s)
+            info_msg "Creating slope map"
+            gdaldem slope -compute_edges -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}slopedeg.tif -q
+            echo "5 254 254 254" > ${F_TOPO}slope.txt
+            echo "80 30 30 30" >> ${F_TOPO}slope.txt
+            gdaldem color-relief ${F_TOPO}slopedeg.tif ${F_TOPO}slope.txt ${F_TOPO}slope.tif -q
+            weighted_average_combine ${F_TOPO}slope.tif ${F_TOPO}intensity.tif ${SLOPE_FACT} ${F_TOPO}intensity.tif
+          ;;
 
-      if [[ ${topoctrlstring} =~ .*c.* && ! ${topoctrlstring} =~ .*p.* ]]; then
-        info_msg "Creating and blending color stretch (alpha=$DEM_ALPHA)."
-        gdaldem color-relief ${F_TOPO}dem.nc ${F_CPTS}topocolor.dat ${F_TOPO}colordem.tif -q
-        alpha_value ${F_TOPO}colordem.tif ${DEM_ALPHA} ${F_TOPO}colordem_alpha.tif
-        multiply_combine ${F_TOPO}colordem_alpha.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
-        COLORED_RELIEF=${F_TOPO}colored_intensity.tif
-      else
-        COLORED_RELIEF=$INTENSITY_RELIEF
-      fi
+          # Compute and render the sky view factor
+          v)
+
+            demwidth=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $10}')
+            demheight=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $11}')
+            demxmin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $2}')
+            demxmax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $3}')
+            demymin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $4}')
+            demymax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $5}')
+
+            info_msg "Creating sky view factor"
+
+            [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${F_TOPO}dem.nc ${F_TOPO}dem.flt -q
+
+            # texture the DEM. Pipe output to /dev/null to silence the program
+            if [[ $(echo "$DEM_MAXLAT >= 90" | bc) -eq 1 ]]; then
+              MERCMAXLAT=89.999
+            else
+              MERCMAXLAT=$DEM_MAXLAT
+            fi
+            if [[ $(echo "$DEM_MINLAT <= -90" | bc) -eq 1 ]]; then
+              MERCMINLAT=-89.999
+            else
+              MERCMINLAT=$DEM_MINLAT
+            fi
+
+            # start_time=`date +%s`
+            ${SVF} ${NUM_SVF_ANGLES} ${F_TOPO}dem.flt ${F_TOPO}svf.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
+            # echo run time is $(expr `date +%s` - $start_time) s
+            # project back to WGS1984
+            gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}svf.flt ${F_TOPO}svf_back.tif -q
+
+            zrange=($(grid_zrange ${F_TOPO}svf_back.tif -Vn))
+            gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale ${zrange[1]} ${zrange[0]} 1 254 ${F_TOPO}svf_back.tif ${F_TOPO}svf.tif -q
+
+            # Combine it with the existing intensity
+            weighted_average_combine ${F_TOPO}svf.tif ${F_TOPO}intensity.tif ${SKYVIEW_FACT} ${F_TOPO}intensity.tif
+          ;;
+
+          # Compute and render the cast shadows
+          d)
+            info_msg "Creating cast shadow map"
+
+            demwidth=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $10}')
+            demheight=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $11}')
+            demxmin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $2}')
+            demxmax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $3}')
+            demymin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $4}')
+            demymax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | awk '{print $5}')
+
+
+            [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${F_TOPO}dem.nc ${F_TOPO}dem.flt -q
+
+            # texture the DEM. Pipe output to /dev/null to silence the program
+            if [[ $(echo "$MAXLAT >= 90" | bc) -eq 1 ]]; then
+              MERCMAXLAT=89.999
+            else
+              MERCMAXLAT=$MAXLAT
+            fi
+            if [[ $(echo "$MINLAT <= -90" | bc) -eq 1 ]]; then
+              MERCMINLAT=-89.999
+            else
+              MERCMINLAT=$MINLAT
+            fi
+
+            ${SHADOW} ${SUN_AZ} ${SUN_EL} ${F_TOPO}dem.flt ${F_TOPO}shadow.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
+            # project back to WGS1984
+
+            gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}shadow.flt ${F_TOPO}shadow_back.tif -q
+
+            MAX_SHADOW=$(grep "max_value" ${F_TOPO}shadow.hdr | gawk '{print $2}')
+
+            # Change to 8 bit unsigned format
+            gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale $MAX_SHADOW 0 1 254 ${F_TOPO}shadow_back.tif ${F_TOPO}shadow.tif -q
+            # Combine it with the existing intensity
+            alpha_value ${F_TOPO}shadow.tif ${SHADOW_ALPHA} ${F_TOPO}shadow_alpha.tif
+
+            multiply_combine ${F_TOPO}shadow_alpha.tif ${F_TOPO}intensity.tif ${F_TOPO}intensity.tif
+          ;;
+
+          # Rescale and gamma correct the intensity layer
+          g)
+            info_msg "Rescale stretching and gamma correcting intensity layer"
+            zrange=$(grid_zrange ${F_TOPO}intensity.tif -C -Vn)
+            histogram_rescale_stretch ${F_TOPO}intensity.tif ${zrange[0]} ${zrange[1]} 1 254 $HS_GAMMA ${F_TOPO}intensity_cor.tif
+            mv ${F_TOPO}intensity_cor.tif ${F_TOPO}intensity.tif
+          ;;
+
+          # Percent cut the intensity layer
+          x)
+            info_msg "Executing percent cut on intensity layer"
+            histogram_percentcut_byte ${F_TOPO}intensity.tif $TPCT_MIN $TPCT_MAX ${F_TOPO}intensity_percentcut.tif
+            cp ${F_TOPO}intensity_percentcut.tif ${F_TOPO}intensity.tif
+          ;;
+
+          # Set intensity of DEM values with elevation=0 to 254
+          u)
+            info_msg "Resetting 0 elevation cells to white"
+            image_setval ${F_TOPO}intensity.tif ${F_TOPO}dem.nc 0 254 ${F_TOPO}unset.tif
+            cp ${F_TOPO}unset.tif ${F_TOPO}intensity.tif
+          ;;
+
+          esac
+        done < <(echo -n "$topoctrlstring")
+
+        INTENSITY_RELIEF=${F_TOPO}intensity.tif
+
+        if [[ ${topoctrlstring} =~ .*p.* ]]; then
+
+            # if [[ $demisclippedflag -eq 1 ]]; then
+            #   P_MAXLON=${CLIP_MAXLON}
+            #   P_MINLON=${CLIP_MINLON}
+            #   P_MAXLAT=${CLIP_MAXLAT}
+            #   P_MINLAT=${CLIP_MINLAT}
+            # else
+            #   P_MAXLON=${MAXLON}
+            #   P_MINLON=${MINLON}
+            #   P_MAXLAT=${MAXLAT}
+            #   P_MINLAT=${MINLAT}
+            # fi
+            dem_dim=($(gmt grdinfo ${F_TOPO}dem.nc -C -L -Vn))
+            dem_dimx=${dem_dim[9]}
+            dem_dimy=${dem_dim[10]}
+            info_msg "Rendering georeferenced RGB image ${P_IMAGE} as colored texture."
+            if [[ ${P_IMAGE} =~ "sentinel.tif" ]]; then
+              info_msg "Rendering Sentinel image"
+              gdalwarp -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${dem_dimx} ${dem_dimy} sentinel.tif ${F_TOPO}image_pre.tif
+              histogram_rescale_stretch ${F_TOPO}image_pre.tif 1 180 1 254 ${SENTINEL_GAMMA} ${F_TOPO}image.tif
+            else
+              gdalwarp -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${dem_dimx} ${dem_dimy} ${P_IMAGE} ${F_TOPO}image.tif
+            fi
+            # weighted_average_combine ${F_TOPO}image.tif ${F_TOPO}intensity.tif ${IMAGE_FACT} ${F_TOPO}intensity.tif
+            multiply_combine ${F_TOPO}image.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
+            INTENSITY_RELIEF=${F_TOPO}colored_intensity.tif
+        fi
+
+        if [[ ${topoctrlstring} =~ .*c.* && ! ${topoctrlstring} =~ .*p.* ]]; then
+          info_msg "Creating and blending color stretch (alpha=$DEM_ALPHA)."
+          gdaldem color-relief ${F_TOPO}dem.nc ${F_CPTS}topocolor.dat ${F_TOPO}colordem.tif -q
+          alpha_value ${F_TOPO}colordem.tif ${DEM_ALPHA} ${F_TOPO}colordem_alpha.tif
+          multiply_combine ${F_TOPO}colordem_alpha.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
+          COLORED_RELIEF=${F_TOPO}colored_intensity.tif
+        else
+          COLORED_RELIEF=$INTENSITY_RELIEF
+        fi
+        BATHY=${F_TOPO}dem.nc
+      fi  # fasttopoflag
 
       if [[ $dontplottopoflag -eq 0 ]]; then
-        gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
+        if [[ $fasttopoflag -eq 0 ]]; then   # If we are doing more complex topo visualization
+          gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
+        else # If we are doing fast topo visualization
+          gmt grdimage ${BATHY} ${ILLUM} -C${TOPO_CPT} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
+        fi
       else
         info_msg "Plotting of topo shaded relief suppressed by -ts"
       fi
@@ -9462,13 +9640,27 @@ if [[ $tifflag -eq 1 ]]; then
   [[ $openflag -eq 1 ]] && open -a $OPENPROGRAM "${THISDIR}/${MAPOUT}.tif"
 fi
 
-##### MAKE SCRIPT TO PLOT OBLIQUE VIEW OF TOPOGRAPHY
-if [[ $obliqueflag -eq 1 ]]; then
+##### Make script to plot oblique view of topography, execute if option is set
+#     If we are
+if [[ $plottedtopoflag -eq 1 ]]; then
   info_msg "Oblique map (${OBLIQUEAZ}/${OBLIQUEINC})"
   PSSIZENUM=$(echo $PSSIZE | gawk  '{print $1+0}')
 
+  # if [[ $demisclippedflag -eq 1 ]]; then
+  #   P_MAXLON=${CLIP_MAXLON}
+  #   P_MINLON=${CLIP_MINLON}
+  #   P_MAXLAT=${CLIP_MAXLAT}
+  #   P_MINLAT=${CLIP_MINLAT}
+  # else
+  #   P_MAXLON=${MAXLON}
+  #   P_MINLON=${MINLON}
+  #   P_MAXLAT=${MAXLAT}
+  #   P_MINLAT=${MINLAT}
+  # fi
+
+
   # zrange is the elevation change across the DEM
-  zrange=($(grid_zrange $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn))
+  zrange=($(grid_zrange $BATHY -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} -C -Vn))
 
   if [[ $obplotboxflag -eq 1 ]]; then
     OBBOXCMD="-N${OBBOXLEVEL}+gwhite"
@@ -9504,13 +9696,25 @@ if [[ $obliqueflag -eq 1 ]]; then
   echo "  OBLIQUEINC=${OBLIQUEINC}"  >> ./make_oblique.sh
   echo "fi" >> ./make_oblique.sh
 
-  echo "DELTAZ_IN=\$(echo \"\${OBLIQUE_VEXAG} * ${PSSIZENUM} * (${zrange[1]} - ${zrange[0]})/ ( (${MAXLON} - ${MINLON}) * 111000 )\"  | bc -l)"  >> ./make_oblique.sh
+  echo "if [[ \$# -ge 4 ]]; then" >> ./make_oblique.sh
+  echo "  OBLIQUERES=\${4}" >> ./make_oblique.sh
+  echo "else" >> ./make_oblique.sh
+  echo "  OBLIQUERES=${OBLIQUERES}"  >> ./make_oblique.sh
+  echo "fi" >> ./make_oblique.sh
+
+  echo "DELTAZ_IN=\$(echo \"\${OBLIQUE_VEXAG} * ${PSSIZENUM} * (${zrange[1]} - ${zrange[0]})/ ( (${DEM_MAXLON} - ${DEM_MINLON}) * 111000 )\"  | bc -l)"  >> ./make_oblique.sh
 
   # echo "gmt grdview $BATHY -G${COLORED_RELIEF} -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JM${MINLON}/${PSSIZENUM}i -JZ\${DELTAZ_IN}i ${OBBOXCMD} -Qi${OBLIQUERES} ${OBBCOMMAND} -p\${OBLIQUEAZ}/\${OBLIQUEINC} --GMT_HISTORY=false --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > oblique.ps" >> ./make_oblique.sh
-  echo "gmt grdview $BATHY -G${COLORED_RELIEF} ${RJSTRING[@]} -JZ\${DELTAZ_IN}i ${OBBOXCMD} -Qi${OBLIQUERES} ${OBBCOMMAND} -p\${OBLIQUEAZ}/\${OBLIQUEINC} --GMT_HISTORY=false --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > oblique.ps" >> ./make_oblique.sh
+  if [[ $plotimageflag -eq 1 ]]; then
+    echo "gmt grdimage im.tiff ${RJSTRING[@]} ${OBBOXCMD} -Qi\${OBLIQUERES} ${OBBCOMMAND} -p\${OBLIQUEAZ}/\${OBLIQUEINC} --GMT_HISTORY=false --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > ob2.ps" >> ./make_oblique.sh
+  fi
+  echo "gmt grdview $BATHY -G${COLORED_RELIEF} ${RJSTRING[@]} -JZ\${DELTAZ_IN}i ${OBBOXCMD} -Qi\${OBLIQUERES} ${OBBCOMMAND} -p\${OBLIQUEAZ}/\${OBLIQUEINC} --GMT_HISTORY=false --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > oblique.ps" >> ./make_oblique.sh
   echo "gmt psconvert oblique.ps -Tf -A0.5i --GMT_HISTORY=false ${VERBOSE}" >> ./make_oblique.sh
   chmod a+x ./make_oblique.sh
-  ./make_oblique.sh
+
+  if [[ $obliqueflag -eq 1 ]]; then
+    ./make_oblique.sh
+  fi
 fi
 
 ##### MAKE KML

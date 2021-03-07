@@ -61,7 +61,10 @@ CMTTOOLS=$TECTOPLOTDIR"cmt_tools.sh"
 SCRAPE_GFZ=$TECTOPLOTDIR"scrape_gfz.sh"
 SCRAPE_GCMT=$TECTOPLOTDIR"scrape_gcmt.sh"
 SCRAPE_ISCFOC=$TECTOPLOTDIR"scrape_isc_focals.sh"
+SCRAPE_ISCSEIS=$TECTOPLOTDIR"scrape_isc_seismicity.sh"
 SCRAPE_ANSS=$TECTOPLOTDIR"scrape_anss_data.sh"
+#EXTRACT_ANSS=$TECTOPLOTDIR"extract_anss.sh"
+EXTRACT_ANSS_TILES=$TECTOPLOTDIR"extract_anss_tiles.sh"
 MERGECATS=$TECTOPLOTDIR"merge_and_cull_catalogs.sh"
 
 ##### CMT import script
@@ -93,6 +96,7 @@ EULERADD_AWK=$TECTOPLOTDIR"euleradd.awk"
 MPROFILE_SH_SRC=$TECTOPLOTDIR"multi_profile_tectoplot_sourced.sh"
 
 #####
+SENT_DIR=$DATAROOT"Sentinel/"
 SENTINEL_SOURCESTRING="Sentinel-2 cloudless by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016). Retrieved from https://tiles.maps.eox.at/wms?service=wms&request=getmap&version=1.1.1&layers=s2cloudless-2019"
 SENTINEL_SHORT_SOURCESTRING="Sentinel-2/EOX/2019"
 
@@ -357,6 +361,7 @@ ANSS_EQ_SOURCESTRING="Earthquakes: USGS/ANSS, https://earthquake.usgs.gov/earthq
 ANSS_EQ_SHORT_SOURCESTRING="ANSS"
 
 ANSSDIR=$DATAROOT"ANSS/"
+ANSSTILEDIR=${ANSSDIR}"Tiles"
 ANSS_EQ_CATALOG=${ANSSDIR}"anss.cat"
 
 # mirror:

@@ -4,12 +4,23 @@
 # This file will be sourced by the main tectoplot script to load various default values.
 # Assignments should be in bash format
 
+EQ_CATALOG_TYPE="ANSS"
+
+STARTTIME="1900-01-01T00:00:00"
+ENDTIME="2025-01-01T00:00:00"
+
+CLIP_POLY_PEN="-W0p,black"
+
+OBBAXISTYPE="plain"
+
 #### Data download options
 DELETEZIPFLAG=0
 
 
 #### Topo visualization options
 
+TPCT_MIN=2
+TPCT_MAX=98
 
 SENTINEL_GAMMA=0.7
 
@@ -21,6 +32,7 @@ TS_FACT=0.7
 SLOPE_FACT=0.7
 TRI_FACT=0.7
 IMAGE_FACT=1
+SHADOW_ALPHA=0.5
 
 topocolorflag=1
 
@@ -58,7 +70,7 @@ PSSIZE_DEFAULT=7             # size of square page, inches
 MARGIN=0.5                   # page margin, inches
 ARROWFMT="0.03/0.12/0.06"    # format for velocity arrows, GMT 4 style
 GRIDCALL="WESN"              # GMT axes code (-Bxxxx)
-GRIDLINESON=1                # Gridlines on (0=off)
+GRIDLINESON=0                # Gridlines on (0=off)
 VELSCALE=0.01                # Scale factor for velocities
 PVHEAD=0.1i                  # Head size for velocity vectors
 PVFORMAT="0.03/0.06/0.06"    # Experimental head size for plate relative V
@@ -246,6 +258,8 @@ PLATEVEC_TEXT_COLOR="black"  # plate velocity label color
 PLATEVEC_TEXT_FONT="Helvetica" # plate velocity font
 PLATEVEC_TEXT_PLOT=1         # If 1, plot text, if not, don't
 
+PDIFFCUTOFF=0  # Not sure what this does
+
 ################################################################################
 ##### Ocean age raster
 OC_TRANS=0                   # Oceanic crust age transparency
@@ -295,7 +309,7 @@ EQLINECOLOR="black"
 EQREMOVEFILL="white"
 EQCUTMINDEPTH=-1000          # Ignore seismicity and CMT data above this depth
 EQCUTMAXDEPTH=6000           # Ignore seismicity and CMT data below this depth
-REMOVE_DEFAULTDEPTHS=0       # Should we remove events with D=10,5,33,etc
+REMOVE_DEFAULTDEPTHS=1       # Should we remove events with D=10,5,33,etc
 REMOVE_DEFAULTDEPTHS_MAXMAG=6     # But don't remove events above a (scaled?) magnitude threshold as they are more important
 REMOVE_DEFAULTDEPTHS_WITHPLOT=1   # Should we plot the removed events separately?
 REMOVE_EQUIVS=1              # Should we remove equivalent earthquakes if CMT exists?
