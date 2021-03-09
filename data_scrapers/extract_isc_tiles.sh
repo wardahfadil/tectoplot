@@ -156,17 +156,17 @@ selected_files=($(awk -v minlon=${2} -v maxlon=${3} -v minlat=${4} -v maxlat=${5
 
 # Currenly broken for AOI longitudes like: [-200, -170]. Works for [170, 190]
 # ISC CSV files don't have location strings or quotation marks, unlike Comcat CSV
-echo Selected ${selected_files[@]}
+# echo Selected ${selected_files[@]}
 # CSV format is:
 # 1       2         3           4          5        6         7     8      9         10     11   12+
 # EVENTID,AUTHOR   ,DATE      ,TIME       ,LAT     ,LON      ,DEPTH,DEPFIX,AUTHOR   ,TYPE  ,MAG  [, extra...]
 #  752622,ISC      ,1974-01-14,03:59:31.48, 28.0911, 131.4943, 10.0,TRUE  ,ISC      ,mb    , 4.3
 
-cat ${selected_files[@]} | \
-  gawk -F, -v minlon=${2} -v maxlon=${3} -v minlat=${4} -v maxlat=${5} -v minepoch=${MINDATE_EPOCH} -v maxepoch=${MAXDATE_EPOCH} -v minmag=${8} -v maxmag=${9} -v mindepth=${10} -v maxdepth=${11} '
+for this_file in ${selected_files[@]}; do
+  gawk < $this_file -F, -v minlon=${2} -v maxlon=${3} -v minlat=${4} -v maxlat=${5} -v minepoch=${MINDATE_EPOCH} -v maxepoch=${MAXDATE_EPOCH} -v minmag=${8} -v maxmag=${9} -v mindepth=${10} -v maxdepth=${11} '
   ($5 <= maxlat && $5 >= minlat && $11 >= minmag && $11 <= maxmag && $7 >= mindepth && $7 <= maxdepth) {
 
-    if ((maxlon < 180 && (minlon <= $6 && $6 <= maxlon)) || (maxlon > 180 && (minlon <= $6+360 || $6+360 <= maxlon))) {
+    if ((maxlon <= 180 && (minlon <= $6 && $6 <= maxlon)) || (maxlon > 180 && (minlon <= $6+360 || $6+360 <= maxlon))) {
 
       # Now we check if the event actually falls inside the specified time window
 
@@ -205,6 +205,7 @@ cat ${selected_files[@]} | \
       }
       if (epoch >= minepoch && epoch <= maxepoch) {
         print
-      } 
+      }
     }
-  }' > ${12}
+  }' >> ${12}
+done

@@ -160,11 +160,12 @@ selected_files=($(awk -v minlon=${2} -v maxlon=${3} -v minlat=${4} -v maxlat=${5
 
 # Currenly broken for AOI longitudes like: [-200, -170]. Works for [170, 190]
 
-cat ${selected_files[@]} | gawk -F'"' -v OFS='' '{ for (i=2; i<=NF; i+=2) gsub(",", "", $i) } 1' | sed 's/\"//g' | \
+for this_file in ${selected_files[@]}; do
+  gawk < $this_file -F'"' -v OFS='' '{ for (i=2; i<=NF; i+=2) gsub(",", "", $i) } 1' | sed 's/\"//g' | \
   gawk -F, -v minlon=${2} -v maxlon=${3} -v minlat=${4} -v maxlat=${5} -v minepoch=${MINDATE_EPOCH} -v maxepoch=${MAXDATE_EPOCH} -v minmag=${8} -v maxmag=${9} -v mindepth=${10} -v maxdepth=${11} '
   ($1 != "time" && $15 == "earthquake" && $2 <= maxlat && $2 >= minlat && $5 >= minmag && $5 <= maxmag && $4 >= mindepth && $4 <= maxdepth) {
 
-    if ((maxlon < 180 && (minlon <= $3 && $3 <= maxlon)) || (maxlon > 180 && (minlon <= $3+360 || $3+360 <= maxlon))) {
+    if ((maxlon <= 180 && (minlon <= $3 && $3 <= maxlon)) || (maxlon > 180 && (minlon <= $3+360 || $3+360 <= maxlon))) {
 
       # Now we check if the event actually falls inside the specified time window
 
@@ -205,4 +206,5 @@ cat ${selected_files[@]} | gawk -F'"' -v OFS='' '{ for (i=2; i<=NF; i+=2) gsub("
         print
       }
     }
-  }' > ${12}
+  }' >> ${12}
+done
