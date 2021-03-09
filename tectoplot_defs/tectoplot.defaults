@@ -5,6 +5,7 @@
 # Assignments should be in bash format
 
 EQ_CATALOG_TYPE="ANSS"
+COUNTRIES_TRANS=0
 
 STARTTIME="1900-01-01T00:00:00"
 ENDTIME="2025-01-01T00:00:00"

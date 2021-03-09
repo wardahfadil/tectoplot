@@ -58,14 +58,17 @@ GMTCPTS=${DEFDIR}"tectoplot.gmtcpts"
 CMTTOOLS=$TECTOPLOTDIR"cmt_tools.sh"
 
 ##### Scraper scripts
-SCRAPE_GFZ=$TECTOPLOTDIR"scrape_gfz.sh"
-SCRAPE_GCMT=$TECTOPLOTDIR"scrape_gcmt.sh"
-SCRAPE_ISCFOC=$TECTOPLOTDIR"scrape_isc_focals.sh"
-SCRAPE_ISCSEIS=$TECTOPLOTDIR"scrape_isc_seismicity.sh"
-SCRAPE_ANSS=$TECTOPLOTDIR"scrape_anss_data.sh"
-#EXTRACT_ANSS=$TECTOPLOTDIR"extract_anss.sh"
-EXTRACT_ANSS_TILES=$TECTOPLOTDIR"extract_anss_tiles.sh"
-MERGECATS=$TECTOPLOTDIR"merge_and_cull_catalogs.sh"
+SCRAPERDIR=$TECTOPLOTDIR"data_scrapers/"
+
+SCRAPE_GFZ=$SCRAPERDIR"scrape_gfz.sh"
+SCRAPE_GCMT=$SCRAPERDIR"scrape_gcmt.sh"
+SCRAPE_ISCFOC=$SCRAPERDIR"scrape_isc_focals.sh"
+SCRAPE_ISCSEIS=$SCRAPERDIR"scrape_isc_seismicity.sh"
+SCRAPE_ANSS=$SCRAPERDIR"scrape_anss_data.sh"
+#EXTRACT_ANSS=$SCRAPERDIR"extract_anss.sh"
+EXTRACT_ANSS_TILES=$SCRAPERDIR"extract_anss_tiles.sh"
+EXTRACT_ISC_TILES=$SCRAPERDIR"extract_isc_tiles.sh"
+MERGECATS=$SCRAPERDIR"merge_and_cull_catalogs.sh"
 
 ##### CMT import script
 CMTSLURP=$TECTOPLOTDIR"cmt_tools.sh"
@@ -362,12 +365,14 @@ ANSS_EQ_SHORT_SOURCESTRING="ANSS"
 
 ANSSDIR=$DATAROOT"ANSS/"
 ANSSTILEDIR=${ANSSDIR}"Tiles"
-ANSS_EQ_CATALOG=${ANSSDIR}"anss.cat"
+#ANSS_EQ_CATALOG=${ANSSDIR}"anss.cat"
 
 # mirror:
 ISC_MIRROR="http://isc-mirror.iris.washington.edu"
 
 ISC_EQS_DIR=$DATAROOT"ISC_SEIS/"
+ISCTILEDIR=${ISC_EQS_DIR}"Tiles"
+
 ISC_EQ_CATALOG=$ISC_EQS_DIR"isc_seis.cat"
 ISC_EQ_SOURCESTRING="ISC earthquake catalog, http://www.isc.ac.uk/iscbulletin/search/"
 ISC_EQ_SHORT_SOURCESTRING="ISC"
