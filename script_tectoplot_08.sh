@@ -905,6 +905,12 @@ function print_setup() {
   5. Scrape and process the seismicity and focal mechanism catalogs.
      Then confirm the date range spanned by the processed datasets.
 
+     If you want to avoid a long scrape session, download these ZIP files:
+     https://www.dropbox.com/s/lp8hmr0e676hs0f/ANSS.zip?dl=0
+     and
+     https://www.dropbox.com/s/9tg70lkbwtlnjr6/ISC_SEIS.zip?dl=0
+     and unzip them into your data directory.
+
   ~/tectoplot/# tectoplot -scrapedata
   ~/tectoplot/# tectoplot -reportdates
 
