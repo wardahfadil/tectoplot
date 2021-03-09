@@ -225,6 +225,13 @@ ISCDIR="${1}"
 
 cd $ISCDIR
 
+# Sort the anss_complete.txt file to preserve the order of earliest->latest
+if [[ -e isc_complete.txt ]]; then
+  sort < isc_complete.txt -t '_' -n -k 3 -k 4 -k 5 > isc_complete.txt.sort
+  mv isc_complete.txt.sort isc_complete.txt
+fi
+
+
 ISCTILEDIR="Tiles/"
 
 if [[ -d $ISCTILEDIR ]]; then
@@ -352,6 +359,7 @@ else
     done
   done
 fi
+
 # If we downloaded a file (should always happen as newest file is never marked complete)
 
 #   EVENTID,AUTHOR   ,DATE      ,TIME       ,LAT     ,LON      ,DEPTH,DEPFIX,AUTHOR   ,TYPE  ,MAG

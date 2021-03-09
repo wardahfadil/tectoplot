@@ -77,6 +77,7 @@ fi
 
 cd $DATADIR
 
+
 # Calculate the epoch of the given time window
 MINDATE_EPOCH=$(echo $6 | iso8601_to_epoch)
 MAXDATE_EPOCH=$(echo $7 | iso8601_to_epoch)

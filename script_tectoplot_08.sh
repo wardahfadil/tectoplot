@@ -710,7 +710,7 @@ Map of recent earthquakes, labelled.
     -zsort           [date|depth|mag] [up|down]          sort earthquake data before plotting
     -zadd            [file] [[replace]]                  add/replace seismicity [lon lat depth mag [timecode id epoch]]
     -zmag            [minmag] [[maxmag]]                 set minimum and maximum magnitude
-    -zcat            [ANSS or ISC]                       select the scraped EQ catalog to use
+    -zcat            [ANSS | ISC | NONE]                 select the scraped EQ catalog to use. NONE is used with -zadd
     -zcolor          [mindepth] [maxdepth]               set range of color stretch for EQ+CMT data
     -zfill           [color]                             set uniform fill color for seismicity
 
@@ -906,9 +906,8 @@ function print_setup() {
      Then confirm the date range spanned by the processed datasets.
 
      If you want to avoid a long scrape session, download these ZIP files:
-     https://www.dropbox.com/s/lp8hmr0e676hs0f/ANSS.zip?dl=1
-     and
-     https://www.dropbox.com/s/9tg70lkbwtlnjr6/ISC_SEIS.zip?dl=1
+     https://www.dropbox.com/s/1tab7ww98bf129p/ANSS.zip?dl=1
+     https://www.dropbox.com/s/lf52rhpzby5ktkp/ISC_SEIS.zip?dl=1
      and unzip them into your data directory.
 
   ~/tectoplot/# tectoplot -scrapedata
@@ -2167,7 +2166,6 @@ do
       CENTROIDFLAG=1
       ORIGINFLAG=1
       CMTTYPE="CENTROID"
-
     else
       CMTTYPE="${2}"
       shift
@@ -3858,8 +3856,8 @@ do
   -reportdates)
     echo -n "Focal mechanisms: "
     echo "$(head -n 1 $FOCALCATALOG | cut -d ' ' -f 3) to $(tail -n 1 $FOCALCATALOG | cut -d ' ' -f 3)"
-    echo -n "Earthquake hypocenters: "
-    echo "$(head -n 1 $EQCATALOG | cut -d ' ' -f 5) to $(tail -n 1 $EQCATALOG | cut -d ' ' -f 5)"
+    # echo -n "Earthquake hypocenters: "
+    # echo "$(head -n 1 $EQCATALOG | cut -d ' ' -f 5) to $(tail -n 1 $EQCATALOG | cut -d ' ' -f 5)"
     exit
     ;;
 
@@ -5029,7 +5027,7 @@ do
 
   -zcat) #            [ANSS or ISC]
     if arg_is_flag $2; then
-      info_msg "[-zcat]: No catalog specified. Using default $EQCATALOG"
+      info_msg "[-zcat]: No catalog specified. Using default."
     else
       EQCATNAME="${2}"
       shift
@@ -5037,15 +5035,16 @@ do
       case $EQCATNAME in
         ISC)
           EQ_CATALOG_TYPE="ISC"
-          EQCATALOG=$ISC_EQ_CATALOG
           EQ_SOURCESTRING=$ISC_EQ_SOURCESTRING
           EQ_SHORT_SOURCESTRING=$ISC_EQ_SHORT_SOURCESTRING
         ;;
-        ANSS0)
+        ANSS)
           EQ_CATALOG_TYPE="ANSS"
-          EQCATALOG=$ANSS_EQ_CATALOG
           EQ_SOURCESTRING=$ANSS_EQ_SOURCESTRING
           EQ_SHORT_SOURCESTRING=$ANSS_EQ_SHORT_SOURCESTRING
+        ;;
+        NONE)
+          EQ_CATALOG_TYPE="NONE"
         ;;
       esac
     fi
@@ -5149,8 +5148,8 @@ if [[ $setregionbyearthquakeflag -eq 1 ]]; then
     esac
   else
     if [[ $EQ_CATALOG_TYPE =~ "ANSS" ]]; then
+      info_msg "Looking for event ${REGION_EQ}"
       LOOK2=$(grep $REGION_EQ ${ANSSDIR}"Tiles/"*)
-      # LOOK2=$(grep $REGION_EQ $EQCATALOG)
       echo $LOOK2
       if [[ $LOOK2 != "" ]]; then
         # echo "Found EQ region hypocenter $REGION_EQ"
@@ -5162,9 +5161,10 @@ if [[ $setregionbyearthquakeflag -eq 1 ]]; then
         info_msg "[-r]: EQ mode: No event found"
         exit
       fi
-
     elif [[ $EQ_CATALOG_TYPE =~ "ISC" ]]; then
       echo "ISC grep for event"
+    elif [[ $EQ_CATALOG_TYPE =~ "NONE" ]]; then
+      echo "No EQ catalog"
     fi
   fi
   MINLON=$(echo "$REGION_EQ_LON - $EQ_REGION_WIDTH" | bc -l)
@@ -5498,7 +5498,6 @@ if [[ -s ${F_PROFILES}cprof_prep.txt ]]; then
         }' > tmpslabfile.dat
         numinregion=$(gmt select inpoint.file -Ftmpslabfile.dat ${VERBOSE} | wc -l)
         if [[ $numinregion -ge 1 ]]; then
-          echo "\$(echo "$numslab2inregion+1" | bc)"
           numslab2inregion=$(echo "$numslab2inregion+1" | bc)
           slab2inregion[$numslab2inregion]=$(basename -s .csv $slabcfile)
         fi
@@ -5518,9 +5517,6 @@ if [[ -s ${F_PROFILES}cprof_prep.txt ]]; then
 
    ANTIAZ=$(echo "${CPAZ}" | bc -l)
    FOREAZ=$(echo "${CPAZ}+180" | bc -l)
-
-  echo gmt project -C${CPLON}/${CPLAT} -A${FOREAZ} -Q -G${CPHALFLEN}k -L0/${CPHALFLEN} ${VERBOSE}
-  echo gmt project -C${CPLON}/${CPLAT} -A${ANTIAZ} -Q -G${CPHALFLEN}k -L0/${CPHALFLEN} ${VERBOSE}
 
    POINT1=($(gmt project -C${CPLON}/${CPLAT} -A${FOREAZ} -Q -G${CPHALFLEN}k -L0/${CPHALFLEN} ${VERBOSE} | tail -n 1 | gawk  '{print $1, $2}'))
    POINT2=($(gmt project -C${CPLON}/${CPLAT} -A${ANTIAZ} -Q -G${CPHALFLEN}k -L0/${CPHALFLEN} ${VERBOSE} | tail -n 1 | gawk  '{print $1, $2}'))
@@ -6063,6 +6059,8 @@ if [[ $plotseis -eq 1 ]]; then
     awk -F, < ${F_SEIS}isc_extract_tiles.cat '{
       print $6, $5, $7, $11, sprintf("%sT%s", $3, substr($4, 1, 8)), $1, -1
     }' > ${F_SEIS}eqs.txt
+  elif [[ $EQ_CATALOG_TYPE =~ "NONE" ]]; then
+    touch ${F_SEIS}eqs.txt
   fi
 
   ##############################################################################
@@ -7203,9 +7201,9 @@ fi
 # These are a series of fixed CPT files that we can refer to when we wish. They
 # are not modified and don't need to be copied to tempdir.
 
-[[ ! -e $CPTDIR"grayhs.cpt" || $remakecptsflag -eq 1 ]] && gmt makecpt -Cgray,gray -T-10000/10000/10000 > $CPTDIR"grayhs.cpt"
-[[ ! -e $CPTDIR"whitehs.cpt" || $remakecptsflag -eq 1 ]] && gmt makecpt -Cwhite,white -T-10000/10000/10000 > $CPTDIR"whitehs.cpt"
-[[ ! -e $CPTDIR"cycleaz.cpt" || $remakecptsflag -eq 1 ]] && gmt makecpt -Cred,yellow,green,blue,orange,purple,brown,plum4,thistle1,palegreen1,cadetblue1,navajowhite1,red -T-180/180/1 -Z $VERBOSE > $CPTDIR"cycleaz.cpt"
+[[ ! -e $CPTDIR"grayhs.cpt" || $remakecptsflag -eq 1 ]] && gmt makecpt -Cgray,gray -T-10000/10000/10000 ${VERBOSE} > $CPTDIR"grayhs.cpt"
+[[ ! -e $CPTDIR"whitehs.cpt" || $remakecptsflag -eq 1 ]] && gmt makecpt -Cwhite,white -T-10000/10000/10000 ${VERBOSE} > $CPTDIR"whitehs.cpt"
+[[ ! -e $CPTDIR"cycleaz.cpt" || $remakecptsflag -eq 1 ]] && gmt makecpt -Cred,green,blue,yellow,red -T-180/180/1 -Z $VERBOSE > $CPTDIR"cycleaz.cpt"
 [[ ! -e $CPTDIR"defaultpt.cpt" || $remakecptsflag -eq 1 ]] && gmt makecpt -Cred,yellow,green,blue,orange,purple,brown -T0/2000/1 -Z $VERBOSE > $CPTDIR"defaultpt.cpt"
 [[ ! -e $CPTDIR"platevel_one.cpt" || $remakecptsflag -eq 1 ]] && gmt makecpt -Chaxby -T0/1/0.05 -Z $VERBOSE > $CPTDIR"platevel_one.cpt"
 

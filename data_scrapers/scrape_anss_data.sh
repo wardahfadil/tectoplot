@@ -154,103 +154,125 @@ else
   done
 fi
 
-
-rm -f anss_just_downloaded.txt
-
-if [[ -e anss_last_downloaded_event.txt ]]; then
-  lastevent_epoch=$(tail -n 1 anss_last_downloaded_event.txt | awk -F, '{print substr($1,1,19)}' | iso8601_to_epoch)
-else
-  lastevent_epoch=$(echo "1900-01-01T00:00:01" | iso8601_to_epoch)
-fi
-echo "Last event from previous scrape has epoch $lastevent_epoch"
-
-
-this_year=$(date -u +"%Y")
-this_month=$(date -u +"%m")
-this_day=$(date -u +"%d")
-this_datestring=$(date -u +"%Y-%m-%dT%H:%M:%S")
-
-# Generate a list of all possible catalog files that can be downloaded
-# This takes a while and could be done differently with a persistent file
-
-# Look for the last entry in the list of catalog files
-final_cat=($(tail -n 1 ./anss_list.txt 2>/dev/null | awk -F_ '{split($5, a, "."); print $3, $4, a[1]}'))
-
-# If there is no last entry (no file), regenerate the list
-if [[ -z ${final_cat[0]} ]]; then
-  echo "Generating new catalog file list..."
-  echo "anss_events_1000_to_1950.cat" > ./anss_list.txt
-  for year in $(seq 1951 $this_year); do
-    for month in $(seq 1 12); do
-      if [[ $(echo "($year == $this_year) && ($month > $this_month)" | bc) -eq 1 ]]; then
-        break 1
-      fi
-      for segment in $(seq 1 3); do
-        if [[ $(echo "($year == $this_year) && ($month == $this_month)" | bc) -eq 1 ]]; then
-          [[ $(echo "($segment == 2) && ($this_day < 11)"  | bc) -eq 1 ]] && break
-          [[ $(echo "($segment == 3) && ($this_day < 21)"  | bc) -eq 1 ]] && break
-        fi
-        echo "anss_events_${year}_${month}_${segment}.cat" >> ./anss_list.txt
-      done
-    done
-  done
-else
-# Otherwise, add the events that postdate the last catalog file.
-  echo "Adding new catalog files to file list..."
-  final_year=${final_cat[0]}
-  final_month=${final_cat[1]}
-  final_segment=${final_cat[2]}
-
-  for year in $(seq $final_year $this_year); do
-    for month in $(seq 1 12); do
-      if [[  $(echo "($year == $this_year) && ($month > $this_month)" | bc) -eq 1 ]]; then
-        break 1
-      fi
-      for segment in $(seq 1 3); do
-        # Determine when to exit the loop as we have gone into the future
-        if [[ $(echo "($year >= $this_year) && ($month >= $this_month)" | bc) -eq 1 ]]; then
-           [[ $(echo "($segment == 2) && ($this_day < 11)"  | bc) -eq 1 ]] && break
-           [[ $(echo "($segment == 3) && ($this_day < 21)"  | bc) -eq 1 ]] && break
-        fi
-        # Determine whether to suppress printing of the catalog ID as it already exists
-        if ! [[ $(echo "($year <= $final_year) && ($month < $final_month)" | bc) -eq 1 ]]; then
-          if [[ $(echo "($year == $final_year) && ($month == $final_month) && ($segment <= $final_segment)" | bc) -eq 0 ]]; then
-            echo "anss_events_${year}_${month}_${segment}.cat" >> ./anss_list.txt
-          fi
-        fi
-      done
-    done
-  done
+# Sort the anss_complete.txt file to preserve the order of earliest->latest
+if [[ -e anss_complete.txt ]]; then
+  sort < anss_complete.txt -t '_' -n -k 3 -k 4 -k 5 > anss_complete.txt.sort
+  mv anss_complete.txt.sort anss_complete.txt
 fi
 
-# Get a list of files that should exist but are not marked as complete
-cat anss_complete.txt anss_list.txt | sort -r -n -t "_" -k 3 -k 4 -k 5 | uniq -u > anss_incomplete.txt
+if ! [[ $2 =~ "rebuild" ]]; then
 
-anss_list_files=($(tail -r anss_incomplete.txt))
 
-echo ${anss_list_files[@]}
+  rm -f anss_just_downloaded.txt
 
-# For each of these files, in order from oldest to most recent, download the file.
-# Keep track of the last complete download made. If a younger file is downloaded
-# successfully, mark the older file as complete. Keep track of which files we
-# downloaded (potentially new) data into.
-
-last_index=-1
-for d_file in ${anss_list_files[@]}; do
-  download_anss_file ${d_file}
-  if [[ ! -e ${d_file} || $(has_a_line ${d_file}) -eq 0 ]]; then
-    echo "File ${d_file} was not downloaded or has no events. Not marking as complete"
+  if [[ -e anss_last_downloaded_event.txt ]]; then
+    lastevent_epoch=$(tail -n 1 anss_last_downloaded_event.txt | awk -F, '{print substr($1,1,19)}' | iso8601_to_epoch)
   else
-    echo ${d_file} >> anss_just_downloaded.txt
-    if [[ $last_index -ge 0 ]]; then
-      # Need to check whether the last file exists still before marking as complete (could have been deleted)
-      echo "File ${d_file} had events... marking earlier file ${anss_list_files[$last_index]} as complete."
-      [[ -e ${anss_list_files[$last_index]} ]] && echo ${anss_list_files[$last_index]} >> anss_complete.txt
-    fi
+    lastevent_epoch=$(echo "1900-01-01T00:00:01" | iso8601_to_epoch)
   fi
-  last_index=$(echo "$last_index + 1" | bc)
-done
+  echo "Last event from previous scrape has epoch $lastevent_epoch"
 
+
+  this_year=$(date -u +"%Y")
+  this_month=$(date -u +"%m")
+  this_day=$(date -u +"%d")
+  this_datestring=$(date -u +"%Y-%m-%dT%H:%M:%S")
+
+  # Generate a list of all possible catalog files that can be downloaded
+  # This takes a while and could be done differently with a persistent file
+
+  # Look for the last entry in the list of catalog files
+  final_cat=($(tail -n 1 ./anss_list.txt 2>/dev/null | awk -F_ '{split($5, a, "."); print $3, $4, a[1]}'))
+
+  # If there is no last entry (no file), regenerate the list
+  if [[ -z ${final_cat[0]} ]]; then
+    echo "Generating new catalog file list..."
+    echo "anss_events_1000_to_1950.cat" > ./anss_list.txt
+    for year in $(seq 1951 $this_year); do
+      for month in $(seq 1 12); do
+        if [[ $(echo "($year == $this_year) && ($month > $this_month)" | bc) -eq 1 ]]; then
+          break 1
+        fi
+        for segment in $(seq 1 3); do
+          if [[ $(echo "($year == $this_year) && ($month == $this_month)" | bc) -eq 1 ]]; then
+            [[ $(echo "($segment == 2) && ($this_day < 11)"  | bc) -eq 1 ]] && break
+            [[ $(echo "($segment == 3) && ($this_day < 21)"  | bc) -eq 1 ]] && break
+          fi
+          echo "anss_events_${year}_${month}_${segment}.cat" >> ./anss_list.txt
+        done
+      done
+    done
+  else
+  # Otherwise, add the events that postdate the last catalog file.
+    echo "Adding new catalog files to file list..."
+    final_year=${final_cat[0]}
+    final_month=${final_cat[1]}
+    final_segment=${final_cat[2]}
+
+    for year in $(seq $final_year $this_year); do
+      for month in $(seq 1 12); do
+        if [[  $(echo "($year == $this_year) && ($month > $this_month)" | bc) -eq 1 ]]; then
+          break 1
+        fi
+        for segment in $(seq 1 3); do
+          # Determine when to exit the loop as we have gone into the future
+          if [[ $(echo "($year >= $this_year) && ($month >= $this_month)" | bc) -eq 1 ]]; then
+             [[ $(echo "($segment == 2) && ($this_day < 11)"  | bc) -eq 1 ]] && break
+             [[ $(echo "($segment == 3) && ($this_day < 21)"  | bc) -eq 1 ]] && break
+          fi
+          # Determine whether to suppress printing of the catalog ID as it already exists
+          if ! [[ $(echo "($year <= $final_year) && ($month < $final_month)" | bc) -eq 1 ]]; then
+            if [[ $(echo "($year == $final_year) && ($month == $final_month) && ($segment <= $final_segment)" | bc) -eq 0 ]]; then
+              echo "anss_events_${year}_${month}_${segment}.cat" >> ./anss_list.txt
+            fi
+          fi
+        done
+      done
+    done
+  fi
+
+  # Get a list of files that should exist but are not marked as complete
+  cat anss_complete.txt anss_list.txt | sort -r -n -t "_" -k 3 -k 4 -k 5 | uniq -u > anss_incomplete.txt
+
+  anss_list_files=($(tail -r anss_incomplete.txt))
+
+  echo ${anss_list_files[@]}
+
+  # For each of these files, in order from oldest to most recent, download the file.
+  # Keep track of the last complete download made. If a younger file is downloaded
+  # successfully, mark the older file as complete. Keep track of which files we
+  # downloaded (potentially new) data into.
+
+  last_index=-1
+  for d_file in ${anss_list_files[@]}; do
+    download_anss_file ${d_file}
+    if [[ ! -e ${d_file} || $(has_a_line ${d_file}) -eq 0 ]]; then
+      echo "File ${d_file} was not downloaded or has no events. Not marking as complete"
+    else
+      echo ${d_file} >> anss_just_downloaded.txt
+      if [[ $last_index -ge 0 ]]; then
+        # Need to check whether the last file exists still before marking as complete (could have been deleted)
+        echo "File ${d_file} had events... marking earlier file ${anss_list_files[$last_index]} as complete."
+        [[ -e ${anss_list_files[$last_index]} ]] && echo ${anss_list_files[$last_index]} >> anss_complete.txt
+      fi
+    fi
+    last_index=$(echo "$last_index + 1" | bc)
+  done
+
+else
+  # Rebuild the tile from the downloaded
+  echo "Rebuilding tiles from complete files"
+  rm -f ${ANSSTILEDIR}tile*.cat
+  cp anss_complete.txt anss_just_downloaded.txt
+  lastevent_epoch=$(echo "1900-01-01T00:00:01" | iso8601_to_epoch)
+
+  for long in $(seq -180 5 175); do
+    for lati in $(seq -90 5 85); do
+      touch ${ANSSTILEDIR}"tile_${long}_${lati}.cat"
+    done
+  done
+
+fi
 
 # Add downloaded data to Tiles.
 
