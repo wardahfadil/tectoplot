@@ -192,7 +192,6 @@ TECTOPLOT_VERSION="TECTOPLOT 0.3, March 2021"
 ################################################################################
 ##### FUNCTION DEFINITIONS
 
-
 # Call without arguments will return current UTC time in the format YYYY-MM-DDTHH:MM:SS
 # Call with arguments will add the specified number of
 # days hours minutes seconds
@@ -4187,6 +4186,14 @@ do
       shift
     fi
 
+    if arg_is_flag $2; then
+      info_msg "[-scrapedata]: No rebuild command specified"
+      REBUILD=""
+    elif [[ $2 =~ "rebuild" ]]; then
+      REBUILD="rebuild"
+      shift
+    fi
+
     if [[ ${SCRAPESTRING} =~ .*g.* ]]; then
       info_msg "Scraping GCMT focal mechanisms"
       . $SCRAPE_GCMT
@@ -4197,15 +4204,15 @@ do
     fi
     if [[ ${SCRAPESTRING} =~ .*a.* ]]; then
       info_msg "Scraping ANSS seismic data"
-      . $SCRAPE_ANSS ${ANSSDIR}
+      . $SCRAPE_ANSS ${ANSSDIR} ${REBUILD}
     fi
     if [[ ${SCRAPESTRING} =~ .*c.* ]]; then
       info_msg "Scraping ISC seismic data"
-      . $SCRAPE_ISCSEIS ${ISC_EQS_DIR}
+      . $SCRAPE_ISCSEIS ${ISC_EQS_DIR} ${REBUILD}
     fi
     if [[ ${SCRAPESTRING} =~ .*z.* ]]; then
       info_msg "Scraping GFZ focal mechanisms"
-      . $SCRAPE_GFZ
+      . $SCRAPE_GFZ ${GFZDIR} ${REBUILD}
     fi
     if [[ ${SCRAPESTRING} =~ .*m.* ]]; then
       info_msg "Merging focal catalogs"
@@ -5156,7 +5163,7 @@ if [[ $setregionbyearthquakeflag -eq 1 ]]; then
         REGION_EQ_LON=$(echo $LOOK2 | gawk -F, '{print $3}')
         REGION_EQ_LAT=$(echo $LOOK2 | gawk -F, '{print $2}')
         # Remove quotation marks before getting title
-        PLOTTITLE="Event $REGION_EQ, $(echo $LOOK2 | gawk -F'"' -v OFS='' '{ for (i=2; i<=NF; i+=2) gsub(",", "", $i) } 1' | gawk -F, '{print $14}')"
+        PLOTTITLE="Event $REGION_EQ, $(echo $LOOK2 | gawk -F'"' -v OFS='' '{ for (i=2; i<=NF; i+=2) gsub(",", "", $i) } 1' | gawk -F, '{print $14}'), Depth=$(echo $LOOK2 | gawk -F, '{print $4}') km"
       else
         info_msg "[-r]: EQ mode: No event found"
         exit
@@ -5255,8 +5262,7 @@ fi
 info_msg "Recalculating AOI from map boundary"
 
 # Get the bounding box and normalize longitudes to the range [-180:180]
-
-gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} > thisb.txt
+# gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} > thisb.txt
 
 gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '
   ($1!="NaN") {
@@ -5269,7 +5275,6 @@ gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '
 
 # Project the bounding box using the RJSTRING
 gmt mapproject bounds.txt ${RJSTRING[@]} ${VERBOSE} > projbounds.txt
-
 
 if [[ $recalcregionflag -eq 1 ]]; then
 

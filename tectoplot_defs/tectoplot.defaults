@@ -310,7 +310,7 @@ EQLINECOLOR="black"
 EQREMOVEFILL="white"
 EQCUTMINDEPTH=-1000          # Ignore seismicity and CMT data above this depth
 EQCUTMAXDEPTH=6000           # Ignore seismicity and CMT data below this depth
-REMOVE_DEFAULTDEPTHS=1       # Should we remove events with D=10,5,33,etc
+REMOVE_DEFAULTDEPTHS=0       # Should we remove events with D=10,5,33,etc
 REMOVE_DEFAULTDEPTHS_MAXMAG=6     # But don't remove events above a (scaled?) magnitude threshold as they are more important
 REMOVE_DEFAULTDEPTHS_WITHPLOT=1   # Should we plot the removed events separately?
 REMOVE_EQUIVS=1              # Should we remove equivalent earthquakes if CMT exists?

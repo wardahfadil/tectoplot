@@ -20,6 +20,7 @@
 # time difference. Use 40 seconds just to catch most of the events in case the
 # origin/centroid times are being compared.
 
+echo "Merging focal mechanism catalogs into $FOCALCATALOG"
 if [[ ! -d $FOCALDIR ]]; then
   mkdir -p $FOCALDIR
 fi

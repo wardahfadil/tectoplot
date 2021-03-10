@@ -3,51 +3,75 @@
 
 # Scrape the GFZ focal mechanism catalog
 
+GFZDIR=${1}
+
 [[ ! -d $GFZDIR ]] && mkdir -p $GFZDIR
-[[ ! -e ${GFZCATALOG} ]] && touch ${GFZCATALOG}
+
 cd $GFZDIR
+
+GFZCATALOG=${GFZDIR}"gfz_extract.cat"
+
+[[ ! -e ${GFZCATALOG} ]] && touch ${GFZCATALOG}
+
+if [[ $2 =~ "rebuild" ]]; then
+  echo "Rebuilding GFZ focal mechanism catalog from downloaded _mt files..."
+  rm -f ${GFZCATALOG}
+  for gfz_file in gfz*_mt.txt; do
+    ${CMTTOOLS} ${gfz_file} Z Z >> ${GFZCATALOG}
+    echo -n "${gfz_file} "
+  done
+  exit
+fi
 
 echo "Downloading GFZ catalog using stored MT files as basis"
 
+# gfz_complete.txt contains file names of downloaded HTML pages
+# marked complete when a following file is successfully downloaded
+
 pagenum=1
-rm -f gfzmtlist.txt
 while : ; do
-    echo "Scraping GFZ moment tensor page $pagenum"
-    curl "https://geofon.gfz-potsdam.de/eqinfo/list.php?page=${pagenum}&datemin=&datemax=&latmax=&lonmin=&lonmax=&latmin=&magmin=&mode=mt&fmt=txt&nmax=1000" > gfz_list_$pagenum.txt
-    result=$(wc -l < gfz_list_$pagenum.txt)
-    [[ $result -gt 0 ]] || break
-    cat gfz_list_$pagenum.txt >> gfzmtlist.txt
-    pagenum=$(echo "$pagenum +1 " | bc)
+    if ! [[ -e gfz_list_${pagenum}.txt ]]; then
+      echo "Scraping GFZ moment tensor page $pagenum"
+      curl "https://geofon.gfz-potsdam.de/eqinfo/list.php?page=${pagenum}&datemin=&datemax=&latmax=&lonmin=&lonmax=&latmin=&magmin=&mode=mt&fmt=txt&nmax=1000" > gfz_list_$pagenum.txt
+      result=$(wc -l < gfz_list_$pagenum.txt)
+      if [[ $result -eq 0 ]]; then
+        rm -f gfz_list_$pagenum.txt
+        break
+      fi
+        # We will delete on end to reset downloading of this file each time
+    else
+      echo "Skipping download of GFZ page list ${pagenum}"
+    fi
+    pagenum=$(echo "$pagenum + 1 " | bc)
 done
+pagenum=$(echo "$pagenum - 1 " | bc)
 
-gawk < gfzmtlist.txt '{print $1}' > exists.txt
+last_gfz="gfz_list_$pagenum.txt"
 
-ls | gawk -F_ '(/_mt.txt/){ print $1}' >> exists.txt
-gawk < exists.txt '{seen[$1]++} END {
-  for (key in seen) {
-    if (seen[key] < 2) {
-      print key
-    }
-  }
-}' > toadd_tocat.txt
+# Make a list of all existing moment tensors
+cat gfz_list_*.txt | gawk '{print $1}' > exists_on_server.txt
 
-totalcount=$(wc -l < toadd_tocat.txt)
-currentcount=1
+# Find any moment tensors that are not downloaded already as _mt.txt files
 
 while read p; do
-  echo "Trying to download missing file $p ($currentcount/$totalcount)"
-  event_id=$(grep $p gfzmtlist.txt | head -n 1 | gawk '{print $1}')
-  event_yr=$(grep $p gfzmtlist.txt | head -n 1 | gawk  '{split($5,idv,"-"); print idv[1]; }')
-  curl "https://geofon.gfz-potsdam.de/data/alerts/${event_yr}/${event_id}/mt.txt" > ${event_id}_mt.txt
-  linelen=$(wc -l < ${event_id}_mt.txt)
-  if [[ $linelen -lt 20 ]]; then
-    echo "Event report ${event_id}_mt.txt is not at least 20 lines long. Marking and excluding."
-    mv ${event_id}_mt.txt ${event_id}_mtbad.txt
-  else
-    ${CMTTOOLS} ${event_id}_mt.txt Z Z >> ${GFZCATALOG}
+  if ! [[ -s "${p}_mt.txt" ]]; then
+    echo "Trying to download missing file ${p}_mt.txt"
+    event_id=$p
+    event_yr=$(echo $p | gawk  '{print substr($1,4,4); }')
+    echo ":${event_id}:${event_yr}:"
+    curl "https://geofon.gfz-potsdam.de/data/alerts/${event_yr}/${event_id}/mt.txt" > ${event_id}_mt.txt
+    linelen=$(wc -l < ${event_id}_mt.txt)
+    if [[ $linelen -lt 20 ]]; then
+      echo "Event report ${event_id}_mt.txt is not at least 20 lines long. Marking and excluding."
+      mv ${event_id}_mt.txt ${event_id}_mtbad.txt
+    else
+      ${CMTTOOLS} ${event_id}_mt.txt Z Z >> ${GFZCATALOG}
+    fi
   fi
-  currentcount=$(echo "$currentcount + 1" | bc)
-done < toadd_tocat.txt
+done < exists_on_server.txt
+
+echo "Deleting last GFZ page list: $last_gfz"
+rm -f ${last_gfz}
 
 # Example GFZ event report (line numbers added)
 # https://geofon.gfz-potsdam.de/data/alerts/2020/gfz2020xnmx/mt.txt
