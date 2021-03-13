@@ -289,19 +289,20 @@ if [[ -e anss_just_downloaded.txt ]]; then
   for anss_file in $selected_files; do
     echo "Processing file $anss_file into tile files"
     awk < $anss_file -F, -v tiledir=${ANSSTILEDIR} -v minepoch=$lastevent_epoch '
-    function rd(n, multipleOf)
-    {
-      if (n % multipleOf == 0) {
-        num = n
-      } else {
-         if (n > 0) {
-            num = n - n % multipleOf;
-         } else {
-            num = n + (-multipleOf - n % multipleOf);
-         }
-      }
-      return num
-    }
+    @include "tectoplot_functions.awk"
+    # function rd(n, multipleOf)
+    # {
+    #   if (n % multipleOf == 0) {
+    #     num = n
+    #   } else {
+    #      if (n > 0) {
+    #         num = n - n % multipleOf;
+    #      } else {
+    #         num = n + (-multipleOf - n % multipleOf);
+    #      }
+    #   }
+    #   return num
+    # }
     BEGIN { added=0 }
     (NR>1) {
       timecode=substr($1,1,19)

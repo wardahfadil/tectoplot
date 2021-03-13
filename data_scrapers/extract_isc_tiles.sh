@@ -82,19 +82,20 @@ MAXDATE_EPOCH=$(echo $7 | iso8601_to_epoch)
 
 # # Initial selection of files based on the input latitude and longitude range
 selected_files=($(awk -v minlon=${2} -v maxlon=${3} -v minlat=${4} -v maxlat=${5} '
-  function rd(n, multipleOf)
-  {
-    if (n % multipleOf == 0) {
-      num = n
-    } else {
-       if (n > 0) {
-          num = n - n % multipleOf;
-       } else {
-          num = n + (-multipleOf - n % multipleOf);
-       }
-    }
-    return num
-  }
+  @include "tectoplot_functions.awk"
+  # function rd(n, multipleOf)
+  # {
+  #   if (n % multipleOf == 0) {
+  #     num = n
+  #   } else {
+  #      if (n > 0) {
+  #         num = n - n % multipleOf;
+  #      } else {
+  #         num = n + (-multipleOf - n % multipleOf);
+  #      }
+  #   }
+  #   return num
+  # }
   BEGIN   {
     newminlon=minlon
     newmaxlon=maxlon

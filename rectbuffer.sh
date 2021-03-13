@@ -19,53 +19,54 @@ WIDTHKM=$2
 
 NLINES=$(wc -l < trackfile.txt)
 gawk < trackfile.txt -v numlines="${NLINES}" '
-    function acos(x)       { return atan2(sqrt(1-x*x), x)   }
-    function getpi()       { return atan2(0,-1)             }
-    function deg2rad(deg)  { return (getpi() / 180) * deg   }
-    function rad2deg(rad)  { return (180 / getpi()) * rad   }
-    function ave_dir(d1, d2) {
-      sumcos=cos(deg2rad(d1))+cos(deg2rad(d2))
-      sumsin=sin(deg2rad(d1))+sin(deg2rad(d2))
-      val=rad2deg(atan2(sumsin, sumcos))
-      return val
-    }
-    (NR==1) {
-      prevlon=$1
-      prevlat=$2
-      lonA=deg2rad($1)
-      latA=deg2rad($2)
-    }
-    (NR==2) {
-      lonB = deg2rad($1)
-      latB = deg2rad($2)
-      thetaA = (rad2deg(atan2(sin(lonB-lonA)*cos(latB), cos(latA)*sin(latB)-sin(latA)*cos(latB)*cos(lonB-lonA)))+90)%360;
-      printf "%.5f %.5f %.3f\n", prevlon, prevlat, thetaA;
-      prevlat=$2
-      prevlon=$1
-    }
-    (NR>2 && NR<numlines) {
-      lonC = deg2rad($1)
-      latC = deg2rad($2)
+  @include "tectoplot_functions.awk"
+  # function acos(x)       { return atan2(sqrt(1-x*x), x)   }
+  # function getpi()       { return atan2(0,-1)             }
+  # function deg2rad(deg)  { return (getpi() / 180) * deg   }
+  # function rad2deg(rad)  { return (180 / getpi()) * rad   }
+  # function ave_dir(d1, d2) {
+  #   sumcos=cos(deg2rad(d1))+cos(deg2rad(d2))
+  #   sumsin=sin(deg2rad(d1))+sin(deg2rad(d2))
+  #   val=rad2deg(atan2(sumsin, sumcos))
+  #   return val
+  # }
+  (NR==1) {
+    prevlon=$1
+    prevlat=$2
+    lonA=deg2rad($1)
+    latA=deg2rad($2)
+  }
+  (NR==2) {
+    lonB = deg2rad($1)
+    latB = deg2rad($2)
+    thetaA = (rad2deg(atan2(sin(lonB-lonA)*cos(latB), cos(latA)*sin(latB)-sin(latA)*cos(latB)*cos(lonB-lonA)))+90)%360;
+    printf "%.5f %.5f %.3f\n", prevlon, prevlat, thetaA;
+    prevlat=$2
+    prevlon=$1
+  }
+  (NR>2 && NR<numlines) {
+    lonC = deg2rad($1)
+    latC = deg2rad($2)
 
-      thetaB = (rad2deg(atan2(sin(lonC-lonB)*cos(latC), cos(latB)*sin(latC)-sin(latB)*cos(latC)*cos(lonC-lonB)))+90)%360;
-      printf "%.5f %.5f %.3f\n", prevlon, prevlat, ave_dir(thetaA,thetaB);
+    thetaB = (rad2deg(atan2(sin(lonC-lonB)*cos(latC), cos(latB)*sin(latC)-sin(latB)*cos(latC)*cos(lonC-lonB)))+90)%360;
+    printf "%.5f %.5f %.3f\n", prevlon, prevlat, ave_dir(thetaA,thetaB);
 
-      thetaA=thetaB
-      prevlon=$1
-      prevlat=$2
-      lonB=lonC
-      latB=latC
-    }
-    (NR==numlines){
-      lonC = deg2rad($1)
-      latC = deg2rad($2)
+    thetaA=thetaB
+    prevlon=$1
+    prevlat=$2
+    lonB=lonC
+    latB=latC
+  }
+  (NR==numlines){
+    lonC = deg2rad($1)
+    latC = deg2rad($2)
 
-      thetaB = (rad2deg(atan2(sin(lonC-lonB)*cos(latC), cos(latB)*sin(latC)-sin(latB)*cos(latC)*cos(lonC-lonB)))+90)%360;
+    thetaB = (rad2deg(atan2(sin(lonC-lonB)*cos(latC), cos(latB)*sin(latC)-sin(latB)*cos(latC)*cos(lonC-lonB)))+90)%360;
 
-      printf "%.5f %.5f %.3f\n", prevlon, prevlat, ave_dir(thetaB,thetaA);
+    printf "%.5f %.5f %.3f\n", prevlon, prevlat, ave_dir(thetaB,thetaA);
 
-      printf "%.5f %.5f %.3f\n", $1, $2, thetaB;
-    }' > az_trackfile.txt
+    printf "%.5f %.5f %.3f\n", $1, $2, thetaB;
+  }' > az_trackfile.txt
 
 rm -f track_buffer.txt rectbuf_back.txt
 

@@ -955,21 +955,7 @@ function defaultsmessage() {
 
 function coordinate_parse() {
   echo $1 | gawk '
-  function coordinate_decimal(str) {
-    neg=1
-    ss=tolower(str)
-    gsub("south", "s", ss)
-    gsub("west", "w", ss)
-    gsub("east", "e", ss)
-
-    if (ss ~ /s/ || ss ~ /w/ || substr($0,1,1)=="-") {
-      neg=-1;
-    }
-    gsub(/[^0-9\s\.]/, " ", ss)
-    split(ss, arr);
-    val=neg*(arr[1]+arr[2]/60+arr[3]/3600)
-    return val
-  }
+  @include "tectoplot_functions.awk"
   {
     printf("%.10f\n", coordinate_decimal($0))
   }'
@@ -1448,6 +1434,16 @@ TECTOPLOT_PATHS_MESSAGE=$DEFDIR"tectoplot.paths.message"
 TECTOPLOT_COLORS=$DEFDIR"tectoplot.gmtcolors"
 TECTOPLOT_CPTDEFS=$DEFDIR"tectoplot.cpts"
 TECTOPLOT_AUTHOR=$DEFDIR"tectoplot.author"
+
+# Awk functions are stored here:
+export AWKPATH=${TECTOPLOTDIR}"awkscripts/"
+
+# echo "$AWKPATH"
+# gawk '
+#   @include "tectoplot_functions.awk"
+#   BEGIN {
+#   test_include()
+# }'
 
 ################################################################################
 # Load CPT defaults, paths, and defaults
@@ -2577,6 +2573,10 @@ do
     plots+=("extragps")
     ;;
 
+  -gstable) # Plot only GPS velocities from Kreemer (2014) stable plate regions
+
+    ;;
+
   -gcdm)
     plots+=("gcdm")
     cpts+=("gcdm")
@@ -2724,7 +2724,6 @@ do
       done
       exit 0
     ;;
-
 
   -gmtvars)
     if [[ ${2:0:1} == [{] ]]; then
@@ -5708,7 +5707,10 @@ fi
 ##### MAKE FIBONACCI GRID POINTS
 if [[ $gridfibonacciflag -eq 1 ]]; then
   FIB_PHI=1.618033988749895
-  echo "" | gawk  -v n=$FIB_N  -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" 'function asin(x) { return atan2(x, sqrt(1-x*x)) } BEGIN {
+  echo "" | gawk  -v n=$FIB_N  -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '
+  @include "tectoplot_functions.awk"
+  # function asin(x) { return atan2(x, sqrt(1-x*x)) }
+  BEGIN {
     phi=1.618033988749895;
     pi=3.14159265358979;
     phi_inv=1/phi;
@@ -5716,17 +5718,23 @@ if [[ $gridfibonacciflag -eq 1 ]]; then
   } END {
     for (i=-n; i<=n; i++) {
       longitude = ((ga * i)*180/pi)%360;
-      if (longitude < -180) {
-        longitude=longitude+360;
-      }
-      if (longitude > 180) {
-        longitude=longitude-360
-      }
+
       latitude = asin((2 * i)/(2*n+1))*180/pi;
       # LON EDIT TAG - TEST
-      if (((longitude <= maxlon && longitude >= minlon) || (longitude+360 <= maxlon && longitude+360 >= minlon)) && (latitude <= maxlat) && (latitude >= minlat)) {
-        print longitude, latitude
+      if ( (latitude <= maxlat) && (latitude >= minlat)) {
+        if (test_lon(minlon, maxlon, longitude)==1) {
+          if (longitude < -180) {
+            longitude=longitude+360;
+          }
+          if (longitude > 180) {
+            longitude=longitude-360
+          }
+          print longitude, latitude
+        }
       }
+      # if (((longitude <= maxlon && longitude >= minlon) || (longitude+360 <= maxlon && longitude+360 >= minlon)) && {
+      #   print longitude, latitude
+      # }
     }
   }' > gridfile.txt
   gawk < gridfile.txt '{print $2, $1}' > gridswap.txt
@@ -6156,6 +6164,7 @@ fi
 ################################################################################
 
 if [[ $volcanoesflag -eq 1 ]]; then
+  echo gmt select $SMITHVOLC -: -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE
   gmt select $SMITHVOLC -: -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE >> ${F_VOLC}volctmp.dat
   gmt select $WHELLEYVOLC  -: -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE  >> ${F_VOLC}volctmp.dat
   gmt select $JAPANVOLC -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE  >> ${F_VOLC}volctmp.dat
@@ -6391,27 +6400,7 @@ if [[ $calccmtflag -eq 1 ]]; then
     # Do the initial AOI scrape
 
     gawk < $CMTFILE -v orig=$ORIGINFLAG -v cent=$CENTROIDFLAG -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '
-    function test_lon(minlon, maxlon, lon) {
-      while (lon>180) {lon=lon-360}
-      while (lon<-180) {lon=lon+360}
-      if (minlon < -180) {
-        if (maxlon <= -180) {
-          return (lon-360 <= maxlon && lon-360 >= minlon)?1:0
-        } else { # (maxlon >= -180)
-          return (lon-360 >= minlon || lon <= maxlon)?1:0
-        }
-      } else {   # (minlon >= -180)
-        if (minlon < 180){
-          if (maxlon <= 180) {
-            return (lon <= maxlon && lon >= minlon)?1:0
-          } else { # maxlon > 180
-            return (lon >= minlon || lon+360 <= maxlon)?1:0
-          }
-        } else {  # (minlon >= 180)
-          return (lon+360 >= minlon && lon+360 <= maxlon)?1:0
-        }
-      }
-    }
+    @include "tectoplot_functions.awk"
     {
       if (cent==1) {
         lon=$5
@@ -6696,7 +6685,9 @@ if [[ $calccmtflag -eq 1 ]]; then
 
     # IDs are at field numbers 8,16,24
 
-    gawk < ${F_SEIS}3comp.txt -v secondlimit=5 -v deglimit=2 -v maglimit=0.3 'function abs(v) {return v < 0 ? -v : v} {
+    gawk < ${F_SEIS}3comp.txt -v secondlimit=5 -v deglimit=2 -v maglimit=0.3 '
+    @include "tectoplot_functions.awk"
+    {
       if ($9 == "EQ") { # Only examine non-CMT events
         if ($14 > 7.5) {
           deglimit=3
@@ -6813,7 +6804,8 @@ if [[ $calccmtflag -eq 1 ]]; then
 
   cd ${F_KIN}
   gawk < $CMTFILE -v fmt=$CMTFORMAT -v cmttype=$CMTTYPE -v minmag="${CMT_MINMAG}" -v maxmag="${CMT_MAXMAG}" '
-    function abs(v) { return (v>0)?v:-v}
+    @include "tectoplot_functions.awk"
+    # function abs(v) { return (v>0)?v:-v}
     BEGIN { pi=atan2(0,-1) }
     {
       event_code=$2
@@ -6979,7 +6971,23 @@ if [[ $plotplates -eq 1 ]]; then
   # STEP 1: Identify the plates that fall within the AOI and extract their polygons and Euler poles
 
   # Cut the plate file by the ROI.
+
+  # This step FAILS to select plates on the other side of the dateline...
+  echo gmt spatial $PLATES -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C $VERBOSE
   gmt spatial $PLATES -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C $VERBOSE | gawk  '{print $1, $2}' > ${F_PLATES}map_plates_clip_a.txt
+
+  # Stupid test for []
+  if [[ $(echo "$MINLON < -180 && $MAXLON > -180" | bc) -eq 1 ]]; then
+    echo "Also cutting on other side of dateline neg:"
+    MINLONCUT=$(echo "${MINLON}+360" | bc -l)
+    echo gmt spatial $PLATES -R${MINLONCUT}/180/$MINLAT/$MAXLAT -C
+    gmt spatial $PLATES -R${MINLONCUT}/180/$MINLAT/$MAXLAT -C $VERBOSE | gawk  '{print $1, $2}' >> ${F_PLATES}map_plates_clip_a.txt
+  elif [[ $(echo "$MINLON < 180 && $MAXLON > 180" | bc) -eq 1 ]]; then
+    echo "Also cutting on other side of dateline pos:"
+    MAXLONCUT=$(echo "${MAXLON}-360" | bc -l)
+    echo gmt spatial $PLATES -R-180/${MAXLONCUT}/$MINLAT/$MAXLAT -C
+    gmt spatial $PLATES -R-180/${MAXLONCUT}/$MINLAT/$MAXLAT -C $VERBOSE | gawk  '{print $1, $2}' >> ${F_PLATES}map_plates_clip_a.txt
+  fi
 
   # Ensure CW orientation of clipped polygons.
   # GMT spatial strips out the header labels for some reason.
@@ -7050,7 +7058,9 @@ if [[ $plotplates -eq 1 ]]; then
   # Comes within 0.2 degrees of geod() results over large distances, while being symmetrical which geod isn't
   # We need perfect symmetry in order to create exact point pairs in adjacent polygons
 
-  gawk < ${F_PLATES}geodin.txt '{print $1, $2, $3, $4}' | gawk  'function acos(x) { return atan2(sqrt(1-x*x), x) }
+  gawk < ${F_PLATES}geodin.txt '{print $1, $2, $3, $4}' | gawk  '
+  @include "tectoplot_functions.awk"
+  # function acos(x) { return atan2(sqrt(1-x*x), x) }
       {
         if ($1 == ">") {
           print $1, $2;
@@ -7141,17 +7151,18 @@ if [[ $plotplates -eq 1 ]]; then
 	# Set the GPS to the reference plate if not overriding it from the command line
 
 	if [[ $gpsoverride -eq 0 ]]; then
+    echo "GPS dir is ${GPSDIR}"
     if [[ $defaultrefflag -eq 1 ]]; then
       # ITRF08 is likely similar to other reference frames.
-      GPS_FILE=$(echo $GPS"/GPS_ITRF08.gmt")
+      GPS_FILE=$(echo ${GPSDIR}"/GPS_ITRF08.gmt")
     else
       # REFPLATE now ends in a _X code to accommodate multiple subplates with the same pole.
       # This will break if _X becomes _XX (10 or more sub-plates)
       RGP=${REFPLATE::${#REFPLATE}-2}
-      if [[ -e $GPS"/GPS_${RGP}.gmt" ]]; then
-        GPS_FILE=$(echo $GPS"/GPS_${RGP}.gmt")
+      if [[ -e ${GPSDIR}"/GPS_${RGP}.gmt" ]]; then
+        GPS_FILE=$(echo ${GPSDIR}"/GPS_${RGP}.gmt")
       else
-        info_msg "No GPS file $GPS/GPS_${RGP}.gmt exists. Keeping default"
+        info_msg "No GPS file ${GPSDIR}/GPS_${RGP}.gmt exists. Keeping default"
       fi
     fi
   fi
@@ -7238,7 +7249,9 @@ if [[ $plotplates -eq 1 ]]; then
 
         # Calculate the minimum and maximum colatitudes of points in .pldat file relative to Euler Pole
         #cos(AOB)=cos(latA)cos(latB)cos(lonB-lonA)+sin(latA)sin(latB)
-        grep -v ">" ${F_PLATES}${v[$i]}.pldat | grep "\S" | gawk  -v plat=$polelat -v plon=$polelon 'function acos(x) { return atan2(sqrt(1-x*x), x) }
+        grep -v ">" ${F_PLATES}${v[$i]}.pldat | grep "\S" | gawk  -v plat=$polelat -v plon=$polelon '
+        @include "tectoplot_functions.awk"
+        # function acos(x) { return atan2(sqrt(1-x*x), x) }
           BEGIN {
             maxdeg=0; mindeg=180;
           }
@@ -7412,25 +7425,37 @@ if [[ $plotplates -eq 1 ]]; then
 
   	# currently these kinematic arrows are all the same scale. Can scale to match psvelo... but how?
 
-    grep "^[^>]" < ${F_PLATES}id_pts_euler.txt | gawk  'function abs(v) {return v < 0 ? -v : v} function ddiff(u) { return u > 180 ? 360 - u : u} {
+    grep "^[^>]" < ${F_PLATES}id_pts_euler.txt | gawk  '
+      @include "tectoplot_functions.awk"
+      # function abs(v) {return v < 0 ? -v : v} function ddiff(u) { return u > 180 ? 360 - u : u}
+      {
       diff=$15-$3;
       if (diff > 180) { diff = diff - 360 }
       if (diff < -180) { diff = diff + 360 }
       if (diff >= 20 && diff <= 70) { print $1, $2, $15, sqrt($13*$13+$14*$14) }}' >  ${F_PLATES}paz1thrust.txt
 
-    grep "^[^>]" < ${F_PLATES}id_pts_euler.txt | gawk  'function abs(v) {return v < 0 ? -v : v} function ddiff(u) { return u > 180 ? 360 - u : u} {
+    grep "^[^>]" < ${F_PLATES}id_pts_euler.txt | gawk  '
+      @include "tectoplot_functions.awk"
+      # function abs(v) {return v < 0 ? -v : v} function ddiff(u) { return u > 180 ? 360 - u : u}
+      {
       diff=$15-$3;
       if (diff > 180) { diff = diff - 360 }
       if (diff < -180) { diff = diff + 360 }
       if (diff > 70 && diff < 110) { print $1, $2, $15, sqrt($13*$13+$14*$14) }}' >  ${F_PLATES}paz1ss1.txt
 
-    grep "^[^>]" < ${F_PLATES}id_pts_euler.txt | gawk  'function abs(v) {return v < 0 ? -v : v} function ddiff(u) { return u > 180 ? 360 - u : u} {
+    grep "^[^>]" < ${F_PLATES}id_pts_euler.txt | gawk  '
+      @include "tectoplot_functions.awk"
+      # function abs(v) {return v < 0 ? -v : v} function ddiff(u) { return u > 180 ? 360 - u : u}
+      {
       diff=$15-$3;
       if (diff > 180) { diff = diff - 360 }
       if (diff < -180) { diff = diff + 360 }
       if (diff > -90 && diff < -70) { print $1, $2, $15, sqrt($13*$13+$14*$14) }}' > ${F_PLATES}paz1ss2.txt
 
-    grep "^[^>]" < ${F_PLATES}id_pts_euler.txt | gawk  'function abs(v) {return v < 0 ? -v : v} function ddiff(u) { return u > 180 ? 360 - u : u} {
+    grep "^[^>]" < ${F_PLATES}id_pts_euler.txt | gawk  '
+      @include "tectoplot_functions.awk"
+      # function abs(v) {return v < 0 ? -v : v} function ddiff(u) { return u > 180 ? 360 - u : u}
+      {
       diff=$15-$3;
       if (diff > 180) { diff = diff - 360 }
       if (diff < -180) { diff = diff + 360 }
@@ -9829,7 +9854,8 @@ if [[ $makelegendflag -eq 1 ]]; then
         info_msg "Legend: cmt"
 
         MEXP_TRIPLE=$(awk < $CMTFILE '
-          function ceil(x){return int(x)+(x>int(x))}
+          @include "tectoplot_functions.awk"
+          # function ceil(x){return int(x)+(x>int(x))}
           BEGIN {
             getline;
             maxmag=$13
@@ -10018,7 +10044,8 @@ if [[ $makelegendflag -eq 1 ]]; then
         if [[ -e $CMTFILE ]]; then
           # Get magnitude range from CMT
           SEIS_QUINT=$(awk < $CMTFILE '
-            function ceil(x){return int(x)+(x>int(x))}
+            @include "tectoplot_functions.awk"
+            # function ceil(x){return int(x)+(x>int(x))}
             BEGIN {
               getline;
               maxmag=$13

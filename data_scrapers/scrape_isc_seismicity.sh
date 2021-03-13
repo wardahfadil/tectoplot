@@ -376,19 +376,20 @@ if [[ -e isc_just_downloaded.txt ]]; then
   for isc_file in $selected_files; do
     echo "Processing file $isc_file into tile files"
     cat $isc_file | sed -n '/^  EVENTID/,/^STOP/p' | sed '1d;$d' | sed '$d' | gawk -F, -v tiledir=${ISCTILEDIR} -v minepoch=$lastevent_epoch '
-    function rd(n, multipleOf)
-    {
-      if (n % multipleOf == 0) {
-        num = n
-      } else {
-         if (n > 0) {
-            num = n - n % multipleOf;
-         } else {
-            num = n + (-multipleOf - n % multipleOf);
-         }
-      }
-      return num
-    }
+    @include "tectoplot_functions.awk"
+    # function rd(n, multipleOf)
+    # {
+    #   if (n % multipleOf == 0) {
+    #     num = n
+    #   } else {
+    #      if (n > 0) {
+    #         num = n - n % multipleOf;
+    #      } else {
+    #         num = n + (-multipleOf - n % multipleOf);
+    #      }
+    #   }
+    #   return num
+    # }
     BEGIN { added=0 }
     {
       timecode=sprintf("%sT%s", $3, substr($4, 1, 8))

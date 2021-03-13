@@ -38,12 +38,8 @@ function rad2deg(Rad){ return ( 45.0/atan(1.0) ) * Rad }
 # e.g. rad/year or deg/Myr
 
 function eulervec(eLat_d1, eLon_d1, eV1, eLat_d2, eLon_d2, eV2, tLon_d, tLat_d) {
-# km
 	pi = atan2(0, -1)
 	earthrad = 6371
-
-	# We could use an ellipsoidal Earth model
-
 	eLat_r1 = deg2rad(eLat_d1)
 	eLon_r1 = deg2rad(eLon_d1)
 	eLat_r2 = deg2rad(eLat_d2)
