@@ -222,7 +222,8 @@ GRAV_SHORT_SOURCESTRING="WGM2012"
 
 WGMDIR=$DATAROOT"WGM2012/"
 
-WGMBOUGUER=$WGMDIR"WGM2012_Bouguer_ponc_2min.grd"
+WGMBOUGUER_ORIG=$WGMDIR"WGM2012_Bouguer_ponc_2min.grd"
+WGMBOUGUER=$WGMDIR"BG_resample.nc"
 WGMBOUGUER_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/WGM2012_Bouguer_ponc_2min.grd"
 WGMBOUGUER_BYTES="233410500"
 
@@ -230,7 +231,8 @@ WGMBOUGUER_CPT=$WGMDIR"PALET_WGM_Bouguer_Global.cpt"
 WGMBOUGUER_CPT_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/PALET_WGM_Bouguer_Global.cpt"
 WGMBOUGUER_CPT_BYTES="841"
 
-WGMISOSTATIC=$WGMDIR"WGM2012_Isostatic_ponc_2min.grd"
+WGMISOSTATIC_ORIG=$WGMDIR"WGM2012_Isostatic_ponc_2min.grd"
+WGMISOSTATIC=$WGMDIR"IS_resample.nc"
 WGMISOSTATIC_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/WGM2012_Isostatic_ponc_2min.grd"
 WGMISOSTATIC_BYTES="233410324"
 
@@ -238,7 +240,8 @@ WGMISOSTATIC_CPT=$WGMDIR"PALET_WGM_Isostatic_Global.cpt"
 WGMISOSTATIC_CPT_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/PALET_WGM_Isostatic_Global.cpt"
 WGMISOSTATIC_CPT_BYTES="538"
 
-WGMFREEAIR=$WGMDIR"WGM2012_Freeair_ponc_2min.grd"
+WGMFREEAIR_ORIG=$WGMDIR"WGM2012_Freeair_ponc_2min.grd"
+WGMFREEAIR=$WGMDIR"FA_resample.nc"
 WGMFREEAIR_SOURCEURL="https://cdn.obs-mip.fr/bgi/wgm_grid/data/WGM2012_Freeair_ponc_2min.grd"
 WGMFREEAIR_BYTES="233410292"
 

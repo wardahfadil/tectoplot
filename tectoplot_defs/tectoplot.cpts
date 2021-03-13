@@ -15,6 +15,7 @@ TOPO_CPT_DEF_STEP=1
 SEISDEPTH_CPT=${F_CPTS}"seisdepth.cpt"
 SEISDEPTH_NODEEPEST_CPT=${F_CPTS}"seisdepth_nodeepest.cpt"
 GRAV_CPT=${F_CPTS}"grav.cpt"
+RESGRAV_CPT=${F_CPTS}"resgrav.cpt"
 MAG_CPT=${F_CPTS}"mag.cpt"
 POPULATION_CPT=${F_CPTS}"population.cpt"
 FAULTSLIP_CPT=${F_CPTS}"faultslip.cpt"

@@ -149,6 +149,7 @@ selected_files=($(awk -v minlon=${2} -v maxlon=${3} -v minlat=${4} -v maxlat=${5
       for (i=minlontile; i<=maxlontile; i+=5) {
         for (j=minlattile; j<=maxlattile; j+=5) {
           printf("tile_%d_%d.cat\n", i, j)
+          printf("tile_%d_%d.cat... ", i, j) > "/dev/stderr"
         }
       }
     }
@@ -164,9 +165,34 @@ selected_files=($(awk -v minlon=${2} -v maxlon=${3} -v minlat=${4} -v maxlat=${5
 for this_file in ${selected_files[@]}; do
   gawk < $this_file -F'"' -v OFS='' '{ for (i=2; i<=NF; i+=2) gsub(",", "", $i) } 1' | sed 's/\"//g' | \
   gawk -F, -v minlon=${2} -v maxlon=${3} -v minlat=${4} -v maxlat=${5} -v minepoch=${MINDATE_EPOCH} -v maxepoch=${MAXDATE_EPOCH} -v minmag=${8} -v maxmag=${9} -v mindepth=${10} -v maxdepth=${11} '
+  function test_lon(minlon, maxlon, lon) {
+    while (lon>180) {lon=lon-360}
+    while (lon<-180) {lon=lon+360}
+    if (minlon < -180) {
+      if (maxlon <= -180) {
+        return (lon-360 <= maxlon && lon-360 >= minlon)?1:0
+      } else { # (maxlon >= -180)
+        return (lon-360 >= minlon || lon <= maxlon)?1:0
+      }
+    } else {   # (minlon >= -180)
+      if (minlon < 180){
+        if (maxlon <= 180) {
+          return (lon <= maxlon && lon >= minlon)?1:0
+        } else { # maxlon > 180
+          return (lon >= minlon || lon+360 <= maxlon)?1:0
+        }
+      } else {  # (minlon >= 180)
+        return (lon+360 >= minlon && lon+360 <= maxlon)?1:0
+      }
+
+    }
+  }
   ($1 != "time" && $15 == "earthquake" && $2 <= maxlat && $2 >= minlat && $5 >= minmag && $5 <= maxmag && $4 >= mindepth && $4 <= maxdepth) {
 
-    if ((maxlon <= 180 && (minlon <= $3 && $3 <= maxlon)) || (maxlon > 180 && (minlon <= $3+360 || $3+360 <= maxlon))) {
+    # Three cases: minlon < -180 (e.g. [-190:-170], maxlon>180 (e.g. [170:190]), and otherwise (e.g. [-170:170])
+
+    if (test_lon(minlon, maxlon, $3)==1) {
+#    if ((maxlon <= 180 && (minlon <= $3 && $3 <= maxlon)) || (maxlon > 180 && (minlon <= $3+360 || $3+360 <= maxlon)) || (minlon < -180 && (minlon <= $3-360 || $3-360 <= maxlon))) {
 
       # Now we check if the event actually falls inside the specified time window
 
